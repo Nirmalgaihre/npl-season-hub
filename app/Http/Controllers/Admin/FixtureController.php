@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 
 class FixtureController extends Controller
 {
@@ -247,15 +248,20 @@ public function show($id)
 
     $deliveries = DB::table('live_deliveries')
         ->whereIn('innings_id', $innings->pluck('id'))
-        ->orderBy('innings_id')
         ->orderBy('id')
         ->get()
         ->groupBy('innings_id');
 
     foreach ($innings as $inning) {
-        $inning->deliveries = $deliveries->get($inning->id, collect());
+        $inning->deliveries = $deliveries->get(
+            $inning->id,
+            collect()
+        );
     }
 
-    return view('fixtures.show', compact('fixture', 'innings'));
+    return view('fixtures.show', compact(
+        'fixture',
+        'innings'
+    ));
 }
 }

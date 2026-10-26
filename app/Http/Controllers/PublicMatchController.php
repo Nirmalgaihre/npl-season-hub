@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Fixture;
 use App\Models\Season;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class PublicMatchController extends Controller
@@ -59,7 +60,7 @@ class PublicMatchController extends Controller
     }
 
     /**
-     * Display an individual match.
+     * Display an individual match and its innings.
      */
     public function show(Fixture $fixture): View
     {
@@ -81,8 +82,8 @@ class PublicMatchController extends Controller
         );
 
         /*
-         * Hide all score and result details until an administrator
-         * verifies the result.
+         * Only expose score details after verification.
+         * Live innings data is handled separately below.
          */
         if (! $fixture->is_result_verified) {
             $fixture->setAttribute('home_runs', null);
@@ -98,6 +99,46 @@ class PublicMatchController extends Controller
             $fixture->setAttribute('result_summary', null);
         }
 
-        return view('fixtures.show', compact('fixture'));
+        /*
+         * Always define $innings so the Blade view won't throw
+         * "Undefined variable $innings".
+         */
+        $innings = DB::table('live_innings')
+            ->where('fixture_id', $fixture->id)
+            ->orderBy('innings_number')
+            ->get();
+
+        /*
+         * Do not expose unverified innings scores or deliveries.
+         */
+        $canShowLiveDetails = $fixture->status === 'live'
+            || $fixture->is_result_verified;
+
+        if ($canShowLiveDetails && $innings->isNotEmpty()) {
+            $deliveriesByInnings = DB::table('live_deliveries')
+                ->whereIn('innings_id', $innings->pluck('id'))
+                ->orderBy('id')
+                ->get()
+                ->groupBy('innings_id');
+
+            foreach ($innings as $inning) {
+                $inning->deliveries = $deliveriesByInnings->get(
+                    $inning->id,
+                    collect()
+                );
+            }
+        } else {
+            $innings = collect();
+        }
+
+        $currentInning = $innings->first(
+            fn ($inning) => (bool) $inning->is_current
+        );
+
+        return view('fixtures.show', [
+            'fixture' => $fixture,
+            'innings' => $innings,
+            'currentInning' => $currentInning,
+        ]);
     }
 }
