@@ -228,4 +228,34 @@ class FixtureController extends Controller
 
         return $data;
     }
+    use Illuminate\Support\Facades\DB;
+use App\Models\Fixture;
+
+public function show($id)
+{
+    $fixture = Fixture::with([
+        'homeTeam',
+        'awayTeam',
+        'season',
+        'winner',
+    ])->findOrFail($id);
+
+    $innings = DB::table('live_innings')
+        ->where('fixture_id', $fixture->id)
+        ->orderBy('innings_number')
+        ->get();
+
+    $deliveries = DB::table('live_deliveries')
+        ->whereIn('innings_id', $innings->pluck('id'))
+        ->orderBy('innings_id')
+        ->orderBy('id')
+        ->get()
+        ->groupBy('innings_id');
+
+    foreach ($innings as $inning) {
+        $inning->deliveries = $deliveries->get($inning->id, collect());
+    }
+
+    return view('fixtures.show', compact('fixture', 'innings'));
+}
 }
