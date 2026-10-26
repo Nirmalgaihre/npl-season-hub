@@ -6,6 +6,7 @@ use App\Models\Fixture;
 use App\Models\Season;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 
 class PublicMatchController extends Controller
 {
