@@ -4,585 +4,806 @@
 
 @section('content')
 @php
+    $home = $fixture->homeTeam;
+    $away = $fixture->awayTeam;
+
+    $homeName = $home?->short_name ?: $home?->name ?: 'Home Team';
+    $awayName = $away?->short_name ?: $away?->name ?: 'Away Team';
+
+    $innings = $innings ?? collect();
+    $scorecards = $scorecards ?? collect();
+
+    $status = strtolower($fixture->status ?? 'scheduled');
+    $verified = (bool) $fixture->is_result_verified;
+
+    $format = strtoupper(str_replace(
+        '_',
+        ' ',
+        $fixture->match_type ?? 'T20'
+    ));
+
     $statusStyles = [
-        'live' => 'bg-red-50 text-red-700',
-        'scheduled' => 'bg-blue-50 text-blue-700',
-        'completed' => 'bg-emerald-50 text-emerald-700',
-        'postponed' => 'bg-orange-50 text-orange-700',
-        'abandoned' => 'bg-slate-100 text-slate-600',
+        'live' => 'bg-red-50 text-red-700 ring-red-200',
+        'scheduled' => 'bg-blue-50 text-blue-700 ring-blue-200',
+        'upcoming' => 'bg-blue-50 text-blue-700 ring-blue-200',
+        'completed' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+        'postponed' => 'bg-amber-50 text-amber-800 ring-amber-200',
+        'abandoned' => 'bg-slate-100 text-slate-700 ring-slate-200',
     ];
 
-    $statusStyle = $statusStyles[$fixture->status] ?? 'bg-slate-100 text-slate-700';
+    $statusLabels = [
+        'live' => 'LIVE',
+        'scheduled' => 'UPCOMING',
+        'upcoming' => 'UPCOMING',
+        'completed' => 'COMPLETED',
+        'postponed' => 'POSTPONED',
+        'abandoned' => 'ABANDONED',
+    ];
 
-    $homeName = $fixture->homeTeam->short_name ?: $fixture->homeTeam->name;
-    $awayName = $fixture->awayTeam->short_name ?: $fixture->awayTeam->name;
+    $statusStyle = $statusStyles[$status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
+    $statusLabel = $statusLabels[$status] ?? strtoupper($status);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Find innings by batting team
+    |--------------------------------------------------------------------------
+    */
+
+    $homeInning = $innings->first(
+        fn ($item) => (int) $item->batting_team_id === (int) $fixture->home_team_id
+    );
+
+    $awayInning = $innings->first(
+        fn ($item) => (int) $item->batting_team_id === (int) $fixture->away_team_id
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Score visibility
+    |--------------------------------------------------------------------------
+    |
+    | Verified official results and live matches can use fixture score fields.
+    | When manual innings are available, display their totals as a fallback.
+    |
+    */
+
+    $showOfficialScores = $verified || $status === 'live';
+
+    $homeScoreAvailable = $fixture->home_runs !== null;
+    $awayScoreAvailable = $fixture->away_runs !== null;
+
+    $hasInnings = $innings->isNotEmpty();
+
+    $showHomeOfficialScore = $showOfficialScores && $homeScoreAvailable;
+    $showAwayOfficialScore = $showOfficialScores && $awayScoreAvailable;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Display helpers
+    |--------------------------------------------------------------------------
+    */
+
+    $homeOvers = $fixture->home_overs ?? '—';
+    $awayOvers = $fixture->away_overs ?? '—';
+
+    if (! $showHomeOfficialScore && $homeInning) {
+        $homeOvers = $homeInning->overs_display
+            ?? (
+                intdiv((int) ($homeInning->legal_balls ?? 0), 6)
+                . '.'
+                . ((int) ($homeInning->legal_balls ?? 0) % 6)
+            );
+    }
+
+    if (! $showAwayOfficialScore && $awayInning) {
+        $awayOvers = $awayInning->overs_display
+            ?? (
+                intdiv((int) ($awayInning->legal_balls ?? 0), 6)
+                . '.'
+                . ((int) ($awayInning->legal_balls ?? 0) % 6)
+            );
+    }
+
+    $scheduledDate = $fixture->scheduled_at?->format('D, d M Y')
+        ?? 'Date to be announced';
+
+    $scheduledTime = $fixture->scheduled_at?->format('h:i A')
+        ?? 'Time to be announced';
+
+    $venue = $fixture->venue ?: 'Venue to be announced';
+
+    $showNotStartedMessage = in_array($status, ['scheduled', 'upcoming'], true)
+        && ! $hasInnings
+        && ! $showHomeOfficialScore
+        && ! $showAwayOfficialScore;
 @endphp
 
-<div class="min-h-screen bg-[#F6F8FB] text-[#202766]">
+<div class="min-h-screen bg-[#f4f6fa] text-slate-900">
 
-    {{-- Breadcrumb and page heading --}}
-    <section class="border-b border-slate-200 bg-white">
-        <div class="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10">
+    {{-- =========================================================
+         TOP NAVIGATION
+    ========================================================== --}}
+    <header class="border-b border-slate-200 bg-white">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
 
-            <nav class="mb-7 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                <a href="{{ route('home') }}" class="hover:text-[#202766]">
-                    Home
+            <div class="min-w-0">
+                <a
+                    href="{{ route('fixtures.index') }}"
+                    class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#202766]"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/>
+                    </svg>
+                    All fixtures
                 </a>
-                <span>/</span>
-                <a href="{{ route('fixtures.index') }}" class="hover:text-[#202766]">
-                    Fixtures
-                </a>
-                <span>/</span>
-                <span class="font-semibold text-[#202766]">
-                    Match {{ $fixture->match_number }}
-                </span>
-            </nav>
 
-            <div class="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+                <nav aria-label="Breadcrumb" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    <a href="{{ route('home') }}" class="transition hover:text-slate-700">
+                        Home
+                    </a>
+
+                    <span>/</span>
+
+                    <a href="{{ route('fixtures.index') }}" class="transition hover:text-slate-700">
+                        Fixtures
+                    </a>
+
+                    <span>/</span>
+
+                    <span class="font-bold text-slate-600">
+                        Match {{ $fixture->match_number }}
+                    </span>
+                </nav>
+            </div>
+
+            <span class="inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-[10px] font-black tracking-[0.12em] ring-1 {{ $statusStyle }}">
+                @if ($status === 'live')
+                    <span class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-60"></span>
+                        <span class="relative inline-flex h-2 w-2 rounded-full bg-red-600"></span>
+                    </span>
+                @else
+                    <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                @endif
+
+                {{ $statusLabel }}
+            </span>
+        </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
+
+        {{-- =====================================================
+             PAGE HEADING
+        ====================================================== --}}
+        <section class="mb-6 sm:mb-8">
+            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
-                    <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#F06445]">
-                        {{ $fixture->season->name }}
-                    </p>
+                    <div class="inline-flex items-center gap-2 rounded-md bg-orange-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#e65d43]">
+                        <span class="h-1.5 w-1.5 rounded-full bg-[#e65d43]"></span>
+                        {{ $fixture->season?->name ?? 'Nepal Premier League' }}
+                    </div>
 
-                    <h1 class="text-3xl font-extrabold tracking-tight text-[#202766] sm:text-4xl">
+                    <h1 class="mt-3 text-3xl font-black tracking-tight text-[#202766] sm:text-4xl">
                         Match Centre
                     </h1>
 
-                    <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                        Match details, official scorecard and result information in one place.
+                    <p class="mt-2 text-sm leading-6 text-slate-500">
+                        Match {{ $fixture->match_number }}
+                        <span class="mx-1.5 text-slate-300">/</span>
+                        {{ $format }}
+                        <span class="mx-1.5 text-slate-300">/</span>
+                        {{ $fixture->scheduled_at?->format('d M Y') ?? 'Date TBA' }}
                     </p>
                 </div>
 
-                <span class="inline-flex w-fit items-center gap-2 rounded-sm px-4 py-2 text-xs font-bold uppercase tracking-wider {{ $statusStyle }}">
-                    @if ($fixture->status === 'live')
-                        <span class="h-2 w-2 animate-pulse rounded-full bg-red-600"></span>
-                    @endif
-                    {{ $fixture->status === 'scheduled' ? 'Not Started Yet' : ucfirst($fixture->status) }}
-                </span>
+                <a
+                    href="#scorecard"
+                    class="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#202766] hover:text-[#202766] sm:self-auto"
+                >
+                    View scorecard
+
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7 7 7 7-7"/>
+                    </svg>
+                </a>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <main class="mx-auto max-w-7xl px-5 py-9 sm:px-8 lg:px-10">
+        {{-- =====================================================
+             MAIN SCOREBOARD
+        ====================================================== --}}
+        <section class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
 
-        {{-- Match information heading --}}
-        <div class="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-            <div>
-                <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#F06445]">
-                    Match information
-                </p>
-                <h2 class="mt-2 text-2xl font-extrabold text-[#202766]">
-                    {{ $fixture->homeTeam->name }}
-                    <span class="font-medium text-slate-400">vs</span>
-                    {{ $fixture->awayTeam->name }}
-                </h2>
-            </div>
+            {{-- Scoreboard top strip --}}
+            <div class="relative overflow-hidden bg-[#202766] px-5 py-5 text-white sm:px-8">
+                <div class="pointer-events-none absolute -right-12 -top-20 h-48 w-48 rounded-full border-[24px] border-white/[0.04]"></div>
+                <div class="pointer-events-none absolute -right-2 -top-8 h-32 w-32 rounded-full border-[16px] border-white/[0.04]"></div>
 
-            <p class="text-sm text-slate-500">
-                Match {{ $fixture->match_number }}
-                <span class="mx-1">·</span>
-                {{ ucfirst($fixture->match_type) }}
-            </p>
-        </div>
-
-        {{-- Main scorecard --}}
-        <section class="overflow-hidden border border-slate-200 bg-white">
-
-            {{-- Navy competition header --}}
-            <div class="bg-[#202766] px-5 py-5 text-white sm:px-8">
-                <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div class="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-orange-200">
-                            Nepal Premier League
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">
+                            {{ $fixture->season?->name ?? 'NPL Season Hub' }}
                         </p>
-                        <h3 class="mt-1 text-lg font-bold">
-                            {{ $fixture->season->name }}
-                        </h3>
+
+                        <h2 class="mt-1 text-lg font-extrabold sm:text-xl">
+                            Match {{ $fixture->match_number }}
+                        </h2>
+
+                        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-indigo-200">
+                            <span>{{ $format }} match</span>
+                            <span class="text-indigo-400">•</span>
+                            <span>{{ $fixture->scheduled_at?->format('d M Y') ?? 'Date TBA' }}</span>
+                        </div>
                     </div>
 
-                    <div class="text-sm leading-6 text-slate-200 sm:text-right">
-                        <p>
-                            {{ $fixture->scheduled_at?->format('D, d M Y') ?? 'Date to be announced' }}
-                        </p>
-                        <p>
-                            {{ $fixture->scheduled_at?->format('h:i A') ?? 'Time to be announced' }}
+                    <div class="sm:text-right">
+                        <div class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-orange-300"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                            >
+                                <circle cx="12" cy="12" r="9"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
+                            </svg>
+
+                            <span class="text-xs font-bold text-white">
+                                {{ $scheduledTime }}
+                            </span>
+                        </div>
+
+                        <p class="mt-2 text-xs text-indigo-200">
+                            {{ $venue }}
                         </p>
                     </div>
                 </div>
             </div>
 
-            {{-- Team score area --}}
-            <div class="px-5 py-9 sm:px-10 sm:py-12">
-                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-8">
+            {{-- Team comparison --}}
+            <div class="px-4 py-8 sm:px-8 sm:py-10">
+                <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-8">
 
-                    {{-- Home team --}}
+                    {{-- HOME TEAM --}}
                     <div class="min-w-0 text-center">
-                        @if ($fixture->homeTeam->logo)
-                            <img
-                                src="{{ asset('storage/' . $fixture->homeTeam->logo) }}"
-                                alt="{{ $fixture->homeTeam->name }} logo"
-                                class="mx-auto h-16 w-16 object-contain sm:h-24 sm:w-24"
-                            >
-                        @else
-                            <div class="mx-auto flex h-16 w-16 items-center justify-center border border-slate-200 bg-[#F6F8FB] text-lg font-extrabold text-[#202766] sm:h-24 sm:w-24 sm:text-2xl">
-                                {{ strtoupper(substr($homeName, 0, 3)) }}
-                            </div>
-                        @endif
+                        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-2 sm:h-24 sm:w-24 sm:rounded-3xl sm:p-3">
+                            @if ($home?->logo)
+                                <img
+                                    src="{{ asset('storage/' . $home->logo) }}"
+                                    alt="{{ $homeName }} logo"
+                                    class="h-full w-full object-contain"
+                                    loading="lazy"
+                                >
+                            @else
+                                <span class="text-base font-black tracking-tight text-[#202766] sm:text-2xl">
+                                    {{ strtoupper(substr($homeName, 0, 3)) }}
+                                </span>
+                            @endif
+                        </div>
 
-                        <h3 class="mx-auto mt-4 max-w-52 break-words text-base font-extrabold leading-snug text-[#202766] sm:text-xl">
-                            {{ $fixture->homeTeam->name }}
+                        <p class="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 sm:text-[10px]">
+                            Home team
+                        </p>
+
+                        <h3 class="mx-auto mt-1 max-w-40 break-words text-sm font-black leading-5 text-slate-800 sm:max-w-xs sm:text-xl sm:leading-7">
+                            {{ $home?->name ?? 'Home Team' }}
                         </h3>
 
-                        @if ($fixture->is_result_verified)
-                            <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#202766] sm:text-5xl">
-                                {{ $fixture->home_runs ?? 0 }}
-                                <span class="text-slate-400">/</span>
-                                {{ $fixture->home_wickets ?? 0 }}
+                        @if ($showHomeOfficialScore)
+                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
+                                {{ $fixture->home_runs }}<span class="text-slate-300">/</span>{{ $fixture->home_wickets ?? 0 }}
                             </p>
-                            <p class="mt-2 text-sm text-slate-500">
-                                {{ $fixture->home_overs ?? '—' }} overs
+
+                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                                {{ $homeOvers }} overs
+                            </p>
+                        @elseif ($homeInning)
+                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
+                                {{ $homeInning->total_runs ?? 0 }}<span class="text-slate-300">/</span>{{ $homeInning->wickets ?? 0 }}
+                            </p>
+
+                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                                {{ $homeOvers }} overs
                             </p>
                         @else
-                            <p class="mt-5 text-sm font-medium text-slate-400">
-                                Score not available
+                            <p class="mt-4 text-xs font-semibold text-slate-400 sm:text-sm">
+                                {{ in_array($status, ['scheduled', 'upcoming'], true) ? 'Yet to bat' : 'Score unavailable' }}
                             </p>
                         @endif
                     </div>
 
-                    {{-- Versus --}}
-                    <div class="flex flex-col items-center gap-3">
-                        <span class="flex h-11 w-11 items-center justify-center bg-[#F06445] text-xs font-extrabold text-white sm:h-14 sm:w-14 sm:text-sm">
+                    {{-- VS --}}
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-black tracking-wider text-slate-400 shadow-sm sm:h-14 sm:w-14 sm:text-xs">
                             VS
-                        </span>
+                        </div>
 
-                        <span class="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:text-xs">
-                            {{ $fixture->status === 'live'
-                                ? 'Live match'
-                                : ($fixture->status === 'completed' ? 'Full time' : 'Upcoming') }}
+                        <span class="mt-2 text-[8px] font-black uppercase tracking-[0.14em] text-slate-400 sm:text-[9px]">
+                            {{ $status === 'completed' ? 'Full time' : ($status === 'live' ? 'In play' : 'Fixture') }}
                         </span>
                     </div>
 
-                    {{-- Away team --}}
+                    {{-- AWAY TEAM --}}
                     <div class="min-w-0 text-center">
-                        @if ($fixture->awayTeam->logo)
-                            <img
-                                src="{{ asset('storage/' . $fixture->awayTeam->logo) }}"
-                                alt="{{ $fixture->awayTeam->name }} logo"
-                                class="mx-auto h-16 w-16 object-contain sm:h-24 sm:w-24"
-                            >
-                        @else
-                            <div class="mx-auto flex h-16 w-16 items-center justify-center border border-slate-200 bg-[#F6F8FB] text-lg font-extrabold text-[#202766] sm:h-24 sm:w-24 sm:text-2xl">
-                                {{ strtoupper(substr($awayName, 0, 3)) }}
-                            </div>
-                        @endif
+                        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-2 sm:h-24 sm:w-24 sm:rounded-3xl sm:p-3">
+                            @if ($away?->logo)
+                                <img
+                                    src="{{ asset('storage/' . $away->logo) }}"
+                                    alt="{{ $awayName }} logo"
+                                    class="h-full w-full object-contain"
+                                    loading="lazy"
+                                >
+                            @else
+                                <span class="text-base font-black tracking-tight text-[#e65d43] sm:text-2xl">
+                                    {{ strtoupper(substr($awayName, 0, 3)) }}
+                                </span>
+                            @endif
+                        </div>
 
-                        <h3 class="mx-auto mt-4 max-w-52 break-words text-base font-extrabold leading-snug text-[#202766] sm:text-xl">
-                            {{ $fixture->awayTeam->name }}
+                        <p class="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 sm:text-[10px]">
+                            Away team
+                        </p>
+
+                        <h3 class="mx-auto mt-1 max-w-40 break-words text-sm font-black leading-5 text-slate-800 sm:max-w-xs sm:text-xl sm:leading-7">
+                            {{ $away?->name ?? 'Away Team' }}
                         </h3>
 
-                        @if ($fixture->is_result_verified)
-                            <p class="mt-5 text-3xl font-extrabold tracking-tight text-[#202766] sm:text-5xl">
-                                {{ $fixture->away_runs ?? 0 }}
-                                <span class="text-slate-400">/</span>
-                                {{ $fixture->away_wickets ?? 0 }}
+                        @if ($showAwayOfficialScore)
+                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
+                                {{ $fixture->away_runs }}<span class="text-slate-300">/</span>{{ $fixture->away_wickets ?? 0 }}
                             </p>
-                            <p class="mt-2 text-sm text-slate-500">
-                                {{ $fixture->away_overs ?? '—' }} overs
+
+                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                                {{ $awayOvers }} overs
+                            </p>
+                        @elseif ($awayInning)
+                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
+                                {{ $awayInning->total_runs ?? 0 }}<span class="text-slate-300">/</span>{{ $awayInning->wickets ?? 0 }}
+                            </p>
+
+                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                                {{ $awayOvers }} overs
                             </p>
                         @else
-                            <p class="mt-5 text-sm font-medium text-slate-400">
-                                Score not available
+                            <p class="mt-4 text-xs font-semibold text-slate-400 sm:text-sm">
+                                {{ in_array($status, ['scheduled', 'upcoming'], true) ? 'Yet to bat' : 'Score unavailable' }}
                             </p>
                         @endif
                     </div>
-
                 </div>
 
-                {{-- Result or status message --}}
-                @if ($fixture->is_result_verified)
-                    <div class="mx-auto mt-10 max-w-3xl border-l-4 border-[#F06445] bg-[#F6F8FB] px-5 py-5 sm:px-7">
-                        <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">
-                            Official match result
+                {{-- Match state / result --}}
+                @if ($verified && ($fixture->result_summary || $fixture->winner))
+                    <div class="mt-8 flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                            >
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/>
+                            </svg>
+                        </div>
+
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700">
+                                Official match result
+                            </p>
+
+                            @if ($fixture->winner)
+                                <p class="mt-1 font-black text-slate-900">
+                                    {{ $fixture->winner->name }} won
+                                </p>
+                            @endif
+
+                            @if ($fixture->result_summary)
+                                <p class="mt-1 text-sm leading-6 text-slate-600">
+                                    {{ $fixture->result_summary }}
+                                </p>
+                            @endif
+
+                            @if ($fixture->player_of_match)
+                                <p class="mt-2 text-sm text-slate-600">
+                                    Player of the Match:
+                                    <span class="font-extrabold text-slate-900">
+                                        {{ $fixture->player_of_match }}
+                                    </span>
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+
+                @elseif ($showNotStartedMessage)
+                    <div class="mt-8 flex flex-col items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.7"
+                            >
+                                <circle cx="12" cy="12" r="9"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
+                            </svg>
+                        </div>
+
+                        <div class="mt-3 sm:mt-0">
+                            <p class="font-extrabold text-slate-800">
+                                Match not started
+                            </p>
+
+                            <p class="mt-1 text-sm leading-6 text-slate-500">
+                                {{ $fixture->scheduled_at
+                                    ? 'Scheduled for ' . $fixture->scheduled_at->format('d M Y, h:i A')
+                                    : 'The match date and time have not been announced.' }}
+                            </p>
+                        </div>
+                    </div>
+
+                @elseif ($status === 'completed' && ! $verified)
+                    <div class="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+                        <p class="font-extrabold text-amber-900">
+                            Result awaiting verification
                         </p>
 
-                        @if ($fixture->winner)
-                            <h3 class="mt-2 text-xl font-extrabold text-[#202766]">
-                                {{ $fixture->winner->name }} won
-                            </h3>
-                        @endif
-
-                        @if ($fixture->result_summary)
-                            <p class="mt-2 text-sm leading-7 text-slate-600">
-                                {{ $fixture->result_summary }}
-                            </p>
-                        @endif
-
-                        @if ($fixture->player_of_match)
-                            <div class="mt-4 border-t border-slate-200 pt-4">
-                                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    Player of the Match
-                                </p>
-                                <p class="mt-1 font-bold text-[#202766]">
-                                    {{ $fixture->player_of_match }}
-                                </p>
-                            </div>
-                        @endif
-
-                        <p class="mt-4 text-xs font-semibold text-emerald-700">
-                            ✓ Official result verified
+                        <p class="mt-1 text-sm leading-6 text-amber-800">
+                            The official result will be displayed after verification.
                         </p>
                     </div>
-                @else
-                    <div class="mx-auto mt-10 max-w-3xl border border-slate-200 bg-[#F6F8FB] px-5 py-7 text-center sm:px-8">
-                        @if ($fixture->status === 'scheduled')
-                            <div class="mx-auto flex h-11 w-11 items-center justify-center bg-white text-[#202766]">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                    <circle cx="12" cy="12" r="9"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
+
+                @elseif (in_array($status, ['postponed', 'abandoned'], true))
+                    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+                        <p class="font-extrabold text-slate-800">
+                            {{ $status === 'postponed' ? 'Match postponed' : 'Match abandoned' }}
+                        </p>
+
+                        <p class="mt-1 text-sm leading-6 text-slate-500">
+                            Check the fixtures page for match updates.
+                        </p>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Scoreboard bottom information --}}
+            <div class="grid grid-cols-1 border-t border-slate-100 bg-slate-50 sm:grid-cols-3">
+                <div class="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-6">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <rect x="3" y="5" width="18" height="16" rx="2"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 3v4M8 3v4M3 10h18"/>
+                        </svg>
+                    </div>
+
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Match date
+                        </p>
+                        <p class="mt-1 text-sm font-extrabold text-slate-800">
+                            {{ $fixture->scheduled_at?->format('d M Y') ?? 'To be announced' }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-6">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                            <circle cx="12" cy="10" r="2.5"/>
+                        </svg>
+                    </div>
+
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Venue
+                        </p>
+                        <p class="mt-1 break-words text-sm font-extrabold text-slate-800">
+                            {{ $venue }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h16M4 12h16M4 17.5h16"/>
+                        </svg>
+                    </div>
+
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Match format
+                        </p>
+                        <p class="mt-1 text-sm font-extrabold text-slate-800">
+                            {{ $format }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {{-- =====================================================
+             SCORECARD SECTION
+        ====================================================== --}}
+        <section id="scorecard" class="mt-10 scroll-mt-6 sm:mt-12">
+
+            <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#e65d43]">
+                        Match statistics
+                    </p>
+
+                    <h2 class="mt-2 text-2xl font-black tracking-tight text-[#202766] sm:text-3xl">
+                        Scorecard
+                    </h2>
+
+                    <p class="mt-2 text-sm leading-6 text-slate-500">
+                        Batting, bowling and innings statistics.
+                    </p>
+                </div>
+
+                @if ($innings->isNotEmpty())
+                    <span class="inline-flex items-center gap-2 self-start rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200 sm:self-auto">
+                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                        {{ $innings->count() }} {{ \Illuminate\Support\Str::plural('innings', $innings->count()) }}
+                    </span>
+                @endif
+            </div>
+
+            @forelse ($innings as $inning)
+                @php
+                    $battingTeam = (int) $inning->batting_team_id === (int) $fixture->home_team_id
+                        ? $home
+                        : $away;
+
+                    $legalBalls = (int) ($inning->legal_balls ?? 0);
+
+                    $oversText = $inning->overs_display
+                        ?? (
+                            intdiv($legalBalls, 6)
+                            . '.'
+                            . ($legalBalls % 6)
+                        );
+                @endphp
+
+                <div class="mb-6 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+
+                    {{-- Innings summary header --}}
+                    <div class="flex flex-col justify-between gap-4 border-b border-slate-100 px-4 py-5 sm:flex-row sm:items-center sm:px-6">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#202766] text-xs font-black text-white">
+                                {{ str_pad((string) ($inning->innings_number ?? 1), 2, '0', STR_PAD_LEFT) }}
+                            </div>
+
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                    Innings {{ $inning->innings_number ?? 1 }}
+                                </p>
+
+                                <h3 class="mt-1 break-words text-base font-black text-slate-800 sm:text-lg">
+                                    {{ $battingTeam?->name ?? 'Batting team' }}
+                                </h3>
+
+                                <p class="mt-1 text-xs text-slate-500">
+                                    {{ $oversText }} overs
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-4 sm:border-0 sm:pt-0 sm:text-right">
+                            <p class="text-3xl font-black tracking-tight text-[#202766] sm:text-4xl">
+                                {{ $inning->total_runs ?? 0 }}<span class="text-slate-300">/</span>{{ $inning->wickets ?? 0 }}
+                            </p>
+
+                            <p class="mt-1 text-xs font-medium text-slate-500">
+                                {{ $legalBalls }} legal balls
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- Detailed scorecard --}}
+                    @if ($scorecards->has($inning->id))
+                        @include('fixtures.partials.scorecard', [
+                            'fixture' => $fixture,
+                            'inning' => $inning,
+                            'scorecards' => $scorecards,
+                        ])
+                    @else
+                        <div class="px-5 py-10 text-center">
+                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 4.75h14A1.25 1.25 0 0 1 20.25 6v12A1.25 1.25 0 0 1 19 19.25H5A1.25 1.25 0 0 1 3.75 18V6A1.25 1.25 0 0 1 5 4.75Z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 12h8M8 15h4"/>
                                 </svg>
                             </div>
 
-                            <h3 class="mt-3 text-lg font-extrabold text-[#202766]">
-                                Match not started yet
-                            </h3>
+                            <h4 class="mt-3 text-sm font-extrabold text-slate-800">
+                                Detailed scorecard unavailable
+                            </h4>
 
-                            <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                                @if ($fixture->scheduled_at)
-                                    The match is scheduled for
-                                    {{ $fixture->scheduled_at->format('d M Y, h:i A') }}.
-                                @else
-                                    The official match date and time have not been announced yet.
-                                @endif
-                                Score details will appear here when an official result is verified.
+                            <p class="mx-auto mt-1 max-w-sm text-sm leading-6 text-slate-500">
+                                Player-wise batting and bowling figures are not available for this innings yet.
                             </p>
-                        @elseif ($fixture->status === 'live')
-                            <span class="mx-auto block h-3 w-3 animate-pulse rounded-full bg-red-500"></span>
-                            <h3 class="mt-3 text-lg font-extrabold text-[#202766]">
-                                Match in progress
-                            </h3>
-                            <p class="mt-2 text-sm leading-6 text-slate-500">
-                                An official score has not been published yet.
-                            </p>
-                        @elseif ($fixture->status === 'completed')
-                            <h3 class="text-lg font-extrabold text-[#202766]">
-                                Result awaiting verification
-                            </h3>
-                            <p class="mt-2 text-sm leading-6 text-slate-500">
-                                The match is marked as completed. The official result will appear after verification.
-                            </p>
-                        @elseif ($fixture->status === 'postponed')
-                            <h3 class="text-lg font-extrabold text-[#202766]">
-                                Match postponed
-                            </h3>
-                            <p class="mt-2 text-sm text-slate-500">
-                                Please check back for updated scheduling information.
-                            </p>
-                        @elseif ($fixture->status === 'abandoned')
-                            <h3 class="text-lg font-extrabold text-[#202766]">
-                                Match abandoned
-                            </h3>
-                            <p class="mt-2 text-sm text-slate-500">
-                                No verified result is available for this match.
-                            </p>
-                        @else
-                            <h3 class="text-lg font-extrabold text-[#202766]">
-                                Score not available
-                            </h3>
-                            <p class="mt-2 text-sm text-slate-500">
-                                Official match information will appear here when available.
-                            </p>
-                        @endif
+                        </div>
+                    @endif
+                </div>
+            @empty
+                <div class="rounded-2xl bg-white px-5 py-12 text-center shadow-sm ring-1 ring-slate-200 sm:py-16">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-[#202766]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 4.75h14A1.25 1.25 0 0 1 20.25 6v12A1.25 1.25 0 0 1 19 19.25H5A1.25 1.25 0 0 1 3.75 18V6A1.25 1.25 0 0 1 5 4.75Z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 12h8M8 15h4"/>
+                        </svg>
                     </div>
-                @endif
-            </div>
+
+                    <h3 class="mt-4 text-lg font-black text-slate-800">
+                        Scorecard not available yet
+                    </h3>
+
+                    <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                        Match innings, batting figures and bowling statistics will appear here when scorecard data is available.
+                    </p>
+
+                    @if (in_array($status, ['scheduled', 'upcoming'], true))
+                        <p class="mt-3 text-xs font-semibold text-slate-400">
+                            Match scheduled: {{ $scheduledDate }}
+                        </p>
+                    @endif
+                </div>
+            @endforelse
         </section>
 
-
-
-{{-- Ball-by-ball scorecard --}}
-<section class="mt-10">
-    <div class="mb-5">
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#F06445]">
-            Match commentary
-        </p>
-        <h2 class="mt-2 text-2xl font-extrabold text-[#202766]">
-            Ball-by-ball scorecard
-        </h2>
-        <p class="mt-2 text-sm text-slate-500">
-            प्रत्येक ओभरको रन, बल, ब्याटर, बलर र विकेटको विवरण।
-        </p>
-    </div>
-
-    @forelse ($innings as $inning)
-        @php
-            $battingTeam = $inning->batting_team_id == $fixture->home_team_id
-                ? $fixture->homeTeam
-                : $fixture->awayTeam;
-
-            $legalBalls = (int) ($inning->legal_balls ?? 0);
-            $overs = intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
-        @endphp
-
-        <article class="mb-7 overflow-hidden border border-slate-200 bg-white">
-            <div class="flex flex-col justify-between gap-3 bg-[#202766] px-5 py-5 text-white sm:flex-row sm:items-center sm:px-7">
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-widest text-orange-200">
-                        Innings {{ $inning->innings_number }}
-                    </p>
-                    <h3 class="mt-1 text-xl font-extrabold">
-                        {{ $battingTeam->name ?? 'Batting team' }}
-                    </h3>
-                </div>
-
-                <div class="sm:text-right">
-                    <p class="text-3xl font-extrabold">
-                        {{ $inning->total_runs }}/{{ $inning->wickets }}
-                    </p>
-                    <p class="mt-1 text-sm text-slate-300">
-                        {{ $overs }} overs
-                        @if ($inning->is_current)
-                            <span class="ml-2 font-bold text-red-300">
-                                ● LIVE
-                            </span>
-                        @endif
-                    </p>
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-6">
-                @if ($inning->deliveries->isEmpty())
-                    <div class="border border-dashed border-slate-300 px-4 py-8 text-center">
-                        <p class="font-semibold text-[#202766]">
-                            Ball-by-ball data उपलब्ध छैन।
-                        </p>
-                        <p class="mt-2 text-sm text-slate-500">
-                            Delivery records थपिएपछि यहाँ देखिनेछन्।
-                        </p>
-                    </div>
-                @else
-                    @foreach ($inning->overs as $over)
-                        <div class="mb-5 overflow-hidden border border-slate-200 last:mb-0">
-                            <div class="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
-                                <h4 class="font-extrabold text-[#202766]">
-                                    Over {{ $over->number + 1 }}
-                                </h4>
-
-                                <span class="text-xs font-semibold text-slate-500">
-                                    {{ $over->runs }} runs
-                                    @if ($over->wickets)
-                                        · {{ $over->wickets }} wicket(s)
-                                    @endif
-                                </span>
-                            </div>
-
-                            <div class="divide-y divide-slate-100">
-                                @foreach ($over->balls as $ball)
-                                    @php
-                                        $batterRuns = (int) $ball->batter_runs;
-                                        $extraRuns = (int) $ball->extra_runs;
-                                        $totalRuns = (int) $ball->total_delivery_runs;
-                                        $extraType = strtolower($ball->extra_type ?? 'none');
-                                        $isWicket = (bool) $ball->is_wicket;
-
-                                        if ($isWicket) {
-                                            $resultLabel = 'WICKET';
-                                            $badgeClass = 'bg-red-600 text-white';
-                                        } elseif ($extraType === 'wide') {
-                                            $resultLabel = 'WIDE';
-                                            $badgeClass = 'bg-orange-100 text-orange-800';
-                                        } elseif ($extraType === 'no_ball') {
-                                            $resultLabel = 'NO BALL';
-                                            $badgeClass = 'bg-orange-100 text-orange-800';
-                                        } elseif (in_array($extraType, ['bye', 'leg_bye'], true)) {
-                                            $resultLabel = strtoupper(str_replace('_', ' ', $extraType));
-                                            $badgeClass = 'bg-blue-100 text-blue-800';
-                                        } elseif ($batterRuns === 6) {
-                                            $resultLabel = 'SIX';
-                                            $badgeClass = 'bg-purple-100 text-purple-800';
-                                        } elseif ($batterRuns === 4) {
-                                            $resultLabel = 'FOUR';
-                                            $badgeClass = 'bg-emerald-100 text-emerald-800';
-                                        } elseif ($totalRuns === 0) {
-                                            $resultLabel = 'DOT';
-                                            $badgeClass = 'bg-slate-100 text-slate-700';
-                                        } else {
-                                            $resultLabel = '+' . $totalRuns;
-                                            $badgeClass = 'bg-slate-100 text-slate-800';
-                                        }
-                                    @endphp
-
-                                    <div class="flex items-start gap-3 px-4 py-4 sm:gap-4">
-                                        <div class="flex h-10 min-w-12 items-center justify-center bg-[#F6F8FB] px-2 text-xs font-extrabold text-[#202766]">
-                                            {{ $ball->display_ball }}
-                                        </div>
-
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="font-bold text-[#202766]">
-                                                    {{ $ball->striker ?: 'Unknown batter' }}
-                                                </span>
-
-                                                <span class="text-xs text-slate-400">
-                                                    batting
-                                                </span>
-                                            </div>
-
-                                            <p class="mt-1 text-sm text-slate-600">
-                                                Non-striker:
-                                                <span class="font-medium text-[#202766]">
-                                                    {{ $ball->non_striker ?: '—' }}
-                                                </span>
-                                            </p>
-
-                                            <p class="mt-1 text-sm text-slate-600">
-                                                Bowler:
-                                                <span class="font-semibold text-[#202766]">
-                                                    {{ $ball->bowler ?: 'Unknown bowler' }}
-                                                </span>
-                                            </p>
-
-                                            <p class="mt-1 text-sm leading-6 text-slate-500">
-                                                @if ($isWicket)
-                                                    Wicket — {{ $ball->wicket_type ?: 'Dismissal' }}.
-                                                    @if ($ball->dismissed_batter)
-                                                        Batter out: {{ $ball->dismissed_batter }}.
-                                                    @endif
-                                                @elseif ($extraType === 'wide')
-                                                    Wide delivery
-                                                    @if ($extraRuns)
-                                                        · {{ $extraRuns }} extra run(s)
-                                                    @endif
-                                                @elseif ($extraType === 'no_ball')
-                                                    No-ball delivery
-                                                @elseif ($extraType === 'leg_bye')
-                                                    Leg bye · {{ $totalRuns }} run(s)
-                                                @elseif ($extraType === 'bye')
-                                                    Bye · {{ $totalRuns }} run(s)
-                                                @elseif ($batterRuns === 6)
-                                                    Six! {{ $batterRuns }} runs off the bat.
-                                                @elseif ($batterRuns === 4)
-                                                    Four! {{ $batterRuns }} runs off the bat.
-                                                @elseif ($totalRuns === 0)
-                                                    Dot ball — no runs.
-                                                @else
-                                                    {{ $totalRuns }} run(s) from this delivery.
-                                                @endif
-
-                                                @if (!empty($ball->note))
-                                                    <span class="block mt-1">
-                                                        {{ $ball->note }}
-                                                    </span>
-                                                @endif
-                                            </p>
-                                        </div>
-
-                                        <span class="inline-flex shrink-0 items-center justify-center px-3 py-2 text-xs font-extrabold {{ $badgeClass }}">
-                                            {{ $resultLabel }}
-                                        </span>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endforeach
-                @endif
-            </div>
-        </article>
-    @empty
-        <div class="border border-slate-200 bg-white px-5 py-10 text-center">
-            <h3 class="font-bold text-[#202766]">
-                Innings data उपलब्ध छैन।
-            </h3>
-            <p class="mt-2 text-sm text-slate-500">
-                Match live भएपछि वा verified score उपलब्ध भएपछि यहाँ देखिनेछ।
-            </p>
-        </div>
-    @endforelse
-</section>
-
-
-        {{-- Match details --}}
-        <section class="mt-9">
+        {{-- =====================================================
+             MATCH INFORMATION
+        ====================================================== --}}
+        <section class="mt-10 sm:mt-12">
             <div class="mb-5">
-                <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#F06445]">
-                    Match details
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#e65d43]">
+                    Fixture information
                 </p>
-                <h2 class="mt-2 text-2xl font-extrabold text-[#202766]">
-                    Match information
+
+                <h2 class="mt-2 text-2xl font-black tracking-tight text-[#202766]">
+                    Match details
                 </h2>
             </div>
 
-            <div class="grid gap-5 md:grid-cols-3">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-                <article class="border border-slate-200 bg-white p-6 transition hover:border-[#202766]/30">
-                    <div class="flex h-10 w-10 items-center justify-center bg-[#202766] text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z"/>
-                        </svg>
+                {{-- Date --}}
+                <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                Date & time
+                            </p>
+
+                            <p class="mt-3 font-extrabold text-slate-800">
+                                {{ $fixture->scheduled_at?->format('d M Y') ?? 'To be announced' }}
+                            </p>
+
+                            <p class="mt-1 text-sm text-slate-500">
+                                {{ $fixture->scheduled_at?->format('h:i A') ?? 'Time TBA' }}
+                            </p>
+                        </div>
+
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-[#202766] transition group-hover:bg-[#202766] group-hover:text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <rect x="3" y="5" width="18" height="16" rx="2"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 3v4M8 3v4M3 10h18"/>
+                            </svg>
+                        </div>
                     </div>
-                    <p class="mt-5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Match date
-                    </p>
-                    <p class="mt-2 font-bold text-[#202766]">
-                        {{ $fixture->scheduled_at?->format('d M Y') ?? 'To be announced' }}
-                    </p>
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ $fixture->scheduled_at?->format('h:i A') ?? 'Time not announced' }}
-                    </p>
                 </article>
 
-                <article class="border border-slate-200 bg-white p-6 transition hover:border-[#202766]/30">
-                    <div class="flex h-10 w-10 items-center justify-center bg-[#F06445] text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z"/>
-                            <circle cx="12" cy="9" r="2.3"/>
-                        </svg>
+                {{-- Venue --}}
+                <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                Venue
+                            </p>
+
+                            <p class="mt-3 break-words font-extrabold leading-6 text-slate-800">
+                                {{ $venue }}
+                            </p>
+
+                            <p class="mt-1 text-sm text-slate-500">
+                                Match location
+                            </p>
+                        </div>
+
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#e65d43] transition group-hover:bg-[#e65d43] group-hover:text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                                <circle cx="12" cy="10" r="2.5"/>
+                            </svg>
+                        </div>
                     </div>
-                    <p class="mt-5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Venue
-                    </p>
-                    <p class="mt-2 font-bold text-[#202766]">
-                        {{ $fixture->venue ?: 'To be announced' }}
-                    </p>
-                    <p class="mt-1 text-sm text-slate-500">
-                        Match location
-                    </p>
                 </article>
 
-                <article class="border border-slate-200 bg-white p-6 transition hover:border-[#202766]/30">
-                    <div class="flex h-10 w-10 items-center justify-center bg-[#202766] text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <circle cx="12" cy="12" r="9"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M12 8v8"/>
-                        </svg>
+                {{-- Format --}}
+                <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                Match format
+                            </p>
+
+                            <p class="mt-3 font-extrabold text-slate-800">
+                                {{ $format }}
+                            </p>
+
+                            <p class="mt-1 text-sm text-slate-500">
+                                Match {{ $fixture->match_number }}
+                            </p>
+                        </div>
+
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-[#202766] transition group-hover:bg-[#202766] group-hover:text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h16M4 12h16M4 17.5h16"/>
+                            </svg>
+                        </div>
                     </div>
-                    <p class="mt-5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Match format
-                    </p>
-                    <p class="mt-2 font-bold text-[#202766]">
-                        {{ ucfirst($fixture->match_type) }}
-                    </p>
-                    <p class="mt-1 text-sm text-slate-500">
-                        Match {{ $fixture->match_number }}
-                    </p>
                 </article>
 
             </div>
         </section>
-        
 
-        {{-- Bottom navigation --}}
-        <div class="mt-9 flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <a href="{{ route('fixtures.index') }}"
-               class="inline-flex items-center justify-center gap-2 bg-[#202766] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#171d50]">
-                <span aria-hidden="true">←</span>
-                Browse all fixtures
-            </a>
+        {{-- =====================================================
+             BOTTOM NAVIGATION
+        ====================================================== --}}
+        <footer class="mt-10 border-t border-slate-200 pt-6 sm:mt-12">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <a
+                    href="{{ route('fixtures.index') }}"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#202766] px-5 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#171d50] focus:outline-none focus:ring-2 focus:ring-[#202766] focus:ring-offset-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/>
+                    </svg>
 
-            <a href="{{ route('home') }}"
-               class="inline-flex items-center justify-center border border-slate-300 bg-white px-6 py-3 text-sm font-bold text-[#202766] transition hover:bg-slate-100">
-                Back to homepage
-            </a>
-        </div>
+                    All fixtures
+                </a>
+
+                <a
+                    href="{{ route('home') }}"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+                >
+                    Back to homepage
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+                    </svg>
+                </a>
+            </div>
+
+            <p class="mt-6 text-center text-xs text-slate-400">
+                NPL Season Hub
+                <span class="mx-1">·</span>
+                Match information and scorecards
+            </p>
+        </footer>
 
     </main>
 </div>

@@ -3,26 +3,29 @@
 use App\Http\Controllers\Admin\ArticleController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\MatchController;
+use App\Http\Controllers\Admin\PlayerController;
+use App\Http\Controllers\Admin\ScorecardController;
 use App\Http\Controllers\Admin\SeasonController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LiveScoreController;
 use App\Http\Controllers\PublicMatchController;
 use App\Http\Controllers\PublicNewsController;
 use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\LiveScoreController;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Public Home
 |--------------------------------------------------------------------------
 */
 
-// Home
-Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/', [HomeController::class, 'index'])
+    ->name('home');
+
 /*
 |--------------------------------------------------------------------------
 | Public News
@@ -77,6 +80,17 @@ Route::get('/teams/{team:slug}', [
 
 /*
 |--------------------------------------------------------------------------
+| Public Players Performance
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/players/performance/{playerName}', [
+    PublicMatchController::class,
+    'playerPerformance',
+])->name('players.performance');
+
+/*
+|--------------------------------------------------------------------------
 | Public Fixtures & Results
 |--------------------------------------------------------------------------
 */
@@ -87,13 +101,27 @@ Route::get('/fixtures', [PublicMatchController::class, 'index'])
 Route::get('/fixtures/{fixture}', [
     PublicMatchController::class,
     'show',
-])->whereNumber('fixture')->name('fixtures.show');
+])->whereNumber('fixture')
+    ->name('fixtures.show');
 
-// Public Live Match View Route
+Route::get('/fixtures/{fixture}/players/{player}', [
+    PublicMatchController::class,
+    'playerPerformance',
+])->whereNumber('fixture')
+    ->whereNumber('player')
+    ->name('fixtures.players.show');
+
+/*
+|--------------------------------------------------------------------------
+| Public Live Match
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/fixtures/{fixture}/live', [
     LiveScoreController::class,
     'show',
-])->whereNumber('fixture')->name('live.show');
+])->whereNumber('fixture')
+    ->name('live.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -101,7 +129,7 @@ Route::get('/fixtures/{fixture}/live', [
 |--------------------------------------------------------------------------
 */
 
-// Login: guests only
+// Login
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])
         ->name('login');
@@ -110,7 +138,7 @@ Route::middleware('guest')->group(function () {
         ->name('login.store');
 });
 
-// Logout: authenticated users only
+// Logout
 Route::post('/logout', [LoginController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
@@ -130,51 +158,130 @@ Route::middleware(['auth', 'can:manage-seasons'])
     ->name('admin.')
     ->group(function () {
 
-        // Seasons
-        Route::resource('seasons', SeasonController::class);
+        /*
+        |--------------------------------------------------------------------------
+        | Dashboard / Fixtures
+        |--------------------------------------------------------------------------
+        */
 
-        // Articles
-        Route::resource('articles', ArticleController::class)
-            ->except(['show']);
-
-        // Teams
-        Route::resource('teams', TeamController::class)
-            ->except(['show']);
-
-        // Fixtures and match results
         Route::resource('fixtures', MatchController::class)
             ->except(['show']);
 
-        // Admin Live Match Scoring Routes
-        Route::get('/live', [LiveScoreController::class, 'index'])
-            ->name('live.index');
+        /*
+        |--------------------------------------------------------------------------
+        | Seasons
+        |--------------------------------------------------------------------------
+        */
+
+        Route::resource('seasons', SeasonController::class);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Teams
+        |--------------------------------------------------------------------------
+        */
+
+        Route::resource('teams', TeamController::class)
+            ->except(['show']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Players
+        |--------------------------------------------------------------------------
+        |
+        | Generated route names:
+        | admin.players.index
+        | admin.players.create
+        | admin.players.store
+        | admin.players.edit
+        | admin.players.update
+        | admin.players.destroy
+        |
+        */
+
+        Route::resource('players', PlayerController::class)
+            ->except(['show']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Articles / News Management
+        |--------------------------------------------------------------------------
+        */
+
+        Route::resource('articles', ArticleController::class)
+            ->except(['show']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Live Match Scoring
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/live', [
+            LiveScoreController::class,
+            'index',
+        ])->name('live.index');
 
         Route::post('/fixtures/{fixture}/live-score/toss', [
             LiveScoreController::class,
             'saveToss',
-        ])->whereNumber('fixture')->name('live.toss');
+        ])->whereNumber('fixture')
+            ->name('live.toss');
 
         Route::get('/fixtures/{fixture}/live-score', [
             LiveScoreController::class,
             'admin',
-        ])->whereNumber('fixture')->name('live.admin');
+        ])->whereNumber('fixture')
+            ->name('live.admin');
 
         Route::post('/fixtures/{fixture}/live-score/innings', [
             LiveScoreController::class,
             'startInnings',
-        ])->whereNumber('fixture')->name('live.start');
+        ])->whereNumber('fixture')
+            ->name('live.start');
 
         Route::post('/fixtures/{fixture}/live-score/ball', [
             LiveScoreController::class,
             'ball',
-        ])->whereNumber('fixture')->name('live.ball');
+        ])->whereNumber('fixture')
+            ->name('live.ball');
 
         Route::delete('/fixtures/{fixture}/live-score/{delivery}', [
             LiveScoreController::class,
             'undo',
-        ])->whereNumber('fixture')->whereNumber('delivery')->name('live.undo');
+        ])->whereNumber('fixture')
+            ->whereNumber('delivery')
+            ->name('live.undo');
 
-        // Categories
+        /*
+        |--------------------------------------------------------------------------
+        | Scorecards Management
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/scorecards', [
+            ScorecardController::class,
+            'index',
+        ])->name('scorecards.index');
+
+        Route::get('/fixtures/{fixture}/scorecard', [
+            ScorecardController::class,
+            'edit',
+        ])->whereNumber('fixture')
+            ->name('scorecards.edit');
+
+        Route::put('/fixtures/{fixture}/scorecard', [
+            ScorecardController::class,
+            'update',
+        ])->whereNumber('fixture')
+            ->name('scorecards.update');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Categories
+        |--------------------------------------------------------------------------
+        */
+
         Route::get('/categories', [
             CategoryController::class,
             'index',
@@ -195,7 +302,12 @@ Route::middleware(['auth', 'can:manage-seasons'])
             'destroy',
         ])->name('categories.destroy');
 
-        // Tags
+        /*
+        |--------------------------------------------------------------------------
+        | Tags
+        |--------------------------------------------------------------------------
+        */
+
         Route::get('/tags', [
             TagController::class,
             'index',
