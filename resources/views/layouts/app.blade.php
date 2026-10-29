@@ -763,7 +763,16 @@
                 </div>
             </div>
         </div>
-    </footer>
+    
+    <!-- NPL Season Hub information links -->
+    <nav class="d-flex flex-wrap justify-content-center gap-3 py-3"
+         aria-label="Information and legal links">
+        <a href="{{ route('about') }}">About Us</a>
+        <a href="{{ route('contact') }}">Contact Us</a>
+        <a href="{{ route('privacy-policy') }}">Privacy Policy</a>
+    </nav>
+    
+</footer>
 
     @stack('scripts')
 

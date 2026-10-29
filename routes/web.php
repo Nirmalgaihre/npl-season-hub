@@ -1,5 +1,7 @@
 <?php
 
+
+use App\Http\Controllers\StaticPageController;;
 use App\Http\Controllers\Admin\ArticleController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\MatchController;
@@ -336,3 +338,13 @@ Route::middleware(['auth', 'can:manage-seasons'])
             'destroy',
         ])->name('tags.destroy');
     });
+
+
+// Public information pages
+Route::get('/about', [StaticPageController::class, 'about'])->name('about');
+Route::get('/contact', [StaticPageController::class, 'contact'])->name('contact');
+Route::post('/contact', [StaticPageController::class, 'sendContact'])
+    ->middleware('throttle:5,1')
+    ->name('contact.send');
+Route::get('/privacy-policy', [StaticPageController::class, 'privacyPolicy'])
+    ->name('privacy-policy');
