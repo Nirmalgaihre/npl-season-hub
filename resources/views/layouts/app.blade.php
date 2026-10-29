@@ -1,27 +1,29 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>@yield('title', 'NPL Season Hub') | Nepal Cricket</title>
+    <title>@yield('title', 'NPL Cricket Hub') | Nepal Cricket</title>
 
     <meta
         name="description"
-        content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, match results and the latest cricket news.')"
+        content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, player statistics, match results and the latest Nepal cricket news.')"
     >
 
     <meta name="theme-color" content="#202766">
     <meta name="color-scheme" content="light">
 
-    <meta property="og:site_name" content="NPL Season Hub">
+    <meta property="og:site_name" content="NPL Cricket Hub">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="@yield('title', 'NPL Season Hub')">
+    <meta property="og:title" content="@yield('title', 'NPL Cricket Hub')">
     <meta
         property="og:description"
-        content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, match results and cricket news.')"
+        content="@yield('meta_description', 'Follow Nepal Premier League fixtures, player stats, teams, match results and cricket news.')"
     >
+    <meta property="og:url" content="@yield('canonical_url', url()->current())">
+
+    <link rel="canonical" href="@yield('canonical_url', url()->current())">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -378,11 +380,11 @@
                 <a
                     href="{{ route('home') }}"
                     class="npl-brand"
-                    aria-label="NPL Season Hub home"
+                    aria-label="NPL Cricket Hub home"
                 >
                     <img
                         src="{{ asset('images/npl.png') }}"
-                        alt="NPL Season Hub logo"
+                        alt="NPL Cricket Hub logo"
                         class="npl-brand-logo"
                         width="48"
                         height="48"
@@ -391,7 +393,7 @@
 
                     <span class="min-w-0">
                         <span class="npl-brand-name block">
-                            NPL Season Hub
+                            NPL Cricket Hub
                         </span>
 
                         <span class="npl-brand-subtitle">
@@ -632,11 +634,11 @@
                     <a
                         href="{{ route('home') }}"
                         class="inline-flex items-center gap-3"
-                        aria-label="NPL Season Hub home"
+                        aria-label="NPL Cricket Hub home"
                     >
                         <img
                             src="{{ asset('images/npl.png') }}"
-                            alt="NPL Season Hub logo"
+                            alt="NPL Cricket Hub logo"
                             class="npl-brand-logo-footer"
                             width="42"
                             height="42"
@@ -645,7 +647,7 @@
 
                         <span>
                             <span class="block text-base font-extrabold tracking-tight">
-                                NPL Season Hub
+                                NPL Cricket Hub
                             </span>
 
                             <span class="mt-1 block text-[10px] font-semibold uppercase tracking-[1.5px] text-white/50">
@@ -750,7 +752,7 @@
                 <div class="flex flex-col gap-3 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
 
                     <p>
-                        &copy; {{ date('Y') }} NPL Season Hub.
+                        &copy; {{ date('Y') }} NPL Cricket Hub.
                         All rights reserved.
                     </p>
 

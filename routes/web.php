@@ -15,6 +15,7 @@ use App\Http\Controllers\PublicMatchController;
 use App\Http\Controllers\PublicNewsController;
 use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
+use App\Http\Controllers\SeoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,6 +26,18 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])
     ->name('home');
+
+/*
+|--------------------------------------------------------------------------
+| SEO (Sitemap & Robots)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])
+    ->name('seo.sitemap');
+
+Route::get('/robots.txt', [SeoController::class, 'robots'])
+    ->name('seo.robots');
 
 /*
 |--------------------------------------------------------------------------
