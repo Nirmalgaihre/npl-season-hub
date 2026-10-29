@@ -618,159 +618,171 @@
     >
         @yield('content')
     </main>
+{{-- =========================================================
+     PUBLIC FOOTER
+========================================================== --}}
+<footer class="mt-12 bg-npl-darker text-white sm:mt-16">
 
-    {{-- =========================================================
-         PUBLIC FOOTER
-    ========================================================== --}}
-    <footer class="mt-12 bg-npl-darker text-white sm:mt-16">
+    <div class="npl-container">
+
+        <div class="grid gap-10 py-10 sm:py-12 md:grid-cols-2 lg:grid-cols-12 lg:gap-12">
+
+            {{-- Brand and description --}}
+            <div class="lg:col-span-5">
+
+                <a
+                    href="{{ route('home') }}"
+                    class="inline-flex items-center gap-3"
+                    aria-label="NPL Cricket Hub home"
+                >
+                    <img
+                        src="{{ asset('images/npl.png') }}"
+                        alt="NPL Cricket Hub logo"
+                        class="npl-brand-logo-footer"
+                        width="42"
+                        height="42"
+                        loading="lazy"
+                    >
+
+                    <span>
+                        <span class="block text-base font-extrabold tracking-tight">
+                            NPL Cricket Hub
+                        </span>
+
+                        <span class="mt-1 block text-[10px] font-semibold uppercase tracking-[1.5px] text-white/50">
+                            Nepal Cricket
+                        </span>
+                    </span>
+                </a>
+
+                <p class="mt-5 max-w-md text-sm leading-7 text-white/60">
+                    Your place to follow Nepal Premier League teams,
+                    upcoming fixtures, match results and cricket news
+                    from across Nepal.
+                </p>
+
+                <div class="mt-5 flex items-center gap-2">
+                    <span
+                        class="h-2 w-2 rounded-full bg-npl-orange"
+                        aria-hidden="true"
+                    ></span>
+
+                    <span class="text-xs font-medium text-white/60">
+                        Made for Nepal cricket fans
+                    </span>
+                </div>
+            </div>
+
+            {{-- Explore --}}
+            <div class="lg:col-span-3">
+
+                <h2 class="npl-footer-heading">
+                    Explore
+                </h2>
+
+                <nav
+                    class="mt-5 grid justify-items-start gap-4"
+                    aria-label="Footer navigation"
+                >
+                    <a
+                        href="{{ route('home') }}"
+                        class="npl-footer-link"
+                    >
+                        Home
+                    </a>
+
+                    <a
+                        href="{{ route('fixtures.index') }}"
+                        class="npl-footer-link"
+                    >
+                        Fixtures &amp; Results
+                    </a>
+
+                    <a
+                        href="{{ route('teams.index') }}"
+                        class="npl-footer-link"
+                    >
+                        Teams
+                    </a>
+
+                    <a
+                        href="{{ route('seasons.index') }}"
+                        class="npl-footer-link"
+                    >
+                        Season Archive
+                    </a>
+
+                    <a
+                        href="{{ route('news.index') }}"
+                        class="npl-footer-link"
+                    >
+                        Latest News
+                    </a>
+
+                    <a
+                        href="{{ route('about') }}"
+                        class="npl-footer-link"
+                    >
+                        About Us
+                    </a>
+
+                    <a
+                        href="{{ route('contact') }}"
+                        class="npl-footer-link"
+                    >
+                        Contact Us
+                    </a>
+
+                    <a
+                        href="{{ route('privacy-policy') }}"
+                        class="npl-footer-link"
+                    >
+                        Privacy Policy
+                    </a>
+                </nav>
+            </div>
+
+            {{-- Information --}}
+            <div class="lg:col-span-4">
+
+                <h2 class="npl-footer-heading">
+                    Match Information
+                </h2>
+
+                <p class="mt-5 text-sm leading-7 text-white/60">
+                    Scores, results and match details are displayed
+                    according to information entered and verified by
+                    the site's administrators.
+                </p>
+
+                <p class="mt-4 text-sm leading-7 text-white/60">
+                    Follow the fixtures, discover the teams and keep
+                    up with the latest NPL coverage.
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    {{-- Copyright bar --}}
+    <div class="border-t border-white/10">
 
         <div class="npl-container">
 
-            <div class="grid gap-10 py-10 sm:py-12 md:grid-cols-2 lg:grid-cols-12 lg:gap-12">
+            <div class="flex flex-col gap-3 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
 
-                {{-- Brand and description --}}
-                <div class="lg:col-span-5">
+                <p>
+                    &copy; {{ date('Y') }} NPL Cricket Hub.
+                    All rights reserved.
+                </p>
 
-                    <a
-                        href="{{ route('home') }}"
-                        class="inline-flex items-center gap-3"
-                        aria-label="NPL Cricket Hub home"
-                    >
-                        <img
-                            src="{{ asset('images/npl.png') }}"
-                            alt="NPL Cricket Hub logo"
-                            class="npl-brand-logo-footer"
-                            width="42"
-                            height="42"
-                            loading="lazy"
-                        >
-
-                        <span>
-                            <span class="block text-base font-extrabold tracking-tight">
-                                NPL Cricket Hub
-                            </span>
-
-                            <span class="mt-1 block text-[10px] font-semibold uppercase tracking-[1.5px] text-white/50">
-                                Nepal Cricket
-                            </span>
-                        </span>
-                    </a>
-
-                    <p class="mt-5 max-w-md text-sm leading-7 text-white/60">
-                        Your place to follow Nepal Premier League teams,
-                        upcoming fixtures, match results and cricket news
-                        from across Nepal.
-                    </p>
-
-                    <div class="mt-5 flex items-center gap-2">
-                        <span
-                            class="h-2 w-2 rounded-full bg-npl-orange"
-                            aria-hidden="true"
-                        ></span>
-
-                        <span class="text-xs font-medium text-white/60">
-                            Made for Nepal cricket fans
-                        </span>
-                    </div>
-                </div>
-
-                {{-- Explore --}}
-                <div class="lg:col-span-3">
-
-                    <h2 class="npl-footer-heading">
-                        Explore
-                    </h2>
-
-                    <nav
-                        class="mt-5 grid justify-items-start gap-4"
-                        aria-label="Footer navigation"
-                    >
-                        <a
-                            href="{{ route('home') }}"
-                            class="npl-footer-link"
-                        >
-                            Home
-                        </a>
-
-                        <a
-                            href="{{ route('fixtures.index') }}"
-                            class="npl-footer-link"
-                        >
-                            Fixtures &amp; Results
-                        </a>
-
-                        <a
-                            href="{{ route('teams.index') }}"
-                            class="npl-footer-link"
-                        >
-                            Teams
-                        </a>
-
-                        <a
-                            href="{{ route('seasons.index') }}"
-                            class="npl-footer-link"
-                        >
-                            Season Archive
-                        </a>
-
-                        <a
-                            href="{{ route('news.index') }}"
-                            class="npl-footer-link"
-                        >
-                            Latest News
-                        </a>
-                    </nav>
-                </div>
-
-                {{-- Information --}}
-                <div class="lg:col-span-4">
-
-                    <h2 class="npl-footer-heading">
-                        Match Information
-                    </h2>
-
-                    <p class="mt-5 text-sm leading-7 text-white/60">
-                        Scores, results and match details are displayed
-                        according to information entered and verified by
-                        the site's administrators.
-                    </p>
-
-                    <p class="mt-4 text-sm leading-7 text-white/60">
-                        Follow the fixtures, discover the teams and keep
-                        up with the latest NPL coverage.
-                    </p>
-                </div>
+                <p>
+                    Built for Nepal cricket fans.
+                </p>
 
             </div>
         </div>
-
-        {{-- Copyright bar --}}
-        <div class="border-t border-white/10">
-
-            <div class="npl-container">
-
-                <div class="flex flex-col gap-3 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
-
-                    <p>
-                        &copy; {{ date('Y') }} NPL Cricket Hub.
-                        All rights reserved.
-                    </p>
-
-                    <p>
-                        Built for Nepal cricket fans.
-                    </p>
-
-                </div>
-            </div>
-        </div>
-    
-    <!-- NPL Season Hub information links -->
-    <nav class="d-flex flex-wrap justify-content-center gap-3 py-3"
-         aria-label="Information and legal links">
-        <a href="{{ route('about') }}">About Us</a>
-        <a href="{{ route('contact') }}">Contact Us</a>
-        <a href="{{ route('privacy-policy') }}">Privacy Policy</a>
-    </nav>
+    </div>
     
 </footer>
 
