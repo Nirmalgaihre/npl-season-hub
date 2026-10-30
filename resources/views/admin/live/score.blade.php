@@ -3,6 +3,10 @@
 @section('title', 'Live Scoring')
 
 @section('content')
+@php
+    $active = $innings->firstWhere('is_current', true);
+@endphp
+
 <div class="min-h-screen bg-slate-100/70 px-4 py-8 sm:px-6 lg:px-8">
     <div class="mx-auto max-w-7xl space-y-8">
 
@@ -242,8 +246,6 @@
         </section>
 
         {{-- Active scoring console --}}
-        @php($active = $innings->firstWhere('is_current', true))
-
         @if($active)
             <section class="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl">
                 <!-- Console Top Bar -->
@@ -485,7 +487,7 @@
         @endif
 
         {{-- Recent Deliveries / Undo --}}
-        <?php if ($active): ?>
+        @if($active)
             <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -551,7 +553,7 @@
                     @endforelse
                 </div>
             </section>
-        <?php endif; ?>
+        @endif
 
     </div>
 </div>
