@@ -636,9 +636,10 @@
                     <div class="flex flex-col gap-3 sm:flex-row">
                         <button
                             type="submit"
-                            class="flex-1 rounded-xl bg-orange-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                            id="saveDeliveryButton"
+                            class="flex-1 rounded-xl bg-orange-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                            Save Delivery
+                            <span id="saveDeliveryButtonText">Save Delivery</span>
                         </button>
 
                         <button
@@ -728,6 +729,7 @@
                     onsubmit="return confirm('Undo the latest delivery? Make sure this is the delivery you want to remove.');"
                 >
                     @csrf
+                    @method('DELETE')
 
                     <button
                         type="submit"
@@ -889,6 +891,18 @@ document.addEventListener('DOMContentLoaded', function () {
             dismissedBatter.value === incomingBatter.value) {
             event.preventDefault();
             alert('The incoming batter must be different from the dismissed batter.');
+            return;
+        }
+
+        // Let Laravel receive the POST once, then prevent accidental double submissions.
+        const saveButton = document.getElementById('saveDeliveryButton');
+        const saveButtonText = document.getElementById('saveDeliveryButtonText');
+
+        if (saveButton && !saveButton.disabled) {
+            saveButton.disabled = true;
+            if (saveButtonText) {
+                saveButtonText.textContent = 'Saving Delivery...';
+            }
         }
     });
 
@@ -899,9 +913,15 @@ document.addEventListener('DOMContentLoaded', function () {
             extraRuns.value = '0';
             wicketType.value = 'none';
 
+            updateBatterOptions();
             updateRunButtons();
             updateExtras();
             updateWicketFields();
+
+            const saveButton = document.getElementById('saveDeliveryButton');
+            const saveButtonText = document.getElementById('saveDeliveryButtonText');
+            if (saveButton) saveButton.disabled = false;
+            if (saveButtonText) saveButtonText.textContent = 'Save Delivery';
         }, 0);
     });
 
