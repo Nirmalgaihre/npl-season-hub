@@ -32,7 +32,10 @@ class LiveScoreController extends Controller
                     $fixture->away_team_id,
                 ]),
             ],
-            'toss_decision' => ['required', Rule::in(['bat', 'field'])],
+            'toss_decision' => [
+                'required',
+                Rule::in(['bat', 'field']),
+            ],
         ]);
 
         $fixture->update($data);
@@ -76,11 +79,19 @@ class LiveScoreController extends Controller
                 }
 
                 $batter = $batters->get($name);
-                $batter['runs'] += (int) $delivery->batter_runs;
-                $batter['fours'] += (int) $delivery->batter_runs === 4 ? 1 : 0;
-                $batter['sixes'] += (int) $delivery->batter_runs === 6 ? 1 : 0;
 
-                if ($delivery->extra_type !== 'wide') {
+                $batterRuns = (int) $delivery->batter_runs;
+                $extraType = (string) $delivery->extra_type;
+
+                $batter['runs'] += $batterRuns;
+                $batter['fours'] += $batterRuns === 4 ? 1 : 0;
+                $batter['sixes'] += $batterRuns === 6 ? 1 : 0;
+
+                /*
+                 * Neither wides nor no-balls count as balls faced.
+                 * They also do not count as legal balls in the over.
+                 */
+                if (!in_array($extraType, ['wide', 'no_ball'], true)) {
                     $batter['balls']++;
                 }
 
@@ -104,6 +115,7 @@ class LiveScoreController extends Controller
                     $dismissed = $batters->get($dismissedName);
                     $dismissed['out'] = true;
                     $dismissed['dismissal'] = $delivery->wicket_type;
+
                     $batters->put($dismissedName, $dismissed);
                 }
 
@@ -119,9 +131,16 @@ class LiveScoreController extends Controller
                 }
 
                 $bowler = $bowlers->get($bowlerName);
-                $bowler['runs'] += (int) $delivery->batter_runs;
 
-                if (in_array($delivery->extra_type, ['wide', 'no_ball'], true)) {
+                /*
+                 * Batter runs are charged to the bowler.
+                 * Wides and no-ball extras are charged to the bowler.
+                 * Byes, leg-byes and penalty extras are not charged
+                 * to the bowler.
+                 */
+                $bowler['runs'] += $batterRuns;
+
+                if (in_array($extraType, ['wide', 'no_ball'], true)) {
                     $bowler['runs'] += (int) $delivery->extra_runs;
                 }
 
@@ -174,7 +193,6 @@ class LiveScoreController extends Controller
             } catch (\Throwable $e) {
                 report($e);
 
-                // Fallback for a player table without is_active.
                 try {
                     $players = \App\Models\Player::query()
                         ->whereIn('team_id', [
@@ -200,11 +218,18 @@ class LiveScoreController extends Controller
     public function startInnings(Request $request, Fixture $fixture)
     {
         $data = $request->validate([
-            'innings_number' => ['required', 'integer', 'between:1,2'],
+            'innings_number' => [
+                'required',
+                'integer',
+                'between:1,2',
+            ],
             'batting_team_id' => [
                 'required',
                 'integer',
-                Rule::in([$fixture->home_team_id, $fixture->away_team_id]),
+                Rule::in([
+                    $fixture->home_team_id,
+                    $fixture->away_team_id,
+                ]),
             ],
             'striker' => ['required', 'string', 'max:100'],
             'non_striker' => [
@@ -283,7 +308,11 @@ class LiveScoreController extends Controller
                 'different:striker',
             ],
             'bowler' => ['required', 'string', 'max:100'],
-            'batter_runs' => ['required', 'integer', 'between:0,6'],
+            'batter_runs' => [
+                'required',
+                'integer',
+                'between:0,6',
+            ],
             'extra_type' => [
                 'required',
                 Rule::in([
@@ -295,7 +324,11 @@ class LiveScoreController extends Controller
                     'penalty',
                 ]),
             ],
-            'extra_runs' => ['required', 'integer', 'between:0,7'],
+            'extra_runs' => [
+                'required',
+                'integer',
+                'between:0,7',
+            ],
             'is_wicket' => ['nullable', 'boolean'],
             'wicket_type' => [
                 'nullable',
@@ -323,13 +356,31 @@ class LiveScoreController extends Controller
         $runs = (int) $data['batter_runs'];
         $extras = (int) $data['extra_runs'];
 
+        /*
+         * This form stores the complete extra total in extra_runs.
+         *
+         * Wide with no completed runs: extra_runs = 1.
+         * Wide with one completed run: extra_runs = 2.
+         * Wide with two completed runs: extra_runs = 3.
+         *
+         * For a no-ball, include the mandatory penalty run in extras.
+         */
         if (in_array($extraType, ['wide', 'no_ball'], true) && $extras < 1) {
             $extras = 1;
         }
 
-        if ($extraType === 'wide' && $runs > 0) {
+        if ($extraType === 'wide' && $runs !== 0) {
             return back()->withErrors([
-                'batter_runs' => 'For wides, record completed runs in the extras field.',
+                'batter_runs' => 'For a wide, set batter runs to 0. Record the wide penalty and completed runs in Extra runs.',
+            ])->withInput();
+        }
+
+        if (
+            in_array($extraType, ['bye', 'leg_bye', 'penalty'], true)
+            && $runs !== 0
+        ) {
+            return back()->withErrors([
+                'batter_runs' => 'For byes, leg-byes, and penalty extras, set batter runs to 0.',
             ])->withInput();
         }
 
@@ -356,7 +407,7 @@ class LiveScoreController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($innings->wickets >= 10) {
+            if ((int) $innings->wickets >= 10) {
                 abort(409, 'This innings has already lost ten wickets.');
             }
 
@@ -368,7 +419,16 @@ class LiveScoreController extends Controller
             $nonStriker = trim($data['non_striker']);
             $bowler = trim($data['bowler']);
 
-            $isLegal = !in_array($extraType, ['wide', 'no_ball'], true);
+            /*
+             * Wides and no-balls add runs but never advance
+             * the legal-ball counter.
+             */
+            $isLegal = !in_array(
+                $extraType,
+                ['wide', 'no_ball'],
+                true
+            );
+
             $freeHitBefore = (bool) $innings->free_hit_next;
             $wicketType = $data['wicket_type'] ?? null;
             $dismissed = $data['dismissed_batter'] ?? null;
@@ -378,7 +438,11 @@ class LiveScoreController extends Controller
                 $isWicket &&
                 !in_array(
                     strtolower((string) $wicketType),
-                    ['run out', 'obstructing the field', 'retired out'],
+                    [
+                        'run out',
+                        'obstructing the field',
+                        'retired out',
+                    ],
                     true
                 )
             ) {
@@ -389,42 +453,78 @@ class LiveScoreController extends Controller
             }
 
             $isNoBall = $extraType === 'no_ball';
-            $nextFreeHit = $isNoBall || ($freeHitBefore && !$isLegal);
+
+            /*
+             * A no-ball creates a free hit.
+             * A wide or another illegal delivery does not consume
+             * an existing free hit.
+             */
+            $nextFreeHit = $isNoBall
+                || ($freeHitBefore && !$isLegal);
 
             $delivery = $innings->deliveries()->create([
-                'ball_number' => ((int) $innings->deliveries()->max('ball_number')) + 1,
+                'ball_number' => (
+                    (int) $innings->deliveries()->max('ball_number')
+                ) + 1,
+
                 'striker' => $striker,
                 'non_striker' => $nonStriker,
                 'bowler' => $bowler,
+
                 'batter_runs' => $runs,
                 'extra_runs' => $extras,
                 'extra_type' => $extraType,
+
                 'is_wicket' => $isWicket,
                 'wicket_type' => $isWicket ? $wicketType : null,
                 'dismissed_batter' => $isWicket ? $dismissed : null,
                 'incoming_batter' => $data['incoming_batter'] ?? null,
+
                 'counts_as_legal_ball' => $isLegal,
                 'free_hit_before' => $freeHitBefore,
                 'note' => $data['note'] ?? null,
             ]);
 
+            /*
+             * Team total = batter runs + all extras.
+             */
             $innings->total_runs += $runs + $extras;
             $innings->extras += $extras;
 
+            /*
+             * Only legal deliveries advance the over.
+             */
             if ($isLegal) {
                 $innings->legal_balls++;
             }
 
             $countsAsWicket = $isWicket && !in_array(
                 strtolower((string) $wicketType),
-                ['retired hurt', 'obstructing the field'],
+                [
+                    'retired hurt',
+                    'obstructing the field',
+                ],
                 true
             );
 
             if ($countsAsWicket) {
-                $innings->wickets = min(10, $innings->wickets + 1);
+                $innings->wickets = min(
+                    10,
+                    (int) $innings->wickets + 1
+                );
             }
 
+            /*
+             * Strike rotation:
+             *
+             * - Batter runs rotate strike on odd runs.
+             * - Byes and leg-byes rotate on odd completed runs.
+             * - A wide's mandatory penalty is not a completed run.
+             *   Therefore subtract 1 before calculating rotation.
+             * - A no-ball's mandatory penalty is also not a completed
+             *   run; the remaining extras can represent completed
+             *   running/byes depending on how the scorer records them.
+             */
             $rotationRuns = $runs;
 
             if (in_array($extraType, ['bye', 'leg_bye'], true)) {
@@ -435,31 +535,58 @@ class LiveScoreController extends Controller
                 $rotationRuns += max(0, $extras - 1);
             }
 
-            if ($rotationRuns % 2 === 1) {
-                [$striker, $nonStriker] = [$nonStriker, $striker];
+            if ($extraType === 'no_ball') {
+                $rotationRuns += max(0, $extras - 1);
             }
 
-            $overEnded = $isLegal &&
-                ((int) $innings->legal_balls % 6 === 0);
+            if ($rotationRuns % 2 === 1) {
+                [$striker, $nonStriker] = [
+                    $nonStriker,
+                    $striker,
+                ];
+            }
+
+            /*
+             * End of over is determined by legal balls only.
+             * Six legal balls means the over is complete.
+             */
+            $overEnded = $isLegal
+                && ((int) $innings->legal_balls % 6 === 0);
 
             if ($overEnded) {
-                [$striker, $nonStriker] = [$nonStriker, $striker];
+                [$striker, $nonStriker] = [
+                    $nonStriker,
+                    $striker,
+                ];
             }
 
-            if ($isWicket && $countsAsWicket && $data['dismissed_batter']) {
+            /*
+             * Replace the dismissed batter with the incoming batter.
+             */
+            if (
+                $isWicket &&
+                $countsAsWicket &&
+                !empty($data['dismissed_batter'])
+            ) {
                 $dismissedName = trim($data['dismissed_batter']);
 
                 if ($dismissedName === $striker) {
                     if (!empty($data['incoming_batter'])) {
                         $striker = trim($data['incoming_batter']);
-                    } elseif ($innings->wickets < 10) {
-                        abort(422, 'Enter the incoming batter to complete this wicket.');
+                    } elseif ((int) $innings->wickets < 10) {
+                        abort(
+                            422,
+                            'Enter the incoming batter to complete this wicket.'
+                        );
                     }
                 } elseif ($dismissedName === $nonStriker) {
                     if (!empty($data['incoming_batter'])) {
                         $nonStriker = trim($data['incoming_batter']);
-                    } elseif ($innings->wickets < 10) {
-                        abort(422, 'Enter the incoming batter to complete this wicket.');
+                    } elseif ((int) $innings->wickets < 10) {
+                        abort(
+                            422,
+                            'Enter the incoming batter to complete this wicket.'
+                        );
                     }
                 }
             }
@@ -498,7 +625,10 @@ class LiveScoreController extends Controller
             }
 
             $latest->delete();
-            $remaining = $innings->deliveries()->get();
+
+            $remaining = $innings->deliveries()
+                ->orderBy('ball_number')
+                ->get();
 
             $runs = 0;
             $extras = 0;
@@ -508,13 +638,22 @@ class LiveScoreController extends Controller
             foreach ($remaining as $item) {
                 $runs += $item->totalRuns();
                 $extras += (int) $item->extra_runs;
+
+                /*
+                 * Count legal deliveries only.
+                 * Wide and no-ball deliveries must have
+                 * counts_as_legal_ball = false.
+                 */
                 $legalBalls += (int) $item->counts_as_legal_ball;
 
                 if (
                     $item->is_wicket &&
                     !in_array(
                         strtolower((string) $item->wicket_type),
-                        ['retired hurt', 'obstructing the field'],
+                        [
+                            'retired hurt',
+                            'obstructing the field',
+                        ],
                         true
                     )
                 ) {
@@ -533,7 +672,15 @@ class LiveScoreController extends Controller
                 $innings->striker = $last->striker_after;
                 $innings->non_striker = $last->non_striker_after;
                 $innings->current_bowler = $last->bowler;
-                $innings->free_hit_next = $last->extra_type === 'no_ball';
+
+                /*
+                 * Rebuild free-hit state from the final delivery.
+                 * A no-ball creates a free hit. An illegal delivery
+                 * does not consume an existing free hit.
+                 */
+                $innings->free_hit_next = $this->recalculateFreeHit(
+                    $remaining
+                );
             } else {
                 $innings->free_hit_next = false;
             }
@@ -542,5 +689,31 @@ class LiveScoreController extends Controller
         });
 
         return back()->with('status', 'Latest delivery undone.');
+    }
+
+    /**
+     * Determine whether the next delivery is still a free hit
+     * after undoing the latest delivery.
+     */
+    private function recalculateFreeHit($deliveries): bool
+    {
+        $freeHit = false;
+
+        foreach ($deliveries as $item) {
+            $type = (string) $item->extra_type;
+
+            if ($type === 'no_ball') {
+                $freeHit = true;
+                continue;
+            }
+
+            $isLegal = (bool) $item->counts_as_legal_ball;
+
+            if ($isLegal) {
+                $freeHit = false;
+            }
+        }
+
+        return $freeHit;
     }
 }
