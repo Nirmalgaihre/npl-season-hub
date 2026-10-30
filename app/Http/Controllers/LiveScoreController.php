@@ -77,8 +77,8 @@ class LiveScoreController extends Controller
 
                 $batter = $batters->get($name);
                 $batter['runs'] += (int) $delivery->batter_runs;
-                $batter['fours'] += ((int) $delivery->batter_runs === 4) ? 1 : 0;
-                $batter['sixes'] += ((int) $delivery->batter_runs === 6) ? 1 : 0;
+                $batter['fours'] += (int) $delivery->batter_runs === 4 ? 1 : 0;
+                $batter['sixes'] += (int) $delivery->batter_runs === 6 ? 1 : 0;
 
                 if ($delivery->extra_type !== 'wide') {
                     $batter['balls']++;
@@ -159,18 +159,34 @@ class LiveScoreController extends Controller
             ->orderBy('innings_number')
             ->get();
 
-        /*
-         * Supply $players to the live-scoring Blade view.
-         * The Player model is optional here because the project's
-         * actual player table/model has not yet been confirmed.
-         */
         $players = collect();
 
         if (class_exists(\App\Models\Player::class)) {
             try {
-                $players = \App\Models\Player::query()->get();
+                $players = \App\Models\Player::query()
+                    ->whereIn('team_id', [
+                        $fixture->home_team_id,
+                        $fixture->away_team_id,
+                    ])
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'team_id', 'name']);
             } catch (\Throwable $e) {
                 report($e);
+
+                // Fallback for a player table without is_active.
+                try {
+                    $players = \App\Models\Player::query()
+                        ->whereIn('team_id', [
+                            $fixture->home_team_id,
+                            $fixture->away_team_id,
+                        ])
+                        ->orderBy('name')
+                        ->get(['id', 'team_id', 'name']);
+                } catch (\Throwable $fallbackError) {
+                    report($fallbackError);
+                    $players = collect();
+                }
             }
         }
 
@@ -354,7 +370,6 @@ class LiveScoreController extends Controller
 
             $isLegal = !in_array($extraType, ['wide', 'no_ball'], true);
             $freeHitBefore = (bool) $innings->free_hit_next;
-
             $wicketType = $data['wicket_type'] ?? null;
             $dismissed = $data['dismissed_batter'] ?? null;
 
@@ -377,9 +392,7 @@ class LiveScoreController extends Controller
             $nextFreeHit = $isNoBall || ($freeHitBefore && !$isLegal);
 
             $delivery = $innings->deliveries()->create([
-                'ball_number' => (
-                    (int) $innings->deliveries()->max('ball_number')
-                ) + 1,
+                'ball_number' => ((int) $innings->deliveries()->max('ball_number')) + 1,
                 'striker' => $striker,
                 'non_striker' => $nonStriker,
                 'bowler' => $bowler,
@@ -433,30 +446,20 @@ class LiveScoreController extends Controller
                 [$striker, $nonStriker] = [$nonStriker, $striker];
             }
 
-            if (
-                $isWicket &&
-                $countsAsWicket &&
-                $data['dismissed_batter']
-            ) {
+            if ($isWicket && $countsAsWicket && $data['dismissed_batter']) {
                 $dismissedName = trim($data['dismissed_batter']);
 
                 if ($dismissedName === $striker) {
                     if (!empty($data['incoming_batter'])) {
                         $striker = trim($data['incoming_batter']);
                     } elseif ($innings->wickets < 10) {
-                        abort(
-                            422,
-                            'Enter the incoming batter to complete this wicket.'
-                        );
+                        abort(422, 'Enter the incoming batter to complete this wicket.');
                     }
                 } elseif ($dismissedName === $nonStriker) {
                     if (!empty($data['incoming_batter'])) {
                         $nonStriker = trim($data['incoming_batter']);
                     } elseif ($innings->wickets < 10) {
-                        abort(
-                            422,
-                            'Enter the incoming batter to complete this wicket.'
-                        );
+                        abort(422, 'Enter the incoming batter to complete this wicket.');
                     }
                 }
             }
@@ -495,7 +498,6 @@ class LiveScoreController extends Controller
             }
 
             $latest->delete();
-
             $remaining = $innings->deliveries()->get();
 
             $runs = 0;

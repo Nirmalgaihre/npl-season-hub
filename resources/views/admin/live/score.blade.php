@@ -5,54 +5,54 @@
 @section('content')
 @php
     $active = $innings->firstWhere('is_current', true);
+    $players = $players ?? collect();
+
+    $playerOptions = $players->map(function ($player) {
+        return [
+            'id' => $player->id,
+            'team_id' => $player->team_id,
+            'name' => $player->name,
+        ];
+    })->values();
+
+    $homeId = (string) $fixture->home_team_id;
+    $awayId = (string) $fixture->away_team_id;
 @endphp
 
 <div class="min-h-screen bg-slate-100/70 px-4 py-8 sm:px-6 lg:px-8">
     <div class="mx-auto max-w-7xl space-y-8">
 
-        <!-- Top Header & Actions -->
         <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div class="space-y-1">
-                <div class="inline-flex items-center gap-2 rounded-full bg-orange-100/80 px-3 py-1 text-xs font-black uppercase tracking-widest text-orange-600">
-                    <span class="h-2 w-2 rounded-full bg-orange-500 animate-pulse"></span>
-                    NPL Season Hub &bull; Match Operations
+            <div>
+                <div class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-widest text-orange-700">
+                    <span class="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>
+                    NPL Season Hub · Match Operations
                 </div>
-                <h1 class="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Live Scoring</h1>
-                <p class="text-sm font-medium text-slate-500">
-                    {{ $fixture->homeTeam->name ?? 'Home' }}
-                    <span class="text-slate-300 font-normal">vs</span>
+                <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                    Live Scoring
+                </h1>
+                <p class="mt-1 text-sm font-medium text-slate-500">
+                    {{ $fixture->homeTeam->name ?? 'Home' }} vs
                     {{ $fixture->awayTeam->name ?? 'Away' }}
                 </p>
             </div>
 
             <a href="{{ route('live.show', $fixture) }}" target="_blank"
-               class="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-900 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-indigo-900/10 transition-all duration-200 hover:bg-indigo-800 hover:shadow-indigo-900/20 active:scale-95">
-                <span>Open public scoreboard</span>
-                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
+               class="rounded-2xl bg-indigo-950 px-5 py-3 text-center text-sm font-bold text-white hover:bg-indigo-800">
+                Open Public Scoreboard ↗
             </a>
         </header>
 
-        <!-- Alerts -->
         @if(session('status'))
-            <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm font-bold text-emerald-800 shadow-sm backdrop-blur-sm">
-                <svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span>{{ session('status') }}</span>
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+                {{ session('status') }}
             </div>
         @endif
 
         @if($errors->any())
-            <div class="rounded-2xl border border-rose-200 bg-rose-50/85 p-5 text-sm text-rose-800 shadow-sm backdrop-blur-sm">
-                <div class="flex items-center gap-2 font-black text-rose-900">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                    </svg>
-                    <span>Please fix the following validation errors:</span>
-                </div>
-                <ul class="mt-2.5 list-inside list-disc space-y-1 font-medium text-rose-700">
+            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+                <p class="font-black">Please fix the following errors:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
                     @foreach($errors->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
@@ -60,306 +60,308 @@
             </div>
         @endif
 
-        <!-- Match Hero Banner -->
-        <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 text-white shadow-2xl sm:p-8">
-            <div class="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-white/5 blur-3xl pointer-events-none"></div>
-
-            <div class="relative z-10 grid gap-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+        <section class="rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 text-white shadow-xl sm:p-8">
+            <div class="grid gap-5 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                 <div>
-                    <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Home Team</span>
-                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->homeTeam->name ?? 'Home team' }}</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Home Team</p>
+                    <h2 class="mt-1 text-2xl font-black">{{ $fixture->homeTeam->name ?? 'Home team' }}</h2>
                 </div>
-
-                <div class="flex justify-center">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xs font-black tracking-widest text-white/70 shadow-inner backdrop-blur-md">VS</span>
-                </div>
-
+                <div class="text-center text-sm font-black text-indigo-300">VS</div>
                 <div class="sm:text-right">
-                    <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Away Team</span>
-                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->awayTeam->name ?? 'Away team' }}</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Away Team</p>
+                    <h2 class="mt-1 text-2xl font-black">{{ $fixture->awayTeam->name ?? 'Away team' }}</h2>
                 </div>
             </div>
-
-            <div class="relative z-10 mt-6 flex items-center gap-2 border-t border-white/10 pt-4 text-xs font-medium text-indigo-200 sm:text-sm">
-                <svg class="h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                <span>{{ $fixture->venue ?: 'Venue not set' }}</span>
-            </div>
+            <p class="mt-5 border-t border-white/10 pt-4 text-sm text-indigo-200">
+                Venue: {{ $fixture->venue ?: 'Venue not set' }}
+            </p>
         </section>
 
-        <!-- Toss & Match Setup Grid -->
         <div class="grid gap-6 lg:grid-cols-2">
 
-            <!-- Toss -->
-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 font-bold">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-lg font-black text-slate-900">Toss & Match Setup</h2>
-                        <p class="text-xs text-slate-500">Record the toss before the first innings.</p>
-                    </div>
-                </div>
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-lg font-black text-slate-900">Toss & Match Setup</h2>
+                <p class="mt-1 text-xs text-slate-500">Save the toss details before scoring.</p>
 
                 <form method="POST" action="{{ route('admin.live.toss', $fixture) }}" class="mt-5 space-y-4">
                     @csrf
 
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Toss Winner</label>
-                            <select name="toss_winner_team_id" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:ring-indigo-600">
-                                <option value="">Choose team</option>
-                                <option value="{{ $fixture->home_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->home_team_id)>{{ $fixture->homeTeam->name ?? 'Home' }}</option>
-                                <option value="{{ $fixture->away_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->away_team_id)>{{ $fixture->awayTeam->name ?? 'Away' }}</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Decision</label>
-                            <select name="toss_decision" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:ring-indigo-600">
-                                <option value="bat" @selected(old('toss_decision', $fixture->toss_decision) === 'bat')>Bat First</option>
-                                <option value="field" @selected(old('toss_decision', $fixture->toss_decision) === 'field')>Field First</option>
-                            </select>
-                        </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-slate-600">Toss Winner</label>
+                        <select name="toss_winner_team_id" required class="field">
+                            <option value="">Choose team</option>
+                            <option value="{{ $fixture->home_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->home_team_id)>
+                                {{ $fixture->homeTeam->name ?? 'Home' }}
+                            </option>
+                            <option value="{{ $fixture->away_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->away_team_id)>
+                                {{ $fixture->awayTeam->name ?? 'Away' }}
+                            </option>
+                        </select>
                     </div>
 
-                    <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-95">
-                        Save Toss Decision
-                    </button>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-slate-600">Decision</label>
+                        <select name="toss_decision" required class="field">
+                            <option value="bat" @selected(old('toss_decision', $fixture->toss_decision) === 'bat')>Bat First</option>
+                            <option value="field" @selected(old('toss_decision', $fixture->toss_decision) === 'field')>Field First</option>
+                        </select>
+                    </div>
+
+                    <button class="primary-button w-full" type="submit">Save Toss Decision</button>
                 </form>
 
                 @if($fixture->tossWinner)
-                    <div class="mt-4 flex items-center gap-2 rounded-xl bg-indigo-50/60 p-3 text-xs font-semibold text-indigo-900">
-                        <svg class="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <span>Toss: <strong>{{ $fixture->tossWinner->name }}</strong> elected to <strong>{{ $fixture->toss_decision }}</strong>.</span>
-                    </div>
+                    <p class="mt-4 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900">
+                        Toss: <strong>{{ $fixture->tossWinner->name }}</strong>
+                        elected to <strong>{{ $fixture->toss_decision }}</strong>.
+                    </p>
                 @endif
             </section>
 
-            <!-- Start Innings -->
-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 font-bold">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-lg font-black text-slate-900">Start Innings</h2>
-                        <p class="text-xs text-slate-500">Configure opening batters and bowler.</p>
-                    </div>
-                </div>
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-lg font-black text-slate-900">Start Innings</h2>
+                <p class="mt-1 text-xs text-slate-500">Select the opening batters and bowling player.</p>
 
-                <form method="POST" action="{{ route('admin.live.start', $fixture) }}" class="mt-5 space-y-4">
+                <form method="POST" action="{{ route('admin.live.start', $fixture) }}" class="mt-5 space-y-4" id="start-innings-form">
                     @csrf
 
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-slate-600">Innings</label>
+                        <select name="innings_number" required class="field">
+                            <option value="1">1st Innings</option>
+                            <option value="2">2nd Innings</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-slate-600">Batting Team</label>
+                        <select name="batting_team_id" id="opening-batting-team" required class="field">
+                            <option value="{{ $fixture->home_team_id }}">{{ $fixture->homeTeam->name ?? 'Home' }}</option>
+                            <option value="{{ $fixture->away_team_id }}">{{ $fixture->awayTeam->name ?? 'Away' }}</option>
+                        </select>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
                         <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Innings</label>
-                            <select name="innings_number" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:ring-orange-500">
-                                <option value="1">1st Innings</option>
-                                <option value="2">2nd Innings</option>
+                            <label class="mb-1 block text-xs font-bold text-slate-600">Striker</label>
+                            <select name="striker" id="opening-striker" required class="field player-select" data-team-source="opening-batting-team" data-role="batting">
+                                <option value="">Choose striker</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Batting Team</label>
-                            <select name="batting_team_id" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:ring-orange-500">
-                                <option value="{{ $fixture->home_team_id }}">{{ $fixture->homeTeam->name ?? 'Home' }}</option>
-                                <option value="{{ $fixture->away_team_id }}">{{ $fixture->awayTeam->name ?? 'Away' }}</option>
+                            <label class="mb-1 block text-xs font-bold text-slate-600">Non-Striker</label>
+                            <select name="non_striker" id="opening-non-striker" required class="field player-select" data-team-source="opening-batting-team" data-role="batting">
+                                <option value="">Choose non-striker</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="grid gap-4 sm:grid-cols-3">
-                        <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Striker</label>
-                            <input name="striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Non-Striker</label>
-                            <input name="non_striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Opening Bowler</label>
-                            <input name="current_bowler" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Bowler name">
-                        </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-slate-600">Opening Bowler</label>
+                        <select name="current_bowler" id="opening-bowler" required class="field player-select" data-team-source="opening-batting-team" data-role="bowling">
+                            <option value="">Choose opening bowler</option>
+                        </select>
                     </div>
 
-                    <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all hover:opacity-95 active:scale-95">
-                        Start Innings
-                    </button>
+                    <button type="submit" class="primary-button w-full">Start Innings</button>
                 </form>
 
-                <p class="mt-3 text-[11px] font-medium text-amber-700/90 flex items-center gap-1.5">
-                    <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                    </svg>
-                    <span>Innings with recorded deliveries cannot be restarted.</span>
+                <p class="mt-3 text-xs text-amber-700">
+                    An innings with recorded deliveries cannot be restarted.
                 </p>
             </section>
         </div>
 
-        <!-- Score Overview Cards -->
         <section class="grid gap-4 sm:grid-cols-2">
             @forelse($innings as $inning)
-                <article class="relative overflow-hidden rounded-3xl border {{ $inning->is_current ? 'border-orange-500 ring-2 ring-orange-400/20 shadow-xl' : 'border-slate-200/80 shadow-sm' }} bg-white p-6 transition-all">
+                <article class="rounded-3xl border {{ $inning->is_current ? 'border-orange-400 ring-2 ring-orange-100' : 'border-slate-200' }} bg-white p-6">
                     <div class="flex items-center justify-between gap-3">
-                        <span class="text-xs font-black uppercase tracking-widest text-slate-400">Innings {{ $inning->innings_number }}</span>
-
+                        <span class="text-xs font-black uppercase tracking-widest text-slate-400">
+                            Innings {{ $inning->innings_number }}
+                        </span>
                         @if($inning->is_current)
-                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black tracking-wider text-white shadow-sm shadow-emerald-500/30">
-                                <span class="h-1.5 w-1.5 rounded-full bg-white animate-ping"></span>
-                                LIVE
-                            </span>
+                            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">LIVE</span>
                         @endif
                     </div>
-
-                    <h3 class="mt-2 text-lg font-black text-slate-800">{{ $inning->battingTeam->name ?? 'Batting team' }}</h3>
-
-                    <div class="mt-3 flex items-baseline gap-2">
-                        <span class="text-4xl font-black tracking-tight text-indigo-950">{{ $inning->total_runs }}</span>
-                        <span class="text-2xl font-black text-slate-400">/{{ $inning->wickets }}</span>
-                    </div>
-
-                    <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-500">
-                        <span>Overs: <strong class="text-slate-900">{{ $inning->oversText() }}</strong></span>
-                        <span>Extras: <strong class="text-slate-900">{{ $inning->extras }}</strong></span>
-                        <span>Run Rate: <strong class="text-slate-900">{{ number_format($inning->runRate(), 2) }}</strong></span>
+                    <h3 class="mt-2 text-lg font-black text-slate-800">
+                        {{ $inning->battingTeam->name ?? 'Batting team' }}
+                    </h3>
+                    <p class="mt-2 text-4xl font-black text-indigo-950">
+                        {{ $inning->total_runs }}/{{ $inning->wickets }}
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-4 text-xs text-slate-500">
+                        <span>Overs: <strong>{{ $inning->oversText() }}</strong></span>
+                        <span>Extras: <strong>{{ $inning->extras }}</strong></span>
+                        <span>Run rate: <strong>{{ number_format($inning->runRate(), 2) }}</strong></span>
                     </div>
                 </article>
             @empty
-                <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-medium text-slate-400 sm:col-span-2">
+                <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 sm:col-span-2">
                     No innings started yet.
                 </div>
             @endforelse
         </section>
 
-        {{-- Active scoring console --}}
         @if($active)
-            <section class="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl">
-                <!-- Console Top Bar -->
-                <div class="bg-indigo-950 p-6 text-white sm:p-8">
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                        <div>
-                            <span class="text-xs font-black uppercase tracking-widest text-orange-400">Active Live Scoring</span>
-                            <h2 class="mt-1 text-2xl font-black tracking-tight">{{ $active->battingTeam->name ?? 'Batting team' }}</h2>
-                        </div>
+            @php
+                $activeBattingTeamId = (string) $active->batting_team_id;
+                $activeBowlingTeamId = (string) $active->bowling_team_id;
+                $currentDeliveries = $active->deliveries->sortBy('id');
+                $latestDelivery = $currentDeliveries->last();
+                $overComplete = ((int) $active->legal_balls > 0 && (int) $active->legal_balls % 6 === 0);
+            @endphp
 
+            <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+                <div class="bg-indigo-950 p-6 text-white sm:p-8">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-widest text-orange-400">Active Live Scoring</p>
+                            <h2 class="mt-1 text-2xl font-black">{{ $active->battingTeam->name ?? 'Batting team' }}</h2>
+                            <p class="mt-1 text-xs text-indigo-300">
+                                Bowling: {{ $active->bowlingTeam->name ?? 'Bowling team' }}
+                            </p>
+                        </div>
                         @if($active->free_hit_next)
-                            <span class="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/30 animate-pulse">
-                                FREE HIT DELIVERY
-                            </span>
+                            <span class="rounded-xl bg-orange-500 px-3 py-2 text-xs font-black">FREE HIT</span>
                         @endif
                     </div>
 
-                    <div class="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-white/10 pt-6">
+                    <div class="mt-6 grid grid-cols-3 gap-4 border-t border-white/10 pt-6">
                         <div>
-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Score</span>
-                            <span class="text-5xl font-black tracking-tight">{{ $active->total_runs }}/{{ $active->wickets }}</span>
+                            <p class="text-xs font-bold uppercase text-indigo-300">Score</p>
+                            <p class="text-3xl font-black sm:text-5xl">{{ $active->total_runs }}/{{ $active->wickets }}</p>
                         </div>
-
                         <div>
-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Overs</span>
-                            <span class="text-2xl font-black">{{ $active->oversText() }}</span>
+                            <p class="text-xs font-bold uppercase text-indigo-300">Overs</p>
+                            <p class="text-2xl font-black sm:text-3xl">{{ $active->oversText() }}</p>
                         </div>
-
                         <div>
-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Run Rate</span>
-                            <span class="text-2xl font-black">{{ number_format($active->runRate(), 2) }}</span>
+                            <p class="text-xs font-bold uppercase text-indigo-300">Run Rate</p>
+                            <p class="text-2xl font-black sm:text-3xl">{{ number_format($active->runRate(), 2) }}</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.2fr_.8fr]">
+                <div class="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.2fr_.8fr]">
 
-                    <!-- Left Column: Quick Scoring & Extras -->
                     <div class="space-y-6">
-                        <div>
+
+                        <section class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
+                            <h3 class="text-base font-black text-slate-900">Choose Players for Next Delivery</h3>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Select the batters and bowler before using quick runs or extras.
+                            </p>
+
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Striker</label>
+                                    <select id="live-striker" class="field live-player" data-team-id="{{ $activeBattingTeamId }}" data-placeholder="Choose striker">
+                                        <option value="{{ $active->striker }}">{{ $active->striker }}</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Non-Striker</label>
+                                    <select id="live-non-striker" class="field live-player" data-team-id="{{ $activeBattingTeamId }}" data-placeholder="Choose non-striker">
+                                        <option value="{{ $active->non_striker }}">{{ $active->non_striker }}</option>
+                                    </select>
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Current / Next Bowler</label>
+                                    <select id="live-bowler" class="field live-player" data-team-id="{{ $activeBowlingTeamId }}" data-placeholder="Choose bowler">
+                                        <option value="{{ $active->current_bowler }}">{{ $active->current_bowler }}</option>
+                                    </select>
+                                    @if($overComplete)
+                                        <p class="mt-2 text-xs font-bold text-orange-700">
+                                            Over complete — select the next bowler before recording another ball.
+                                        </p>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <p id="player-selection-warning" class="mt-3 hidden text-xs font-bold text-rose-600">
+                                Select two different batters and a bowler.
+                            </p>
+                        </section>
+
+                        <section>
                             <h3 class="text-base font-black text-slate-900">Tap to Score Runs</h3>
-                            <p class="text-xs text-slate-500">Each action instantly records a delivery and updates match statistics.</p>
+                            <p class="mt-1 text-xs text-slate-500">Quick scoring uses the players selected above.</p>
 
                             <div class="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-7">
-                                @foreach([0,1,2,3,4,5,6] as $run)
+                                @foreach([0, 1, 2, 3, 4, 5, 6] as $run)
                                     <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" data-live-delivery-form>
                                         @csrf
                                         <input type="hidden" name="innings_id" value="{{ $active->id }}">
-                                        <input type="hidden" name="striker" value="{{ $active->striker }}">
-                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">
-                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">
+                                        <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">
+                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">
+                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">
                                         <input type="hidden" name="batter_runs" value="{{ $run }}">
                                         <input type="hidden" name="extra_type" value="none">
                                         <input type="hidden" name="extra_runs" value="0">
 
-                                        <button type="submit" class="group flex h-16 w-full flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/50 text-xl font-black text-indigo-950 shadow-sm transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95">
+                                        <button type="submit" class="run-button">
                                             <span>{{ $run }}</span>
-                                            <span class="text-[9px] font-bold text-slate-400 group-hover:text-orange-100">RUNS</span>
+                                            <span class="text-[9px] font-bold">RUNS</span>
                                         </button>
                                     </form>
                                 @endforeach
                             </div>
-                        </div>
+                        </section>
 
-                        <!-- Quick Extras -->
-                        <div>
+                        <section>
                             <h3 class="text-base font-black text-slate-900">Quick Extras</h3>
-
                             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                                 @foreach([
                                     ['wide', 'Wide (+1)', 0, 1],
-                                    ['no_ball', 'No-Ball (+1)', 0, 1],
-                                    ['bye', 'Bye', 0, 1],
-                                    ['leg_bye', 'Leg-Bye', 0, 1],
+                                    ['no_ball', 'No-ball (+1)', 0, 1],
+                                    ['bye', 'Bye (+1)', 0, 1],
+                                    ['leg_bye', 'Leg-bye (+1)', 0, 1],
                                 ] as [$type, $label, $batRuns, $extraRuns])
                                     <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" data-live-delivery-form>
                                         @csrf
                                         <input type="hidden" name="innings_id" value="{{ $active->id }}">
-                                        <input type="hidden" name="striker" value="{{ $active->striker }}">
-                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">
-                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">
+                                        <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">
+                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">
+                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">
                                         <input type="hidden" name="batter_runs" value="{{ $batRuns }}">
                                         <input type="hidden" name="extra_type" value="{{ $type }}">
                                         <input type="hidden" name="extra_runs" value="{{ $extraRuns }}">
 
-                                        <button type="submit" class="w-full rounded-2xl border border-orange-200/80 bg-orange-50/60 px-3 py-3.5 text-xs font-black text-orange-900 transition-all hover:bg-orange-100 active:scale-95">
+                                        <button type="submit" class="w-full rounded-2xl border border-orange-200 bg-orange-50 px-3 py-3 text-xs font-black text-orange-900 hover:bg-orange-100">
                                             {{ $label }}
                                         </button>
                                     </form>
                                 @endforeach
                             </div>
-                        </div>
+                        </section>
 
-                        <!-- Detailed Delivery Form -->
-                        <div class="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">
-                            <h4 class="text-sm font-black text-slate-900">Detailed Delivery Form</h4>
-                            <p class="text-[11px] text-slate-500">Use for custom extras, multi-run no-balls, or changing bowlers.</p>
+                        <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                            <h3 class="text-sm font-black text-slate-900">Detailed Delivery Form</h3>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Select a bowler for this delivery. You can also choose the next bowler at the end of the over.
+                            </p>
 
-                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-4" data-live-delivery-form>
+                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-4" data-live-delivery-form id="detailed-delivery-form">
                                 @csrf
                                 <input type="hidden" name="innings_id" value="{{ $active->id }}">
-                                <input type="hidden" name="striker" value="{{ $active->striker }}">
-                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">
+                                <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">
+                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">
+
+                                <div>
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Bowler for This Delivery</label>
+                                    <select name="bowler" id="detailed-bowler" required class="field live-player" data-team-id="{{ $activeBowlingTeamId }}" data-placeholder="Choose bowler">
+                                        <option value="{{ $active->current_bowler }}">{{ $active->current_bowler }}</option>
+                                    </select>
+                                </div>
 
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <div>
-                                        <label class="mb-1 block text-xs font-bold text-slate-600">Bowler (Change at over end)</label>
-                                        <input name="bowler" value="{{ $active->current_bowler }}" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
-                                    </div>
-
-                                    <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Batter Runs</label>
-                                        <select name="batter_runs" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
-                                            @foreach([0,1,2,3,4,5,6] as $r)
+                                        <select name="batter_runs" class="field">
+                                            @foreach([0, 1, 2, 3, 4, 5, 6] as $r)
                                                 <option value="{{ $r }}">{{ $r }}</option>
                                             @endforeach
                                         </select>
@@ -367,7 +369,7 @@
 
                                     <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Type</label>
-                                        <select name="extra_type" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
+                                        <select name="extra_type" id="detail-extra-type" class="field">
                                             <option value="none">None</option>
                                             <option value="wide">Wide</option>
                                             <option value="no_ball">No-ball</option>
@@ -379,153 +381,123 @@
 
                                     <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Runs</label>
-                                        <input name="extra_runs" type="number" min="0" max="7" value="0" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
+                                        <input name="extra_runs" type="number" min="0" max="7" value="0" required class="field">
+                                    </div>
+
+                                    <div>
+                                        <label class="mb-1 block text-xs font-bold text-slate-600">Delivery Note (Optional)</label>
+                                        <input name="note" maxlength="255" class="field" placeholder="Optional note">
                                     </div>
                                 </div>
 
-                                <button type="submit" class="w-full rounded-xl bg-indigo-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all hover:bg-indigo-800 active:scale-95">
-                                    Record Custom Delivery
-                                </button>
+                                <button type="submit" class="primary-button w-full">Record Custom Delivery</button>
                             </form>
-                        </div>
+                        </section>
                     </div>
 
-                    <!-- Right Column: Wickets & Current Lineup -->
                     <div class="space-y-6">
 
-                        <!-- Wicket Panel -->
-                        <div class="rounded-2xl border border-rose-200/80 bg-rose-50/40 p-5">
-                            <div class="flex items-center gap-2 text-rose-700">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636"/>
-                                </svg>
-                                <h3 class="text-sm font-black uppercase tracking-wider text-rose-900">Record Wicket</h3>
-                            </div>
+                        <section class="rounded-2xl border border-rose-200 bg-rose-50/50 p-5">
+                            <h3 class="text-sm font-black uppercase tracking-wider text-rose-900">Record Wicket</h3>
 
-                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-3" data-live-delivery-form>
+                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-3" data-live-delivery-form id="wicket-form">
                                 @csrf
                                 <input type="hidden" name="innings_id" value="{{ $active->id }}">
-                                <input type="hidden" name="striker" value="{{ $active->striker }}">
-                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">
-                                <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">
+                                <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">
+                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">
+                                <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">
                                 <input type="hidden" name="batter_runs" value="0">
                                 <input type="hidden" name="extra_type" value="none">
                                 <input type="hidden" name="extra_runs" value="0">
                                 <input type="hidden" name="is_wicket" value="1">
 
                                 <div>
-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Dismissal Type</label>
-                                    <select name="wicket_type" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
-                                        @foreach(['bowled','caught','lbw','run out','stumped','hit wicket','retired hurt','retired out','obstructing the field','hit the ball twice'] as $type)
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Dismissal Type</label>
+                                    <select name="wicket_type" required class="field">
+                                        @foreach([
+                                            'bowled', 'caught', 'lbw', 'run out', 'stumped',
+                                            'hit wicket', 'retired hurt', 'retired out',
+                                            'obstructing the field', 'hit the ball twice',
+                                            'handled the ball'
+                                        ] as $type)
                                             <option value="{{ $type }}">{{ ucfirst($type) }}</option>
                                         @endforeach
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Dismissed Batter</label>
-                                    <select name="dismissed_batter" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Dismissed Batter</label>
+                                    <select name="dismissed_batter" id="dismissed-batter" required class="field">
                                         <option value="{{ $active->striker }}">{{ $active->striker }} (Striker)</option>
                                         <option value="{{ $active->non_striker }}">{{ $active->non_striker }} (Non-Striker)</option>
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Incoming Batter</label>
-                                    <input name="incoming_batter" maxlength="100" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400" placeholder="Next batter name">
+                                    <label class="mb-1 block text-xs font-bold text-slate-600">Incoming Batter</label>
+                                    <select name="incoming_batter" id="incoming-batter" class="field">
+                                        <option value="">Choose incoming batter</option>
+                                    </select>
                                 </div>
 
-                                <button type="submit" class="w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-rose-600/20 transition-all hover:bg-rose-700 active:scale-95">
+                                <button type="submit" class="w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase text-white hover:bg-rose-700">
                                     Confirm & Fall of Wicket
                                 </button>
                             </form>
-                        </div>
+                        </section>
 
-                        <!-- Current Batsmen & Bowler Status -->
-                        <div>
+                        <section>
                             <h3 class="text-sm font-black text-slate-900">Current On-Field Status</h3>
-
-                            <div class="mt-3 space-y-2.5">
-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                        <span class="font-extrabold text-slate-800">{{ $active->striker ?: 'Not set' }}</span>
-                                    </div>
-                                    <span class="rounded-lg bg-emerald-100/70 px-2.5 py-1 text-[10px] font-black text-emerald-800">STRIKER</span>
+                            <div class="mt-3 space-y-2">
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[10px] font-black uppercase text-emerald-700">Striker</p>
+                                    <p id="status-striker" class="mt-1 font-bold text-slate-900">{{ $active->striker ?: 'Not set' }}</p>
                                 </div>
-
-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="h-2 w-2 rounded-full bg-slate-300"></span>
-                                        <span class="font-extrabold text-slate-700">{{ $active->non_striker ?: 'Not set' }}</span>
-                                    </div>
-                                    <span class="rounded-lg bg-slate-200/60 px-2.5 py-1 text-[10px] font-black text-slate-600">NON-STRIKER</span>
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[10px] font-black uppercase text-slate-500">Non-Striker</p>
+                                    <p id="status-non-striker" class="mt-1 font-bold text-slate-900">{{ $active->non_striker ?: 'Not set' }}</p>
                                 </div>
-
-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                                        <span class="text-slate-500 font-medium">Bowler</span>
-                                    </div>
-                                    <span class="font-extrabold text-slate-900">{{ $active->current_bowler ?: 'Not set' }}</span>
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <p class="text-[10px] font-black uppercase text-indigo-700">Current Bowler</p>
+                                    <p id="status-bowler" class="mt-1 font-bold text-slate-900">{{ $active->current_bowler ?: 'Not set' }}</p>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
                 </div>
             </section>
         @else
-            <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
-                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
-                    </svg>
-                </div>
-                <h2 class="mt-4 text-base font-black text-slate-900">Ready to start scoring?</h2>
-                <p class="mt-1 text-xs text-slate-500">Save the toss setup and initialize your first innings above to activate the control board.</p>
+            <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+                <h2 class="text-base font-black text-slate-900">Ready to start scoring?</h2>
+                <p class="mt-2 text-sm text-slate-500">
+                    Choose the batting team, two opening batters, and an opening bowler above.
+                </p>
             </section>
         @endif
 
-        {{-- Recent Deliveries / Undo --}}
         @if($active)
-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-lg font-black text-slate-900">Recent Deliveries</h2>
-                        <p class="text-xs text-slate-500">Undo is available exclusively for the latest recorded delivery.</p>
-                    </div>
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+                <div>
+                    <h2 class="text-lg font-black text-slate-900">Recent Deliveries</h2>
+                    <p class="mt-1 text-xs text-slate-500">Only the latest delivery can be undone.</p>
                 </div>
 
-                @php
-                    $recentDeliveries = $active->deliveries->sortByDesc('id')->take(12);
-                    $latestDelivery = $active->deliveries->sortByDesc('id')->first();
-                @endphp
-
                 <div class="mt-5 divide-y divide-slate-100">
-                    @forelse($recentDeliveries as $ball)
-                        <div class="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
-                            <div class="space-y-0.5">
+                    @forelse($active->deliveries->sortByDesc('id')->take(12) as $ball)
+                        <div class="flex flex-wrap items-center justify-between gap-3 py-4">
+                            <div>
                                 <p class="text-sm font-bold text-slate-800">
                                     {{ $ball->striker ?? 'Unknown batter' }}
                                     <span class="font-normal text-slate-400">vs</span>
                                     {{ $ball->bowler ?? 'Unknown bowler' }}
                                 </p>
-
-                                <p class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                    <span class="font-medium text-slate-600">
-                                        {{ ($ball->extra_type ?? 'none') === 'none'
-                                            ? 'Bat runs'
-                                            : ucfirst(str_replace('_', ' ', $ball->extra_type)) }}
-                                    </span>
-
-                                    <span>&bull;</span>
-
-                                    <strong class="text-indigo-900">{{ $ball->totalRuns() }} run(s)</strong>
-
+                                <p class="mt-1 text-xs text-slate-500">
+                                    {{ ($ball->extra_type ?? 'none') === 'none'
+                                        ? 'Bat runs'
+                                        : ucfirst(str_replace('_', ' ', $ball->extra_type)) }}
+                                    · <strong class="text-indigo-900">{{ $ball->totalRuns() }} run(s)</strong>
                                     @if($ball->is_wicket)
-                                        <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-rose-800">
-                                            Wicket: {{ $ball->wicket_type }}
-                                        </span>
+                                        · <strong class="text-rose-700">Wicket: {{ $ball->wicket_type }}</strong>
                                     @endif
                                 </p>
                             </div>
@@ -536,20 +508,14 @@
                                       onsubmit="return confirm('Undo the latest delivery? This will alter the recorded score.');">
                                     @csrf
                                     @method('DELETE')
-
-                                    <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95">
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                                        </svg>
+                                    <button type="submit" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100">
                                         Undo Latest
                                     </button>
                                 </form>
                             @endif
                         </div>
                     @empty
-                        <p class="py-6 text-center text-xs font-medium text-slate-400">
-                            No deliveries recorded in this innings yet.
-                        </p>
+                        <p class="py-6 text-center text-xs text-slate-400">No deliveries recorded yet.</p>
                     @endforelse
                 </div>
             </section>
@@ -558,8 +524,242 @@
     </div>
 </div>
 
+<style>
+    .field {
+        display: block;
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: .75rem;
+        background: #fff;
+        padding: .7rem .8rem;
+        font-size: .875rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .field:focus {
+        outline: 2px solid transparent;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgb(79 70 229 / 12%);
+    }
+
+    .primary-button {
+        border-radius: .75rem;
+        background: #312e81;
+        padding: .85rem 1rem;
+        color: white;
+        font-size: .875rem;
+        font-weight: 800;
+        transition: background .15s ease;
+    }
+
+    .primary-button:hover {
+        background: #3730a3;
+    }
+
+    .run-button {
+        display: flex;
+        height: 4rem;
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #f8fafc;
+        color: #1e1b4b;
+        font-size: 1.25rem;
+        font-weight: 900;
+        transition: all .15s ease;
+    }
+
+    .run-button:hover {
+        border-color: #f97316;
+        background: #f97316;
+        color: #fff;
+    }
+
+    .run-button:disabled,
+    .primary-button:disabled {
+        cursor: wait;
+        opacity: .6;
+    }
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const players = @json($playerOptions);
+    const homeId = @json($homeId);
+    const awayId = @json($awayId);
+
+    const openingTeam = document.getElementById('opening-batting-team');
+    const openingStriker = document.getElementById('opening-striker');
+    const openingNonStriker = document.getElementById('opening-non-striker');
+    const openingBowler = document.getElementById('opening-bowler');
+
+    const liveStriker = document.getElementById('live-striker');
+    const liveNonStriker = document.getElementById('live-non-striker');
+    const liveBowler = document.getElementById('live-bowler');
+    const detailedBowler = document.getElementById('detailed-bowler');
+
+    const incomingBatter = document.getElementById('incoming-batter');
+    const dismissedBatter = document.getElementById('dismissed-batter');
+
+    function teamPlayers(teamId) {
+        return players.filter(function (player) {
+            return String(player.team_id) === String(teamId);
+        });
+    }
+
+    function otherTeamId(teamId) {
+        return String(teamId) === homeId ? awayId : homeId;
+    }
+
+    function fillSelect(select, items, placeholder, selectedValue) {
+        if (!select) return;
+
+        const previous = selectedValue !== undefined
+            ? String(selectedValue)
+            : String(select.value || '');
+
+        select.innerHTML = '';
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = placeholder;
+        select.appendChild(emptyOption);
+
+        items.forEach(function (player) {
+            const option = document.createElement('option');
+            option.value = player.name;
+            option.textContent = player.name;
+            select.appendChild(option);
+        });
+
+        if (items.some(function (player) {
+            return player.name === previous;
+        })) {
+            select.value = previous;
+        } else if (items.length === 1) {
+            select.value = items[0].name;
+        }
+    }
+
+    function fillOpeningSelections() {
+        const battingId = openingTeam.value;
+        const battingPlayers = teamPlayers(battingId);
+        const bowlingPlayers = teamPlayers(otherTeamId(battingId));
+
+        fillSelect(openingStriker, battingPlayers, 'Choose striker');
+        fillSelect(openingNonStriker, battingPlayers, 'Choose non-striker');
+        fillSelect(openingBowler, bowlingPlayers, 'Choose opening bowler');
+
+        if (openingStriker.value && openingNonStriker.value === openingStriker.value) {
+            openingNonStriker.value = '';
+        }
+    }
+
+    function fillActiveSelections() {
+        if (!liveStriker) return;
+
+        const battingId = liveStriker.dataset.teamId;
+        const bowlingId = liveBowler.dataset.teamId;
+
+        const battingPlayers = teamPlayers(battingId);
+        const bowlingPlayers = teamPlayers(bowlingId);
+
+        fillSelect(
+            liveStriker,
+            battingPlayers,
+            'Choose striker',
+            @json($active->striker)
+        );
+
+        fillSelect(
+            liveNonStriker,
+            battingPlayers,
+            'Choose non-striker',
+            @json($active->non_striker)
+        );
+
+        fillSelect(
+            liveBowler,
+            bowlingPlayers,
+            'Choose current / next bowler',
+            @json($active->current_bowler)
+        );
+
+        fillSelect(
+            detailedBowler,
+            bowlingPlayers,
+            'Choose bowler for this delivery',
+            @json($active->current_bowler)
+        );
+
+        fillSelect(incomingBatter, battingPlayers, 'Choose incoming batter');
+
+        updateSelectedPlayers();
+    }
+
+    function updateSelectedPlayers() {
+        if (!liveStriker) return;
+
+        const striker = liveStriker.value;
+        const nonStriker = liveNonStriker.value;
+        const bowler = liveBowler.value;
+
+        document.querySelectorAll('[data-player-field="striker"]').forEach(function (input) {
+            input.value = striker;
+        });
+
+        document.querySelectorAll('[data-player-field="non_striker"]').forEach(function (input) {
+            input.value = nonStriker;
+        });
+
+        document.querySelectorAll('[data-player-field="bowler"]').forEach(function (input) {
+            input.value = bowler;
+        });
+
+        document.getElementById('status-striker').textContent = striker || 'Not set';
+        document.getElementById('status-non-striker').textContent = nonStriker || 'Not set';
+        document.getElementById('status-bowler').textContent = bowler || 'Not set';
+
+        const warning = document.getElementById('player-selection-warning');
+
+        if (warning) {
+            warning.classList.toggle(
+                'hidden',
+                Boolean(striker && nonStriker && bowler && striker !== nonStriker)
+            );
+        }
+    }
+
+    if (openingTeam) {
+        openingTeam.addEventListener('change', fillOpeningSelections);
+        fillOpeningSelections();
+    }
+
+    if (liveStriker) {
+        fillActiveSelections();
+
+        [liveStriker, liveNonStriker, liveBowler].forEach(function (select) {
+            select.addEventListener('change', updateSelectedPlayers);
+        });
+
+        if (detailedBowler) {
+            detailedBowler.addEventListener('change', function () {
+                liveBowler.value = detailedBowler.value;
+                updateSelectedPlayers();
+            });
+        }
+    }
+
+    if (dismissedBatter) {
+        dismissedBatter.addEventListener('change', function () {
+            // Incoming batter selection remains separate from the dismissed player.
+        });
+    }
+
     document.querySelectorAll('form[data-live-delivery-form]').forEach(function (form) {
         form.addEventListener('submit', function (event) {
             if (form.dataset.submitting === 'true') {
@@ -571,29 +771,48 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            form.dataset.submitting = 'true';
+            if (liveStriker) {
+                const striker = liveStriker.value;
+                const nonStriker = liveNonStriker.value;
+                const bowler = form.querySelector('[name="bowler"]')?.value
+                    || liveBowler.value;
 
-            const submitButton = form.querySelector('button[type="submit"], button:not([type])');
+                if (!striker || !nonStriker || !bowler || striker === nonStriker) {
+                    event.preventDefault();
+                    alert('Choose two different batters and a bowler before recording this delivery.');
+                    return;
+                }
 
-            if (!submitButton) {
-                return;
+                form.querySelector('[name="striker"]').value = striker;
+                form.querySelector('[name="non_striker"]').value = nonStriker;
+                form.querySelector('[name="bowler"]').value = bowler;
             }
 
-            submitButton.dataset.originalHtml = submitButton.innerHTML;
-            submitButton.disabled = true;
-            submitButton.classList.add('opacity-70', 'cursor-wait');
-            submitButton.setAttribute('aria-busy', 'true');
+            form.dataset.submitting = 'true';
 
-            const isQuickRun = submitButton.querySelector('span');
+            const button = form.querySelector('button[type="submit"]');
 
-            if (isQuickRun) {
-                submitButton.innerHTML = '<span class="text-sm font-black">Saving…</span><span class="text-[9px] font-bold">PLEASE WAIT</span>';
-            } else {
-                submitButton.textContent = 'Saving Delivery…';
+            if (button) {
+                button.disabled = true;
+                button.dataset.originalText = button.textContent;
+                button.textContent = 'Saving delivery…';
             }
         });
     });
+
+    const wicketForm = document.getElementById('wicket-form');
+
+    if (wicketForm && liveStriker) {
+        wicketForm.addEventListener('submit', function (event) {
+            const dismissed = dismissedBatter.value;
+            const incoming = incomingBatter.value;
+
+            if (dismissed && incoming && dismissed === incoming) {
+                event.preventDefault();
+                alert('The incoming batter must be different from the dismissed batter.');
+            }
+        });
+    }
 });
 </script>
-
 @endsection
