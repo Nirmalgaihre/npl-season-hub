@@ -9,7 +9,6 @@
 
 @php
     use Illuminate\Support\Facades\DB;
-    use Illuminate\Support\Facades\Schema;
     use Illuminate\Support\Str;
 
     $teamFixtures = collect($fixtures ?? []);
@@ -26,18 +25,13 @@
         ->filter(fn ($match) => strtolower($match->status ?? '') === 'completed')
         ->sortByDesc(fn ($match) => $match->scheduled_at?->timestamp ?? 0);
 
-    /*
-     * Fetch real players from the players table.
-     * No sample or hard-coded player data is used.
-     */
+    // Load actual players registered to this team.
     $players = DB::table('players')
         ->where('team_id', $team->id)
         ->orderBy('name')
         ->get();
 
-    /*
-     * Fetch innings scorecards for this team's fixtures in one query.
-     */
+    // Load scorecards for the fixtures already available on this page.
     $fixtureIds = $teamFixtures->pluck('id')->filter()->values();
 
     $scorecardsByFixture = $fixtureIds->isNotEmpty()
@@ -48,24 +42,18 @@
             ->groupBy('fixture_id')
         : collect();
 
-    $teamNames = DB::table('teams')
-        ->whereIn(
-            'id',
-            $scorecardsByFixture->flatten(1)
-                ->pluck('batting_team_id')
-                ->filter()
-                ->unique()
-                ->values()
-        )
-        ->pluck('name', 'id');
+    $battingTeamIds = $scorecardsByFixture
+        ->flatten(1)
+        ->pluck('batting_team_id')
+        ->filter()
+        ->unique()
+        ->values();
 
-    $statusStyles = [
-        'live' => 'bg-red-50 text-red-700',
-        'scheduled' => 'bg-blue-50 text-blue-700',
-        'completed' => 'bg-emerald-50 text-emerald-700',
-        'postponed' => 'bg-orange-50 text-orange-700',
-        'abandoned' => 'bg-slate-100 text-slate-600',
-    ];
+    $teamNames = $battingTeamIds->isNotEmpty()
+        ? DB::table('teams')
+            ->whereIn('id', $battingTeamIds)
+            ->pluck('name', 'id')
+        : collect();
 
     $teamLogo = $team->logo
         ? asset('storage/' . $team->logo)
@@ -79,9 +67,9 @@
         <div class="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10">
 
             <nav class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                <a href="{{ route('home') }}" class="hover:text-[#F06445]">Home</a>
+                <a href="{{ route('home') }}" class="transition hover:text-[#F06445]">Home</a>
                 <span>/</span>
-                <a href="{{ route('teams.index') }}" class="hover:text-[#F06445]">Teams</a>
+                <a href="{{ route('teams.index') }}" class="transition hover:text-[#F06445]">Teams</a>
                 <span>/</span>
                 <span class="font-semibold text-[#202766]">{{ $team->name }}</span>
             </nav>
@@ -167,99 +155,185 @@
 
         </section>
 
-        {{-- Squad --}}
-        <section id="squad" class="mt-10">
+        {{-- Cricket trading-style player cards --}}
+        <section id="squad" class="mt-12">
 
-            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">
+                    <p class="text-xs font-extrabold uppercase tracking-[0.2em] text-[#F06445]">
                         The squad
                     </p>
-                    <h2 class="mt-2 text-2xl font-extrabold">Players</h2>
-                    <p class="mt-1 text-sm text-slate-500">
+
+                    <h2 class="mt-2 text-3xl font-black tracking-tight text-[#172554] sm:text-4xl">
+                        Players
+                    </h2>
+
+                    <p class="mt-2 text-sm text-slate-500">
                         Players registered to {{ $team->name }}.
                     </p>
                 </div>
 
-                <span class="text-sm font-semibold text-slate-500">
-                    {{ $players->count() }} {{ Str::plural('player', $players->count()) }}
+                <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#202766]">
+                    {{ $players->count() }} {{ Str::plural('Player', $players->count()) }}
                 </span>
             </div>
 
             @if ($players->isNotEmpty())
-                <div class="overflow-hidden border border-slate-200 bg-white">
 
-                    <div class="hidden grid-cols-[minmax(0,2fr)_minmax(100px,1fr)_minmax(100px,1fr)] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 sm:grid">
-                        <div>Player</div>
-                        <div>Role</div>
-                        <div>Nationality</div>
-                    </div>
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
 
-                    <div class="divide-y divide-slate-100">
-                        @foreach ($players as $player)
-                            <div class="grid grid-cols-1 gap-3 px-4 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,2fr)_minmax(100px,1fr)_minmax(100px,1fr)] sm:items-center sm:gap-4 sm:px-5">
+                    @foreach ($players as $player)
+                        @php
+                            $playerName = $player->name ?? 'Player';
+                            $playerRole = trim($player->role ?? '');
+                            $roleLower = Str::lower($playerRole);
 
-                                <div class="flex min-w-0 items-center gap-3">
-                                    <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-slate-50">
-                                        @if ($player->photo_path)
-                                            <img
-                                                src="{{ asset('storage/' . $player->photo_path) }}"
-                                                alt="{{ $player->name }}"
-                                                loading="lazy"
-                                                class="h-full w-full object-cover"
-                                            >
-                                        @else
-                                            <span class="text-sm font-extrabold text-[#202766]">
-                                                {{ Str::upper(Str::substr($player->name, 0, 2)) }}
-                                            </span>
-                                        @endif
-                                    </div>
+                            if (
+                                str_contains($roleLower, 'all-round')
+                                || str_contains($roleLower, 'allround')
+                                || str_contains($roleLower, 'all round')
+                            ) {
+                                $roleBadge = 'bg-violet-600';
+                            } elseif (str_contains($roleLower, 'wicket')) {
+                                $roleBadge = 'bg-emerald-600';
+                            } elseif (str_contains($roleLower, 'bowl')) {
+                                $roleBadge = 'bg-sky-600';
+                            } else {
+                                $roleBadge = 'bg-[#F06445]';
+                            }
 
-                                    <div class="min-w-0">
-                                        <p class="break-words text-sm font-bold text-slate-900">
-                                            {{ $player->name }}
+                            $playerPhoto = !empty($player->photo_path)
+                                ? asset('storage/' . $player->photo_path)
+                                : null;
+                        @endphp
+
+                        <article class="group relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+
+                            {{-- Card portrait and artwork --}}
+                            <div class="relative h-52 overflow-hidden bg-[#102052] sm:h-60">
+
+                                {{-- Navy gradient --}}
+                                <div class="absolute inset-0 bg-gradient-to-br from-[#203D88] via-[#14285F] to-[#091538]"></div>
+
+                                {{-- Decorative diagonal shapes --}}
+                                <div class="absolute -bottom-12 -left-10 h-36 w-36 rotate-[28deg] bg-[#F06445]"></div>
+
+                                <div class="absolute -bottom-16 -right-12 h-44 w-44 -rotate-[25deg] bg-[#FF815D]"></div>
+
+                                {{-- Subtle pattern --}}
+                                <div
+                                    class="absolute inset-0 opacity-[0.07]"
+                                    style="background-image: repeating-linear-gradient(130deg, transparent 0, transparent 24px, #ffffff 25px, transparent 39px);"
+                                ></div>
+
+                                {{-- Player photo --}}
+                                @if ($playerPhoto)
+                                    <img
+                                        src="{{ $playerPhoto }}"
+                                        alt="{{ $playerName }}"
+                                        loading="lazy"
+                                        class="absolute inset-x-0 bottom-0 z-[1] mx-auto h-[96%] w-full object-contain object-bottom transition duration-500 group-hover:scale-105"
+                                    >
+                                @else
+                                    <div class="absolute inset-0 z-[1] flex flex-col items-center justify-center px-3 text-center">
+                                        <div class="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/10 text-2xl font-black text-white shadow-lg">
+                                            {{ Str::upper(Str::substr($playerName, 0, 2)) }}
+                                        </div>
+
+                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wider text-white/80">
+                                            Photo unavailable
                                         </p>
-                                        <p class="mt-1 text-xs text-slate-500">
-                                            {{ $team->short_name ?: $team->name }}
-                                        </p>
                                     </div>
+                                @endif
+
+                                {{-- Team abbreviation --}}
+                                <div class="absolute left-3 top-3 z-[2] rounded-md border border-white/20 bg-black/20 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
+                                    {{ $team->short_name ?: Str::upper(Str::substr($team->name, 0, 3)) }}
                                 </div>
 
-                                <div>
-                                    <span class="text-xs font-medium text-slate-400 sm:hidden">Role: </span>
-                                    <span class="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                        {{ $player->role ?: 'Role not listed' }}
+                                {{-- Role badge --}}
+                                <div class="absolute inset-x-0 bottom-0 z-[3] flex translate-y-1/2 justify-center">
+                                    <span class="{{ $roleBadge }} max-w-[92%] truncate rounded-full border-2 border-white px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-wider text-white shadow-lg sm:px-4 sm:text-[10px]">
+                                        {{ $playerRole !== '' ? $playerRole : 'Player' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {{-- Player details --}}
+                            <div class="relative px-2 pb-4 pt-7 text-center sm:px-3">
+
+                                <h3 class="break-words text-sm font-black leading-5 text-[#172554] sm:text-base">
+                                    {{ $playerName }}
+                                </h3>
+
+                                <div class="mt-2 flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                        class="h-4 w-4 shrink-0 text-[#F06445]"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="12" r="9"></circle>
+                                        <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>
+                                    </svg>
+
+                                    <span class="truncate">
+                                        {{ $player->nationality ?: 'Nationality not listed' }}
                                     </span>
                                 </div>
 
-                                <div class="text-sm text-slate-600">
-                                    <span class="text-xs font-medium text-slate-400 sm:hidden">Nationality: </span>
-                                    {{ $player->nationality ?: 'Not listed' }}
-                                </div>
+                                <div class="mx-auto mt-4 h-1 w-10 rounded-full bg-[#F06445] transition-all duration-300 group-hover:w-16"></div>
 
+                                <p class="mt-3 break-words text-[9px] font-bold uppercase tracking-[0.13em] text-slate-400">
+                                    {{ $team->short_name ?: $team->name }}
+                                </p>
                             </div>
-                        @endforeach
-                    </div>
+
+                        </article>
+                    @endforeach
+
                 </div>
+
             @else
-                <div class="border border-slate-200 bg-white px-6 py-12 text-center">
-                    <h3 class="font-bold text-slate-900">No players listed</h3>
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.7"
+                            class="h-7 w-7"
+                            aria-hidden="true"
+                        >
+                            <circle cx="12" cy="8" r="4"></circle>
+                            <path d="M4 21a8 8 0 0 1 16 0"></path>
+                        </svg>
+                    </div>
+
+                    <h3 class="mt-4 font-bold text-slate-900">No players listed yet</h3>
+
                     <p class="mt-2 text-sm text-slate-500">
-                        No players have been registered for this team yet.
+                        Players registered for {{ $team->name }} will appear here.
                     </p>
                 </div>
             @endif
 
         </section>
 
-        {{-- Live matches with innings scores --}}
-        <section class="mt-10">
+        {{-- Live matches --}}
+        <section class="mt-12">
 
             <div class="mb-5 flex items-center gap-3">
                 <span class="h-2.5 w-2.5 rounded-full bg-red-600"></span>
                 <div>
                     <h2 class="text-2xl font-extrabold">Live matches</h2>
-                    <p class="mt-1 text-sm text-slate-500">Current match status and recorded innings scores.</p>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Current match status and recorded innings scores.
+                    </p>
                 </div>
             </div>
 
@@ -271,13 +345,14 @@
                             $latestInningsNumber = $innings->max('innings_number');
                         @endphp
 
-                        <article class="overflow-hidden border border-slate-200 bg-white">
+                        <article class="overflow-hidden rounded-xl border border-slate-200 bg-white">
 
                             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                                 <div>
                                     <p class="text-xs font-bold uppercase tracking-wide text-[#202766]">
                                         {{ $match->season?->name ?? 'NPL Season' }}
                                     </p>
+
                                     <p class="mt-1 text-xs text-slate-500">
                                         Match {{ $match->match_number ?? '—' }}
                                         @if ($match->venue)
@@ -286,7 +361,7 @@
                                     </p>
                                 </div>
 
-                                <span class="inline-flex items-center gap-2 bg-red-50 px-3 py-1.5 text-xs font-extrabold uppercase text-red-700">
+                                <span class="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-extrabold uppercase text-red-700">
                                     <span class="h-1.5 w-1.5 rounded-full bg-red-600"></span>
                                     Live
                                 </span>
@@ -303,6 +378,7 @@
                                                 class="mx-auto h-12 w-12 object-contain"
                                             >
                                         @endif
+
                                         <p class="mt-2 break-words text-sm font-bold text-slate-900">
                                             {{ $match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'Home team' }}
                                         </p>
@@ -318,6 +394,7 @@
                                                 class="mx-auto h-12 w-12 object-contain"
                                             >
                                         @endif
+
                                         <p class="mt-2 break-words text-sm font-bold text-slate-900">
                                             {{ $match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'Away team' }}
                                         </p>
@@ -341,13 +418,15 @@
                                                         : $oversValue;
                                                 @endphp
 
-                                                <div class="flex items-center justify-between gap-3 {{ $isCurrentInnings ? 'border-l-2 border-red-500 bg-red-50/60 pl-3 pr-2 py-2' : 'py-1' }}">
+                                                <div class="flex items-center justify-between gap-3 {{ $isCurrentInnings ? 'border-l-2 border-red-500 bg-red-50/60 py-2 pl-3 pr-2' : 'py-1' }}">
                                                     <div class="min-w-0">
                                                         <p class="text-sm font-bold text-slate-800">
                                                             {{ $teamNames[$scorecard->batting_team_id] ?? 'Batting team' }}
                                                         </p>
+
                                                         <p class="mt-1 text-xs text-slate-500">
                                                             Innings {{ $scorecard->innings_number }}
+
                                                             @if ($isCurrentInnings)
                                                                 <span class="ml-1 font-bold text-red-600">· Current</span>
                                                             @endif
@@ -358,6 +437,7 @@
                                                         <p class="text-xl font-extrabold tabular-nums text-[#202766]">
                                                             {{ $scorecard->total_runs ?? 0 }}/{{ $scorecard->wickets ?? 0 }}
                                                         </p>
+
                                                         <p class="mt-1 text-xs text-slate-500">
                                                             {{ $oversLabel }} overs
                                                         </p>
@@ -386,16 +466,18 @@
                     @endforeach
                 </div>
             @else
-                <div class="border border-slate-200 bg-white px-6 py-8">
+                <div class="rounded-xl border border-slate-200 bg-white px-6 py-8">
                     <p class="text-sm font-semibold text-slate-700">No live matches right now.</p>
-                    <p class="mt-1 text-sm text-slate-500">Upcoming fixtures and previous results are listed below.</p>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Upcoming fixtures and previous results are listed below.
+                    </p>
                 </div>
             @endif
 
         </section>
 
         {{-- Upcoming fixtures --}}
-        <section class="mt-10">
+        <section class="mt-12">
 
             <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
                 <div>
@@ -403,13 +485,16 @@
                     <h2 class="mt-2 text-2xl font-extrabold">Upcoming matches</h2>
                 </div>
 
-                <a href="{{ route('fixtures.index') }}" class="text-sm font-bold text-[#202766] hover:text-[#F06445]">
+                <a
+                    href="{{ route('fixtures.index') }}"
+                    class="text-sm font-bold text-[#202766] hover:text-[#F06445]"
+                >
                     All fixtures →
                 </a>
             </div>
 
             @if ($upcomingFixtures->isNotEmpty())
-                <div class="overflow-hidden border border-slate-200 bg-white">
+                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
                     <div class="divide-y divide-slate-100">
                         @foreach ($upcomingFixtures as $match)
                             <a
@@ -420,6 +505,7 @@
                                     <p class="text-xs font-bold uppercase tracking-wide text-[#202766]">
                                         Match {{ $match->match_number ?? '—' }}
                                     </p>
+
                                     <p class="mt-1 text-xs text-slate-500">
                                         {{ $match->season?->name ?? 'NPL Season' }}
                                     </p>
@@ -429,7 +515,9 @@
                                     <p class="break-words text-sm font-bold text-slate-900">
                                         {{ $match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'Home team' }}
                                     </p>
+
                                     <span class="text-xs font-bold text-slate-300">VS</span>
+
                                     <p class="break-words text-right text-sm font-bold text-slate-900">
                                         {{ $match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'Away team' }}
                                     </p>
@@ -439,8 +527,10 @@
                                     <p class="text-sm font-semibold text-slate-800">
                                         {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('D, d M Y') ?? 'Date TBA' }}
                                     </p>
+
                                     <p class="mt-1 text-xs text-slate-500">
                                         {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('h:i A') ?? 'Time TBA' }}
+
                                         @if ($match->venue)
                                             · {{ $match->venue }}
                                         @endif
@@ -451,16 +541,18 @@
                     </div>
                 </div>
             @else
-                <div class="border border-slate-200 bg-white px-5 py-8">
+                <div class="rounded-xl border border-slate-200 bg-white px-5 py-8">
                     <p class="text-sm font-semibold text-slate-700">No upcoming matches.</p>
-                    <p class="mt-1 text-sm text-slate-500">New scheduled fixtures will appear here.</p>
+                    <p class="mt-1 text-sm text-slate-500">
+                        New scheduled fixtures will appear here.
+                    </p>
                 </div>
             @endif
 
         </section>
 
         {{-- Recent results --}}
-        <section class="mt-10">
+        <section class="mt-12">
 
             <div class="mb-5">
                 <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">Match history</p>
@@ -468,7 +560,7 @@
             </div>
 
             @if ($completedFixtures->isNotEmpty())
-                <div class="overflow-hidden border border-slate-200 bg-white">
+                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
                     <div class="divide-y divide-slate-100">
                         @foreach ($completedFixtures as $match)
                             @php
@@ -483,6 +575,7 @@
                                     <p class="text-xs font-bold uppercase tracking-wide text-[#202766]">
                                         Match {{ $match->match_number ?? '—' }}
                                     </p>
+
                                     <p class="mt-1 text-xs text-slate-500">
                                         {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'Date not available' }}
                                     </p>
@@ -493,6 +586,7 @@
                                         <p class="break-words text-sm font-bold text-slate-900">
                                             {{ $match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'Home team' }}
                                         </p>
+
                                         @if ($resultIsVerified)
                                             <p class="mt-1 text-sm font-extrabold text-[#202766]">
                                                 {{ $match->home_runs ?? 0 }}/{{ $match->home_wickets ?? 0 }}
@@ -506,6 +600,7 @@
                                         <p class="break-words text-sm font-bold text-slate-900">
                                             {{ $match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'Away team' }}
                                         </p>
+
                                         @if ($resultIsVerified)
                                             <p class="mt-1 text-sm font-extrabold text-[#202766]">
                                                 {{ $match->away_runs ?? 0 }}/{{ $match->away_wickets ?? 0 }}
@@ -520,9 +615,13 @@
                                             {{ $match->result_summary }}
                                         </p>
                                     @elseif ($resultIsVerified)
-                                        <p class="text-sm font-semibold text-emerald-700">Result confirmed</p>
+                                        <p class="text-sm font-semibold text-emerald-700">
+                                            Result confirmed
+                                        </p>
                                     @else
-                                        <p class="text-sm font-semibold text-amber-700">Result pending verification</p>
+                                        <p class="text-sm font-semibold text-amber-700">
+                                            Result pending verification
+                                        </p>
                                     @endif
                                 </div>
                             </a>
@@ -530,9 +629,11 @@
                     </div>
                 </div>
             @else
-                <div class="border border-slate-200 bg-white px-5 py-8">
+                <div class="rounded-xl border border-slate-200 bg-white px-5 py-8">
                     <p class="text-sm font-semibold text-slate-700">No completed matches yet.</p>
-                    <p class="mt-1 text-sm text-slate-500">Results will appear here when matches are completed.</p>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Results will appear here when matches are completed.
+                    </p>
                 </div>
             @endif
 
@@ -540,20 +641,29 @@
 
         {{-- About the team --}}
         @if ($team->description)
-            <section class="mt-10 border border-slate-200 bg-white p-6 sm:p-8">
-                <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">Team profile</p>
-                <h2 class="mt-2 text-2xl font-extrabold">About {{ $team->name }}</h2>
-                <p class="mt-4 whitespace-pre-line break-words text-sm leading-7 text-slate-600">
-                    {{ $team->description }}
+            <section class="mt-12 rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
+                <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">
+                    Team profile
                 </p>
+
+                <h2 class="mt-2 text-2xl font-extrabold">
+                    About {{ $team->name }}
+                </h2>
+
+                <p class="mt-4 whitespace-pre-line break-words text-sm leading-7 text-slate-600">{{ $team->description }}</p>
             </section>
         @endif
 
         {{-- Participating seasons --}}
-        <section class="mt-10">
+        <section class="mt-12">
             <div class="mb-5">
-                <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">Competition history</p>
-                <h2 class="mt-2 text-2xl font-extrabold">Participating seasons</h2>
+                <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#F06445]">
+                    Competition history
+                </p>
+
+                <h2 class="mt-2 text-2xl font-extrabold">
+                    Participating seasons
+                </h2>
             </div>
 
             @if ($team->seasons && $team->seasons->isNotEmpty())
@@ -561,12 +671,14 @@
                     @foreach ($team->seasons as $season)
                         <a
                             href="{{ route('seasons.show', $season) }}"
-                            class="border border-slate-200 bg-white p-5 transition hover:border-[#202766]"
+                            class="rounded-xl border border-slate-200 bg-white p-5 transition hover:border-[#202766] hover:shadow-sm"
                         >
                             <p class="text-xs font-bold uppercase tracking-wide text-[#F06445]">
                                 Season {{ $season->season_number ?? '' }}
                             </p>
+
                             <h3 class="mt-2 font-extrabold">{{ $season->name }}</h3>
+
                             <span class="mt-4 inline-block text-sm font-bold text-[#202766]">
                                 View season →
                             </span>
@@ -574,16 +686,17 @@
                     @endforeach
                 </div>
             @else
-                <div class="border border-slate-200 bg-white p-5 text-sm text-slate-500">
+                <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
                     No seasons have been assigned to this team yet.
                 </div>
             @endif
         </section>
 
+        {{-- Back to teams --}}
         <div class="mt-9 border-t border-slate-200 pt-6">
             <a
                 href="{{ route('teams.index') }}"
-                class="inline-flex items-center gap-2 bg-[#202766] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#171D50]"
+                class="inline-flex items-center gap-2 rounded-lg bg-[#202766] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#171D50]"
             >
                 ← All teams
             </a>

@@ -348,13 +348,13 @@
             <p class="admin-nav-label">Workspace</p>
 
             <a href="{{ route('admin.dashboard') }}"
-                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition
-                {{ request()->routeIs('admin.dashboard')
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
-                    <i class="fa-solid fa-gauge-high w-5 text-center"></i>
-                    <span>Dashboard</span>
-                </a>
+    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition
+    {{ request()->routeIs('admin.dashboard')
+        ? 'bg-gray-700 text-white'
+        : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+    <i class="fa-solid fa-gauge-high w-5 text-center"></i>
+    <span>Dashboard</span>
+</a>
 
             {{-- TOURNAMENT --}}
             <button
