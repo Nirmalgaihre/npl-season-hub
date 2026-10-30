@@ -1,9 +1,9 @@
 <?php
 
-
-use App\Http\Controllers\StaticPageController;;
+use App\Http\Controllers\StaticPageController;
 use App\Http\Controllers\Admin\ArticleController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\MatchController;
 use App\Http\Controllers\Admin\PlayerController;
 use App\Http\Controllers\Admin\ScorecardController;
@@ -19,6 +19,7 @@ use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
 use App\Http\Controllers\SeoController;
 use Illuminate\Support\Facades\Route;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -144,12 +145,13 @@ Route::get('/fixtures/{fixture}/live', [
 |--------------------------------------------------------------------------
 */
 
-// Login
+// Login (Protected with rate limiting throttle for security against brute-force attacks)
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])
         ->name('login');
 
     Route::post('/login', [LoginController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('login.store');
 });
 
@@ -175,7 +177,16 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Dashboard / Fixtures
+        | Dashboard (First entry after login)
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/dashboard', [DashboardController::class, 'index'])
+            ->name('dashboard');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fixtures
         |--------------------------------------------------------------------------
         */
 
@@ -203,15 +214,6 @@ Route::middleware(['auth', 'can:manage-seasons'])
         |--------------------------------------------------------------------------
         | Players
         |--------------------------------------------------------------------------
-        |
-        | Generated route names:
-        | admin.players.index
-        | admin.players.create
-        | admin.players.store
-        | admin.players.edit
-        | admin.players.update
-        | admin.players.destroy
-        |
         */
 
         Route::resource('players', PlayerController::class)
@@ -338,7 +340,6 @@ Route::middleware(['auth', 'can:manage-seasons'])
             'destroy',
         ])->name('tags.destroy');
     });
-
 
 // Public information pages
 Route::get('/about', [StaticPageController::class, 'about'])->name('about');
