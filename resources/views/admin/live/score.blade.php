@@ -15,10 +15,12 @@
                 </div>
                 <h1 class="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Live Scoring</h1>
                 <p class="text-sm font-medium text-slate-500">
-                    {{ $fixture->homeTeam->name ?? 'Home' }} <span class="text-slate-300 font-normal">vs</span> {{ $fixture->awayTeam->name ?? 'Away' }}
+                    {{ $fixture->homeTeam->name ?? 'Home' }}
+                    <span class="text-slate-300 font-normal">vs</span>
+                    {{ $fixture->awayTeam->name ?? 'Away' }}
                 </p>
             </div>
-            
+
             <a href="{{ route('live.show', $fixture) }}" target="_blank"
                class="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-900 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-indigo-900/10 transition-all duration-200 hover:bg-indigo-800 hover:shadow-indigo-900/20 active:scale-95">
                 <span>Open public scoreboard</span>
@@ -31,7 +33,9 @@
         <!-- Alerts -->
         @if(session('status'))
             <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm font-bold text-emerald-800 shadow-sm backdrop-blur-sm">
-                <svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
                 <span>{{ session('status') }}</span>
             </div>
         @endif
@@ -39,11 +43,15 @@
         @if($errors->any())
             <div class="rounded-2xl border border-rose-200 bg-rose-50/85 p-5 text-sm text-rose-800 shadow-sm backdrop-blur-sm">
                 <div class="flex items-center gap-2 font-black text-rose-900">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
                     <span>Please fix the following validation errors:</span>
                 </div>
                 <ul class="mt-2.5 list-inside list-disc space-y-1 font-medium text-rose-700">
-                    @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
                 </ul>
             </div>
         @endif
@@ -51,32 +59,42 @@
         <!-- Match Hero Banner -->
         <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 text-white shadow-2xl sm:p-8">
             <div class="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-white/5 blur-3xl pointer-events-none"></div>
+
             <div class="relative z-10 grid gap-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                 <div>
                     <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Home Team</span>
                     <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->homeTeam->name ?? 'Home team' }}</h2>
                 </div>
+
                 <div class="flex justify-center">
                     <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xs font-black tracking-widest text-white/70 shadow-inner backdrop-blur-md">VS</span>
                 </div>
+
                 <div class="sm:text-right">
                     <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Away Team</span>
                     <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->awayTeam->name ?? 'Away team' }}</h2>
                 </div>
             </div>
+
             <div class="relative z-10 mt-6 flex items-center gap-2 border-t border-white/10 pt-4 text-xs font-medium text-indigo-200 sm:text-sm">
-                <svg class="h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <svg class="h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
                 <span>{{ $fixture->venue ?: 'Venue not set' }}</span>
             </div>
         </section>
 
         <!-- Toss & Match Setup Grid -->
         <div class="grid gap-6 lg:grid-cols-2">
+
             <!-- Toss -->
             <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 font-bold">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                     </div>
                     <div>
                         <h2 class="text-lg font-black text-slate-900">Toss & Match Setup</h2>
@@ -86,6 +104,7 @@
 
                 <form method="POST" action="{{ route('admin.live.toss', $fixture) }}" class="mt-5 space-y-4">
                     @csrf
+
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Toss Winner</label>
@@ -95,6 +114,7 @@
                                 <option value="{{ $fixture->away_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->away_team_id)>{{ $fixture->awayTeam->name ?? 'Away' }}</option>
                             </select>
                         </div>
+
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Decision</label>
                             <select name="toss_decision" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:ring-indigo-600">
@@ -103,14 +123,17 @@
                             </select>
                         </div>
                     </div>
-                    <button class="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-95">
+
+                    <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-95">
                         Save Toss Decision
                     </button>
                 </form>
 
                 @if($fixture->tossWinner)
                     <div class="mt-4 flex items-center gap-2 rounded-xl bg-indigo-50/60 p-3 text-xs font-semibold text-indigo-900">
-                        <svg class="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                         <span>Toss: <strong>{{ $fixture->tossWinner->name }}</strong> elected to <strong>{{ $fixture->toss_decision }}</strong>.</span>
                     </div>
                 @endif
@@ -120,7 +143,10 @@
             <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 font-bold">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                     </div>
                     <div>
                         <h2 class="text-lg font-black text-slate-900">Start Innings</h2>
@@ -130,6 +156,7 @@
 
                 <form method="POST" action="{{ route('admin.live.start', $fixture) }}" class="mt-5 space-y-4">
                     @csrf
+
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Innings</label>
@@ -138,6 +165,7 @@
                                 <option value="2">2nd Innings</option>
                             </select>
                         </div>
+
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Batting Team</label>
                             <select name="batting_team_id" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:ring-orange-500">
@@ -146,26 +174,33 @@
                             </select>
                         </div>
                     </div>
+
                     <div class="grid gap-4 sm:grid-cols-3">
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Striker</label>
                             <input name="striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">
                         </div>
+
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Non-Striker</label>
                             <input name="non_striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">
                         </div>
+
                         <div>
                             <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Opening Bowler</label>
                             <input name="current_bowler" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Bowler name">
                         </div>
                     </div>
-                    <button class="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all hover:opacity-95 active:scale-95">
+
+                    <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all hover:opacity-95 active:scale-95">
                         Start Innings
                     </button>
                 </form>
+
                 <p class="mt-3 text-[11px] font-medium text-amber-700/90 flex items-center gap-1.5">
-                    <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
                     <span>Innings with recorded deliveries cannot be restarted.</span>
                 </p>
             </section>
@@ -177,6 +212,7 @@
                 <article class="relative overflow-hidden rounded-3xl border {{ $inning->is_current ? 'border-orange-500 ring-2 ring-orange-400/20 shadow-xl' : 'border-slate-200/80 shadow-sm' }} bg-white p-6 transition-all">
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-black uppercase tracking-widest text-slate-400">Innings {{ $inning->innings_number }}</span>
+
                         @if($inning->is_current)
                             <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black tracking-wider text-white shadow-sm shadow-emerald-500/30">
                                 <span class="h-1.5 w-1.5 rounded-full bg-white animate-ping"></span>
@@ -184,11 +220,14 @@
                             </span>
                         @endif
                     </div>
+
                     <h3 class="mt-2 text-lg font-black text-slate-800">{{ $inning->battingTeam->name ?? 'Batting team' }}</h3>
+
                     <div class="mt-3 flex items-baseline gap-2">
                         <span class="text-4xl font-black tracking-tight text-indigo-950">{{ $inning->total_runs }}</span>
                         <span class="text-2xl font-black text-slate-400">/{{ $inning->wickets }}</span>
                     </div>
+
                     <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-500">
                         <span>Overs: <strong class="text-slate-900">{{ $inning->oversText() }}</strong></span>
                         <span>Extras: <strong class="text-slate-900">{{ $inning->extras }}</strong></span>
@@ -204,6 +243,7 @@
 
         {{-- Active scoring console --}}
         @php($active = $innings->firstWhere('is_current', true))
+
         @if($active)
             <section class="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl">
                 <!-- Console Top Bar -->
@@ -213,21 +253,25 @@
                             <span class="text-xs font-black uppercase tracking-widest text-orange-400">Active Live Scoring</span>
                             <h2 class="mt-1 text-2xl font-black tracking-tight">{{ $active->battingTeam->name ?? 'Batting team' }}</h2>
                         </div>
+
                         @if($active->free_hit_next)
                             <span class="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/30 animate-pulse">
                                 FREE HIT DELIVERY
                             </span>
                         @endif
                     </div>
+
                     <div class="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-white/10 pt-6">
                         <div>
                             <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Score</span>
                             <span class="text-5xl font-black tracking-tight">{{ $active->total_runs }}/{{ $active->wickets }}</span>
                         </div>
+
                         <div>
                             <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Overs</span>
                             <span class="text-2xl font-black">{{ $active->oversText() }}</span>
                         </div>
+
                         <div>
                             <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Run Rate</span>
                             <span class="text-2xl font-black">{{ number_format($active->runRate(), 2) }}</span>
@@ -236,7 +280,8 @@
                 </div>
 
                 <div class="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.2fr_.8fr]">
-                    <!-- Left Column: Quick Scoring & Extra pads -->
+
+                    <!-- Left Column: Quick Scoring & Extras -->
                     <div class="space-y-6">
                         <div>
                             <h3 class="text-base font-black text-slate-900">Tap to Score Runs</h3>
@@ -253,6 +298,7 @@
                                         <input type="hidden" name="batter_runs" value="{{ $run }}">
                                         <input type="hidden" name="extra_type" value="none">
                                         <input type="hidden" name="extra_runs" value="0">
+
                                         <button type="submit" class="group flex h-16 w-full flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/50 text-xl font-black text-indigo-950 shadow-sm transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95">
                                             <span>{{ $run }}</span>
                                             <span class="text-[9px] font-bold text-slate-400 group-hover:text-orange-100">RUNS</span>
@@ -262,8 +308,10 @@
                             </div>
                         </div>
 
+                        <!-- Quick Extras -->
                         <div>
                             <h3 class="text-base font-black text-slate-900">Quick Extras</h3>
+
                             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                                 @foreach([
                                     ['wide', 'Wide (+1)', 0, 1],
@@ -280,6 +328,7 @@
                                         <input type="hidden" name="batter_runs" value="{{ $batRuns }}">
                                         <input type="hidden" name="extra_type" value="{{ $type }}">
                                         <input type="hidden" name="extra_runs" value="{{ $extraRuns }}">
+
                                         <button type="submit" class="w-full rounded-2xl border border-orange-200/80 bg-orange-50/60 px-3 py-3.5 text-xs font-black text-orange-900 transition-all hover:bg-orange-100 active:scale-95">
                                             {{ $label }}
                                         </button>
@@ -304,6 +353,7 @@
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Bowler (Change at over end)</label>
                                         <input name="bowler" value="{{ $active->current_bowler }}" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
                                     </div>
+
                                     <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Batter Runs</label>
                                         <select name="batter_runs" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
@@ -312,6 +362,7 @@
                                             @endforeach
                                         </select>
                                     </div>
+
                                     <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Type</label>
                                         <select name="extra_type" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
@@ -323,11 +374,13 @@
                                             <option value="penalty">Penalty</option>
                                         </select>
                                     </div>
+
                                     <div>
                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Runs</label>
                                         <input name="extra_runs" type="number" min="0" max="7" value="0" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
                                     </div>
                                 </div>
+
                                 <button type="submit" class="w-full rounded-xl bg-indigo-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all hover:bg-indigo-800 active:scale-95">
                                     Record Custom Delivery
                                 </button>
@@ -335,12 +388,15 @@
                         </div>
                     </div>
 
-                    <!-- Right Column: Wickets & Current Lineup Panel -->
+                    <!-- Right Column: Wickets & Current Lineup -->
                     <div class="space-y-6">
+
                         <!-- Wicket Panel -->
                         <div class="rounded-2xl border border-rose-200/80 bg-rose-50/40 p-5">
                             <div class="flex items-center gap-2 text-rose-700">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636"/>
+                                </svg>
                                 <h3 class="text-sm font-black uppercase tracking-wider text-rose-900">Record Wicket</h3>
                             </div>
 
@@ -363,6 +419,7 @@
                                         @endforeach
                                     </select>
                                 </div>
+
                                 <div>
                                     <label class="mb-1 block text-xs font-bold text-slate-700">Dismissed Batter</label>
                                     <select name="dismissed_batter" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">
@@ -370,10 +427,12 @@
                                         <option value="{{ $active->non_striker }}">{{ $active->non_striker }} (Non-Striker)</option>
                                     </select>
                                 </div>
+
                                 <div>
                                     <label class="mb-1 block text-xs font-bold text-slate-700">Incoming Batter</label>
                                     <input name="incoming_batter" maxlength="100" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400" placeholder="Next batter name">
                                 </div>
+
                                 <button type="submit" class="w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-rose-600/20 transition-all hover:bg-rose-700 active:scale-95">
                                     Confirm & Fall of Wicket
                                 </button>
@@ -383,6 +442,7 @@
                         <!-- Current Batsmen & Bowler Status -->
                         <div>
                             <h3 class="text-sm font-black text-slate-900">Current On-Field Status</h3>
+
                             <div class="mt-3 space-y-2.5">
                                 <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
                                     <div class="flex items-center gap-2.5">
@@ -391,6 +451,7 @@
                                     </div>
                                     <span class="rounded-lg bg-emerald-100/70 px-2.5 py-1 text-[10px] font-black text-emerald-800">STRIKER</span>
                                 </div>
+
                                 <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
                                     <div class="flex items-center gap-2.5">
                                         <span class="h-2 w-2 rounded-full bg-slate-300"></span>
@@ -398,6 +459,7 @@
                                     </div>
                                     <span class="rounded-lg bg-slate-200/60 px-2.5 py-1 text-[10px] font-black text-slate-600">NON-STRIKER</span>
                                 </div>
+
                                 <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">
                                     <div class="flex items-center gap-2.5">
                                         <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
@@ -413,22 +475,22 @@
         @else
             <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
                 <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
+                    </svg>
                 </div>
                 <h2 class="mt-4 text-base font-black text-slate-900">Ready to start scoring?</h2>
                 <p class="mt-1 text-xs text-slate-500">Save the toss setup and initialize your first innings above to activate the control board.</p>
             </section>
         @endif
 
-                {{-- Recent Deliveries / Undo --}}
-        @if($active)
+        {{-- Recent Deliveries / Undo --}}
+        <?php if ($active): ?>
             <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 class="text-lg font-black text-slate-900">Recent Deliveries</h2>
-                        <p class="text-xs text-slate-500">
-                            Undo is available exclusively for the latest recorded delivery.
-                        </p>
+                        <p class="text-xs text-slate-500">Undo is available exclusively for the latest recorded delivery.</p>
                     </div>
                 </div>
 
@@ -456,9 +518,7 @@
 
                                     <span>&bull;</span>
 
-                                    <strong class="text-indigo-900">
-                                        {{ $ball->totalRuns() }} run(s)
-                                    </strong>
+                                    <strong class="text-indigo-900">{{ $ball->totalRuns() }} run(s)</strong>
 
                                     @if($ball->is_wicket)
                                         <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-rose-800">
@@ -469,33 +529,15 @@
                             </div>
 
                             @if($latestDelivery && (int) $ball->id === (int) $latestDelivery->id)
-                                <form
-                                    method="POST"
-                                    action="{{ route('admin.live.undo', [
-                                        'fixture' => $fixture->id,
-                                        'delivery' => $latestDelivery->id,
-                                    ]) }}"
-                                    onsubmit="return confirm('Undo the latest delivery? This will alter the recorded score.');"
-                                >
+                                <form method="POST"
+                                      action="{{ route('admin.live.undo', ['fixture' => $fixture->id, 'delivery' => $latestDelivery->id]) }}"
+                                      onsubmit="return confirm('Undo the latest delivery? This will alter the recorded score.');">
                                     @csrf
                                     @method('DELETE')
 
-                                    <button
-                                        type="submit"
-                                        class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95"
-                                    >
-                                        <svg
-                                            class="h-3.5 w-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                stroke-width="2"
-                                                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
-                                            />
+                                    <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
                                         </svg>
                                         Undo Latest
                                     </button>
@@ -509,18 +551,13 @@
                     @endforelse
                 </div>
             </section>
-        @endif
+        <?php endif; ?>
 
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    /*
-     * Keep the existing scoring UI. Quick-run and quick-extra buttons submit
-     * their own POST forms, so a single click records a delivery through Laravel.
-     * Disable only the submitted form to prevent duplicate deliveries.
-     */
     document.querySelectorAll('form[data-live-delivery-form]').forEach(function (form) {
         form.addEventListener('submit', function (event) {
             if (form.dataset.submitting === 'true') {
@@ -528,7 +565,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // Respect native required-field validation before changing the button.
             if (!form.checkValidity()) {
                 return;
             }
@@ -536,6 +572,7 @@ document.addEventListener('DOMContentLoaded', function () {
             form.dataset.submitting = 'true';
 
             const submitButton = form.querySelector('button[type="submit"], button:not([type])');
+
             if (!submitButton) {
                 return;
             }
@@ -546,6 +583,7 @@ document.addEventListener('DOMContentLoaded', function () {
             submitButton.setAttribute('aria-busy', 'true');
 
             const isQuickRun = submitButton.querySelector('span');
+
             if (isQuickRun) {
                 submitButton.innerHTML = '<span class="text-sm font-black">Saving…</span><span class="text-[9px] font-bold">PLEASE WAIT</span>';
             } else {
