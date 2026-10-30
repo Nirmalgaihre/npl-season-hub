@@ -1,0 +1,1250 @@
+[1mdiff --git a/app/Http/Controllers/LiveScoreController.php b/app/Http/Controllers/LiveScoreController.php[m
+[1mindex 213042b..db88698 100644[m
+[1m--- a/app/Http/Controllers/LiveScoreController.php[m
+[1m+++ b/app/Http/Controllers/LiveScoreController.php[m
+[36m@@ -77,8 +77,8 @@[m [mpublic function show(Fixture $fixture): View[m
+ [m
+                 $batter = $batters->get($name);[m
+                 $batter['runs'] += (int) $delivery->batter_runs;[m
+[31m-                $batter['fours'] += ((int) $delivery->batter_runs === 4) ? 1 : 0;[m
+[31m-                $batter['sixes'] += ((int) $delivery->batter_runs === 6) ? 1 : 0;[m
+[32m+[m[32m                $batter['fours'] += (int) $delivery->batter_runs === 4 ? 1 : 0;[m
+[32m+[m[32m                $batter['sixes'] += (int) $delivery->batter_runs === 6 ? 1 : 0;[m
+ [m
+                 if ($delivery->extra_type !== 'wide') {[m
+                     $batter['balls']++;[m
+[36m@@ -159,18 +159,34 @@[m [mpublic function admin(Fixture $fixture): View[m
+             ->orderBy('innings_number')[m
+             ->get();[m
+ [m
+[31m-        /*[m
+[31m-         * Supply $players to the live-scoring Blade view.[m
+[31m-         * The Player model is optional here because the project's[m
+[31m-         * actual player table/model has not yet been confirmed.[m
+[31m-         */[m
+         $players = collect();[m
+ [m
+         if (class_exists(\App\Models\Player::class)) {[m
+             try {[m
+[31m-                $players = \App\Models\Player::query()->get();[m
+[32m+[m[32m                $players = \App\Models\Player::query()[m
+[32m+[m[32m                    ->whereIn('team_id', [[m
+[32m+[m[32m                        $fixture->home_team_id,[m
+[32m+[m[32m                        $fixture->away_team_id,[m
+[32m+[m[32m                    ])[m
+[32m+[m[32m                    ->where('is_active', true)[m
+[32m+[m[32m                    ->orderBy('name')[m
+[32m+[m[32m                    ->get(['id', 'team_id', 'name']);[m
+             } catch (\Throwable $e) {[m
+                 report($e);[m
+[32m+[m
+[32m+[m[32m                // Fallback for a player table without is_active.[m
+[32m+[m[32m                try {[m
+[32m+[m[32m                    $players = \App\Models\Player::query()[m
+[32m+[m[32m                        ->whereIn('team_id', [[m
+[32m+[m[32m                            $fixture->home_team_id,[m
+[32m+[m[32m                            $fixture->away_team_id,[m
+[32m+[m[32m                        ])[m
+[32m+[m[32m                        ->orderBy('name')[m
+[32m+[m[32m                        ->get(['id', 'team_id', 'name']);[m
+[32m+[m[32m                } catch (\Throwable $fallbackError) {[m
+[32m+[m[32m                    report($fallbackError);[m
+[32m+[m[32m                    $players = collect();[m
+[32m+[m[32m                }[m
+             }[m
+         }[m
+ [m
+[36m@@ -354,7 +370,6 @@[m [mpublic function ball(Request $request, Fixture $fixture)[m
+ [m
+             $isLegal = !in_array($extraType, ['wide', 'no_ball'], true);[m
+             $freeHitBefore = (bool) $innings->free_hit_next;[m
+[31m-[m
+             $wicketType = $data['wicket_type'] ?? null;[m
+             $dismissed = $data['dismissed_batter'] ?? null;[m
+ [m
+[36m@@ -377,9 +392,7 @@[m [mpublic function ball(Request $request, Fixture $fixture)[m
+             $nextFreeHit = $isNoBall || ($freeHitBefore && !$isLegal);[m
+ [m
+             $delivery = $innings->deliveries()->create([[m
+[31m-                'ball_number' => ([m
+[31m-                    (int) $innings->deliveries()->max('ball_number')[m
+[31m-                ) + 1,[m
+[32m+[m[32m                'ball_number' => ((int) $innings->deliveries()->max('ball_number')) + 1,[m
+                 'striker' => $striker,[m
+                 'non_striker' => $nonStriker,[m
+                 'bowler' => $bowler,[m
+[36m@@ -433,30 +446,20 @@[m [mpublic function ball(Request $request, Fixture $fixture)[m
+                 [$striker, $nonStriker] = [$nonStriker, $striker];[m
+             }[m
+ [m
+[31m-            if ([m
+[31m-                $isWicket &&[m
+[31m-                $countsAsWicket &&[m
+[31m-                $data['dismissed_batter'][m
+[31m-            ) {[m
+[32m+[m[32m            if ($isWicket && $countsAsWicket && $data['dismissed_batter']) {[m
+                 $dismissedName = trim($data['dismissed_batter']);[m
+ [m
+                 if ($dismissedName === $striker) {[m
+                     if (!empty($data['incoming_batter'])) {[m
+                         $striker = trim($data['incoming_batter']);[m
+                     } elseif ($innings->wickets < 10) {[m
+[31m-                        abort([m
+[31m-                            422,[m
+[31m-                            'Enter the incoming batter to complete this wicket.'[m
+[31m-                        );[m
+[32m+[m[32m                        abort(422, 'Enter the incoming batter to complete this wicket.');[m
+                     }[m
+                 } elseif ($dismissedName === $nonStriker) {[m
+                     if (!empty($data['incoming_batter'])) {[m
+                         $nonStriker = trim($data['incoming_batter']);[m
+                     } elseif ($innings->wickets < 10) {[m
+[31m-                        abort([m
+[31m-                            422,[m
+[31m-                            'Enter the incoming batter to complete this wicket.'[m
+[31m-                        );[m
+[32m+[m[32m                        abort(422, 'Enter the incoming batter to complete this wicket.');[m
+                     }[m
+                 }[m
+             }[m
+[36m@@ -495,7 +498,6 @@[m [mpublic function undo(Fixture $fixture, LiveDelivery $delivery)[m
+             }[m
+ [m
+             $latest->delete();[m
+[31m-[m
+             $remaining = $innings->deliveries()->get();[m
+ [m
+             $runs = 0;[m
+[1mdiff --git a/resources/views/admin/live/score.blade.php b/resources/views/admin/live/score.blade.php[m
+[1mindex 0a1e9c9..a149a55 100644[m
+[1m--- a/resources/views/admin/live/score.blade.php[m
+[1m+++ b/resources/views/admin/live/score.blade.php[m
+[36m@@ -5,54 +5,54 @@[m
+ @section('content')[m
+ @php[m
+     $active = $innings->firstWhere('is_current', true);[m
+[32m+[m[32m    $players = $players ?? collect();[m
+[32m+[m
+[32m+[m[32m    $playerOptions = $players->map(function ($player) {[m
+[32m+[m[32m        return [[m
+[32m+[m[32m            'id' => $player->id,[m
+[32m+[m[32m            'team_id' => $player->team_id,[m
+[32m+[m[32m            'name' => $player->name,[m
+[32m+[m[32m        ];[m
+[32m+[m[32m    })->values();[m
+[32m+[m
+[32m+[m[32m    $homeId = (string) $fixture->home_team_id;[m
+[32m+[m[32m    $awayId = (string) $fixture->away_team_id;[m
+ @endphp[m
+ [m
+ <div class="min-h-screen bg-slate-100/70 px-4 py-8 sm:px-6 lg:px-8">[m
+     <div class="mx-auto max-w-7xl space-y-8">[m
+ [m
+[31m-        <!-- Top Header & Actions -->[m
+         <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">[m
+[31m-            <div class="space-y-1">[m
+[31m-                <div class="inline-flex items-center gap-2 rounded-full bg-orange-100/80 px-3 py-1 text-xs font-black uppercase tracking-widest text-orange-600">[m
+[31m-                    <span class="h-2 w-2 rounded-full bg-orange-500 animate-pulse"></span>[m
+[31m-                    NPL Season Hub &bull; Match Operations[m
+[32m+[m[32m            <div>[m
+[32m+[m[32m                <div class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-widest text-orange-700">[m
+[32m+[m[32m                    <span class="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>[m
+[32m+[m[32m                    NPL Season Hub · Match Operations[m
+                 </div>[m
+[31m-                <h1 class="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Live Scoring</h1>[m
+[31m-                <p class="text-sm font-medium text-slate-500">[m
+[31m-                    {{ $fixture->homeTeam->name ?? 'Home' }}[m
+[31m-                    <span class="text-slate-300 font-normal">vs</span>[m
+[32m+[m[32m                <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">[m
+[32m+[m[32m                    Live Scoring[m
+[32m+[m[32m                </h1>[m
+[32m+[m[32m                <p class="mt-1 text-sm font-medium text-slate-500">[m
+[32m+[m[32m                    {{ $fixture->homeTeam->name ?? 'Home' }} vs[m
+                     {{ $fixture->awayTeam->name ?? 'Away' }}[m
+                 </p>[m
+             </div>[m
+ [m
+             <a href="{{ route('live.show', $fixture) }}" target="_blank"[m
+[31m-               class="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-900 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-indigo-900/10 transition-all duration-200 hover:bg-indigo-800 hover:shadow-indigo-900/20 active:scale-95">[m
+[31m-                <span>Open public scoreboard</span>[m
+[31m-                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />[m
+[31m-                </svg>[m
+[32m+[m[32m               class="rounded-2xl bg-indigo-950 px-5 py-3 text-center text-sm font-bold text-white hover:bg-indigo-800">[m
+[32m+[m[32m                Open Public Scoreboard ↗[m
+             </a>[m
+         </header>[m
+ [m
+[31m-        <!-- Alerts -->[m
+         @if(session('status'))[m
+[31m-            <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm font-bold text-emerald-800 shadow-sm backdrop-blur-sm">[m
+[31m-                <svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>[m
+[31m-                </svg>[m
+[31m-                <span>{{ session('status') }}</span>[m
+[32m+[m[32m            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">[m
+[32m+[m[32m                {{ session('status') }}[m
+             </div>[m
+         @endif[m
+ [m
+         @if($errors->any())[m
+[31m-            <div class="rounded-2xl border border-rose-200 bg-rose-50/85 p-5 text-sm text-rose-800 shadow-sm backdrop-blur-sm">[m
+[31m-                <div class="flex items-center gap-2 font-black text-rose-900">[m
+[31m-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>[m
+[31m-                    </svg>[m
+[31m-                    <span>Please fix the following validation errors:</span>[m
+[31m-                </div>[m
+[31m-                <ul class="mt-2.5 list-inside list-disc space-y-1 font-medium text-rose-700">[m
+[32m+[m[32m            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">[m
+[32m+[m[32m                <p class="font-black">Please fix the following errors:</p>[m
+[32m+[m[32m                <ul class="mt-2 list-inside list-disc space-y-1">[m
+                     @foreach($errors->all() as $error)[m
+                         <li>{{ $error }}</li>[m
+                     @endforeach[m
+[36m@@ -60,306 +60,308 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+             </div>[m
+         @endif[m
+ [m
+[31m-        <!-- Match Hero Banner -->[m
+[31m-        <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 text-white shadow-2xl sm:p-8">[m
+[31m-            <div class="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-white/5 blur-3xl pointer-events-none"></div>[m
+[31m-[m
+[31m-            <div class="relative z-10 grid gap-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center">[m
+[32m+[m[32m        <section class="rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 text-white shadow-xl sm:p-8">[m
+[32m+[m[32m            <div class="grid gap-5 sm:grid-cols-[1fr_auto_1fr] sm:items-center">[m
+                 <div>[m
+[31m-                    <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Home Team</span>[m
+[31m-                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->homeTeam->name ?? 'Home team' }}</h2>[m
+[32m+[m[32m                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Home Team</p>[m
+[32m+[m[32m                    <h2 class="mt-1 text-2xl font-black">{{ $fixture->homeTeam->name ?? 'Home team' }}</h2>[m
+                 </div>[m
+[31m-[m
+[31m-                <div class="flex justify-center">[m
+[31m-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xs font-black tracking-widest text-white/70 shadow-inner backdrop-blur-md">VS</span>[m
+[31m-                </div>[m
+[31m-[m
+[32m+[m[32m                <div class="text-center text-sm font-black text-indigo-300">VS</div>[m
+                 <div class="sm:text-right">[m
+[31m-                    <span class="inline-block text-xs font-bold uppercase tracking-widest text-indigo-300">Away Team</span>[m
+[31m-                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ $fixture->awayTeam->name ?? 'Away team' }}</h2>[m
+[32m+[m[32m                    <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Away Team</p>[m
+[32m+[m[32m                    <h2 class="mt-1 text-2xl font-black">{{ $fixture->awayTeam->name ?? 'Away team' }}</h2>[m
+                 </div>[m
+             </div>[m
+[31m-[m
+[31m-            <div class="relative z-10 mt-6 flex items-center gap-2 border-t border-white/10 pt-4 text-xs font-medium text-indigo-200 sm:text-sm">[m
+[31m-                <svg class="h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>[m
+[31m-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>[m
+[31m-                </svg>[m
+[31m-                <span>{{ $fixture->venue ?: 'Venue not set' }}</span>[m
+[31m-            </div>[m
+[32m+[m[32m            <p class="mt-5 border-t border-white/10 pt-4 text-sm text-indigo-200">[m
+[32m+[m[32m                Venue: {{ $fixture->venue ?: 'Venue not set' }}[m
+[32m+[m[32m            </p>[m
+         </section>[m
+ [m
+[31m-        <!-- Toss & Match Setup Grid -->[m
+         <div class="grid gap-6 lg:grid-cols-2">[m
+ [m
+[31m-            <!-- Toss -->[m
+[31m-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">[m
+[31m-                <div class="flex items-center gap-3">[m
+[31m-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 font-bold">[m
+[31m-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>[m
+[31m-                        </svg>[m
+[31m-                    </div>[m
+[31m-                    <div>[m
+[31m-                        <h2 class="text-lg font-black text-slate-900">Toss & Match Setup</h2>[m
+[31m-                        <p class="text-xs text-slate-500">Record the toss before the first innings.</p>[m
+[31m-                    </div>[m
+[31m-                </div>[m
+[32m+[m[32m            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">[m
+[32m+[m[32m                <h2 class="text-lg font-black text-slate-900">Toss & Match Setup</h2>[m
+[32m+[m[32m                <p class="mt-1 text-xs text-slate-500">Save the toss details before scoring.</p>[m
+ [m
+                 <form method="POST" action="{{ route('admin.live.toss', $fixture) }}" class="mt-5 space-y-4">[m
+                     @csrf[m
+ [m
+[31m-                    <div class="grid gap-4 sm:grid-cols-2">[m
+[31m-                        <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Toss Winner</label>[m
+[31m-                            <select name="toss_winner_team_id" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:ring-indigo-600">[m
+[31m-                                <option value="">Choose team</option>[m
+[31m-                                <option value="{{ $fixture->home_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->home_team_id)>{{ $fixture->homeTeam->name ?? 'Home' }}</option>[m
+[31m-                                <option value="{{ $fixture->away_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->away_team_id)>{{ $fixture->awayTeam->name ?? 'Away' }}</option>[m
+[31m-                            </select>[m
+[31m-                        </div>[m
+[32m+[m[32m                    <div>[m
+[32m+[m[32m                        <label class="mb-1 block text-xs font-bold text-slate-600">Toss Winner</label>[m
+[32m+[m[32m                        <select name="toss_winner_team_id" required class="field">[m
+[32m+[m[32m                            <option value="">Choose team</option>[m
+[32m+[m[32m                            <option value="{{ $fixture->home_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->home_team_id)>[m
+[32m+[m[32m                                {{ $fixture->homeTeam->name ?? 'Home' }}[m
+[32m+[m[32m                            </option>[m
+[32m+[m[32m                            <option value="{{ $fixture->away_team_id }}" @selected(old('toss_winner_team_id', $fixture->toss_winner_team_id) == $fixture->away_team_id)>[m
+[32m+[m[32m                                {{ $fixture->awayTeam->name ?? 'Away' }}[m
+[32m+[m[32m                            </option>[m
+[32m+[m[32m                        </select>[m
+[32m+[m[32m                    </div>[m
+ [m
+[31m-                        <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Decision</label>[m
+[31m-                            <select name="toss_decision" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:ring-indigo-600">[m
+[31m-                                <option value="bat" @selected(old('toss_decision', $fixture->toss_decision) === 'bat')>Bat First</option>[m
+[31m-                                <option value="field" @selected(old('toss_decision', $fixture->toss_decision) === 'field')>Field First</option>[m
+[31m-                            </select>[m
+[31m-                        </div>[m
+[32m+[m[32m                    <div>[m
+[32m+[m[32m                        <label class="mb-1 block text-xs font-bold text-slate-600">Decision</label>[m
+[32m+[m[32m                        <select name="toss_decision" required class="field">[m
+[32m+[m[32m                            <option value="bat" @selected(old('toss_decision', $fixture->toss_decision) === 'bat')>Bat First</option>[m
+[32m+[m[32m                            <option value="field" @selected(old('toss_decision', $fixture->toss_decision) === 'field')>Field First</option>[m
+[32m+[m[32m                        </select>[m
+                     </div>[m
+ [m
+[31m-                    <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-95">[m
+[31m-                        Save Toss Decision[m
+[31m-                    </button>[m
+[32m+[m[32m                    <button class="primary-button w-full" type="submit">Save Toss Decision</button>[m
+                 </form>[m
+ [m
+                 @if($fixture->tossWinner)[m
+[31m-                    <div class="mt-4 flex items-center gap-2 rounded-xl bg-indigo-50/60 p-3 text-xs font-semibold text-indigo-900">[m
+[31m-                        <svg class="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>[m
+[31m-                        </svg>[m
+[31m-                        <span>Toss: <strong>{{ $fixture->tossWinner->name }}</strong> elected to <strong>{{ $fixture->toss_decision }}</strong>.</span>[m
+[31m-                    </div>[m
+[32m+[m[32m                    <p class="mt-4 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900">[m
+[32m+[m[32m                        Toss: <strong>{{ $fixture->tossWinner->name }}</strong>[m
+[32m+[m[32m                        elected to <strong>{{ $fixture->toss_decision }}</strong>.[m
+[32m+[m[32m                    </p>[m
+                 @endif[m
+             </section>[m
+ [m
+[31m-            <!-- Start Innings -->[m
+[31m-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">[m
+[31m-                <div class="flex items-center gap-3">[m
+[31m-                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 font-bold">[m
+[31m-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>[m
+[31m-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>[m
+[31m-                        </svg>[m
+[31m-                    </div>[m
+[32m+[m[32m            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">[m
+[32m+[m[32m                <h2 class="text-lg font-black text-slate-900">Start Innings</h2>[m
+[32m+[m[32m                <p class="mt-1 text-xs text-slate-500">Select the opening batters and bowling player.</p>[m
+[32m+[m
+[32m+[m[32m                <form method="POST" action="{{ route('admin.live.start', $fixture) }}" class="mt-5 space-y-4" id="start-innings-form">[m
+[32m+[m[32m                    @csrf[m
+[32m+[m
+                     <div>[m
+[31m-                        <h2 class="text-lg font-black text-slate-900">Start Innings</h2>[m
+[31m-                        <p class="text-xs text-slate-500">Configure opening batters and bowler.</p>[m
+[32m+[m[32m                        <label class="mb-1 block text-xs font-bold text-slate-600">Innings</label>[m
+[32m+[m[32m                        <select name="innings_number" required class="field">[m
+[32m+[m[32m                            <option value="1">1st Innings</option>[m
+[32m+[m[32m                            <option value="2">2nd Innings</option>[m
+[32m+[m[32m                        </select>[m
+                     </div>[m
+[31m-                </div>[m
+ [m
+[31m-                <form method="POST" action="{{ route('admin.live.start', $fixture) }}" class="mt-5 space-y-4">[m
+[31m-                    @csrf[m
+[32m+[m[32m                    <div>[m
+[32m+[m[32m                        <label class="mb-1 block text-xs font-bold text-slate-600">Batting Team</label>[m
+[32m+[m[32m                        <select name="batting_team_id" id="opening-batting-team" required class="field">[m
+[32m+[m[32m                            <option value="{{ $fixture->home_team_id }}">{{ $fixture->homeTeam->name ?? 'Home' }}</option>[m
+[32m+[m[32m                            <option value="{{ $fixture->away_team_id }}">{{ $fixture->awayTeam->name ?? 'Away' }}</option>[m
+[32m+[m[32m                        </select>[m
+[32m+[m[32m                    </div>[m
+ [m
+[31m-                    <div class="grid gap-4 sm:grid-cols-2">[m
+[32m+[m[32m                    <div class="grid gap-3 sm:grid-cols-2">[m
+                         <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Innings</label>[m
+[31m-                            <select name="innings_number" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:ring-orange-500">[m
+[31m-                                <option value="1">1st Innings</option>[m
+[31m-                                <option value="2">2nd Innings</option>[m
+[32m+[m[32m                            <label class="mb-1 block text-xs font-bold text-slate-600">Striker</label>[m
+[32m+[m[32m                            <select name="striker" id="opening-striker" required class="field player-select" data-team-source="opening-batting-team" data-role="batting">[m
+[32m+[m[32m                                <option value="">Choose striker</option>[m
+                             </select>[m
+                         </div>[m
+ [m
+                         <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Batting Team</label>[m
+[31m-                            <select name="batting_team_id" required class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-3 text-sm font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:ring-orange-500">[m
+[31m-                                <option value="{{ $fixture->home_team_id }}">{{ $fixture->homeTeam->name ?? 'Home' }}</option>[m
+[31m-                                <option value="{{ $fixture->away_team_id }}">{{ $fixture->awayTeam->name ?? 'Away' }}</option>[m
+[32m+[m[32m                            <label class="mb-1 block text-xs font-bold text-slate-600">Non-Striker</label>[m
+[32m+[m[32m                            <select name="non_striker" id="opening-non-striker" required class="field player-select" data-team-source="opening-batting-team" data-role="batting">[m
+[32m+[m[32m                                <option value="">Choose non-striker</option>[m
+                             </select>[m
+                         </div>[m
+                     </div>[m
+ [m
+[31m-                    <div class="grid gap-4 sm:grid-cols-3">[m
+[31m-                        <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Striker</label>[m
+[31m-                            <input name="striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">[m
+[31m-                        </div>[m
+[31m-[m
+[31m-                        <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Non-Striker</label>[m
+[31m-                            <input name="non_striker" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Batter name">[m
+[31m-                        </div>[m
+[31m-[m
+[31m-                        <div>[m
+[31m-                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Opening Bowler</label>[m
+[31m-                            <input name="current_bowler" required maxlength="100" class="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white" placeholder="Bowler name">[m
+[31m-                        </div>[m
+[32m+[m[32m                    <div>[m
+[32m+[m[32m                        <label class="mb-1 block text-xs font-bold text-slate-600">Opening Bowler</label>[m
+[32m+[m[32m                        <select name="current_bowler" id="opening-bowler" required class="field player-select" data-team-source="opening-batting-team" data-role="bowling">[m
+[32m+[m[32m                            <option value="">Choose opening bowler</option>[m
+[32m+[m[32m                        </select>[m
+                     </div>[m
+ [m
+[31m-                    <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all hover:opacity-95 active:scale-95">[m
+[31m-                        Start Innings[m
+[31m-                    </button>[m
+[32m+[m[32m                    <button type="submit" class="primary-button w-full">Start Innings</button>[m
+                 </form>[m
+ [m
+[31m-                <p class="mt-3 text-[11px] font-medium text-amber-700/90 flex items-center gap-1.5">[m
+[31m-                    <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>[m
+[31m-                    </svg>[m
+[31m-                    <span>Innings with recorded deliveries cannot be restarted.</span>[m
+[32m+[m[32m                <p class="mt-3 text-xs text-amber-700">[m
+[32m+[m[32m                    An innings with recorded deliveries cannot be restarted.[m
+                 </p>[m
+             </section>[m
+         </div>[m
+ [m
+[31m-        <!-- Score Overview Cards -->[m
+         <section class="grid gap-4 sm:grid-cols-2">[m
+             @forelse($innings as $inning)[m
+[31m-                <article class="relative overflow-hidden rounded-3xl border {{ $inning->is_current ? 'border-orange-500 ring-2 ring-orange-400/20 shadow-xl' : 'border-slate-200/80 shadow-sm' }} bg-white p-6 transition-all">[m
+[32m+[m[32m                <article class="rounded-3xl border {{ $inning->is_current ? 'border-orange-400 ring-2 ring-orange-100' : 'border-slate-200' }} bg-white p-6">[m
+                     <div class="flex items-center justify-between gap-3">[m
+[31m-                        <span class="text-xs font-black uppercase tracking-widest text-slate-400">Innings {{ $inning->innings_number }}</span>[m
+[31m-[m
+[32m+[m[32m                        <span class="text-xs font-black uppercase tracking-widest text-slate-400">[m
+[32m+[m[32m                            Innings {{ $inning->innings_number }}[m
+[32m+[m[32m                        </span>[m
+                         @if($inning->is_current)[m
+[31m-                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black tracking-wider text-white shadow-sm shadow-emerald-500/30">[m
+[31m-                                <span class="h-1.5 w-1.5 rounded-full bg-white animate-ping"></span>[m
+[31m-                                LIVE[m
+[31m-                            </span>[m
+[32m+[m[32m                            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">LIVE</span>[m
+                         @endif[m
+                     </div>[m
+[31m-[m
+[31m-                    <h3 class="mt-2 text-lg font-black text-slate-800">{{ $inning->battingTeam->name ?? 'Batting team' }}</h3>[m
+[31m-[m
+[31m-                    <div class="mt-3 flex items-baseline gap-2">[m
+[31m-                        <span class="text-4xl font-black tracking-tight text-indigo-950">{{ $inning->total_runs }}</span>[m
+[31m-                        <span class="text-2xl font-black text-slate-400">/{{ $inning->wickets }}</span>[m
+[31m-                    </div>[m
+[31m-[m
+[31m-                    <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-500">[m
+[31m-                        <span>Overs: <strong class="text-slate-900">{{ $inning->oversText() }}</strong></span>[m
+[31m-                        <span>Extras: <strong class="text-slate-900">{{ $inning->extras }}</strong></span>[m
+[31m-                        <span>Run Rate: <strong class="text-slate-900">{{ number_format($inning->runRate(), 2) }}</strong></span>[m
+[32m+[m[32m                    <h3 class="mt-2 text-lg font-black text-slate-800">[m
+[32m+[m[32m                        {{ $inning->battingTeam->name ?? 'Batting team' }}[m
+[32m+[m[32m                    </h3>[m
+[32m+[m[32m                    <p class="mt-2 text-4xl font-black text-indigo-950">[m
+[32m+[m[32m                        {{ $inning->total_runs }}/{{ $inning->wickets }}[m
+[32m+[m[32m                    </p>[m
+[32m+[m[32m                    <div class="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-4 text-xs text-slate-500">[m
+[32m+[m[32m                        <span>Overs: <strong>{{ $inning->oversText() }}</strong></span>[m
+[32m+[m[32m                        <span>Extras: <strong>{{ $inning->extras }}</strong></span>[m
+[32m+[m[32m                        <span>Run rate: <strong>{{ number_format($inning->runRate(), 2) }}</strong></span>[m
+                     </div>[m
+                 </article>[m
+             @empty[m
+[31m-                <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-medium text-slate-400 sm:col-span-2">[m
+[32m+[m[32m                <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 sm:col-span-2">[m
+                     No innings started yet.[m
+                 </div>[m
+             @endforelse[m
+         </section>[m
+ [m
+[31m-        {{-- Active scoring console --}}[m
+         @if($active)[m
+[31m-            <section class="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl">[m
+[31m-                <!-- Console Top Bar -->[m
+[32m+[m[32m            @php[m
+[32m+[m[32m                $activeBattingTeamId = (string) $active->batting_team_id;[m
+[32m+[m[32m                $activeBowlingTeamId = (string) $active->bowling_team_id;[m
+[32m+[m[32m                $currentDeliveries = $active->deliveries->sortBy('id');[m
+[32m+[m[32m                $latestDelivery = $currentDeliveries->last();[m
+[32m+[m[32m                $overComplete = ((int) $active->legal_balls > 0 && (int) $active->legal_balls % 6 === 0);[m
+[32m+[m[32m            @endphp[m
+[32m+[m
+[32m+[m[32m            <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">[m
+                 <div class="bg-indigo-950 p-6 text-white sm:p-8">[m
+[31m-                    <div class="flex flex-wrap items-center justify-between gap-4">[m
+[32m+[m[32m                    <div class="flex flex-wrap items-start justify-between gap-4">[m
+                         <div>[m
+[31m-                            <span class="text-xs font-black uppercase tracking-widest text-orange-400">Active Live Scoring</span>[m
+[31m-                            <h2 class="mt-1 text-2xl font-black tracking-tight">{{ $active->battingTeam->name ?? 'Batting team' }}</h2>[m
+[32m+[m[32m                            <p class="text-xs font-black uppercase tracking-widest text-orange-400">Active Live Scoring</p>[m
+[32m+[m[32m                            <h2 class="mt-1 text-2xl font-black">{{ $active->battingTeam->name ?? 'Batting team' }}</h2>[m
+[32m+[m[32m                            <p class="mt-1 text-xs text-indigo-300">[m
+[32m+[m[32m                                Bowling: {{ $active->bowlingTeam->name ?? 'Bowling team' }}[m
+[32m+[m[32m                            </p>[m
+                         </div>[m
+[31m-[m
+                         @if($active->free_hit_next)[m
+[31m-                            <span class="rounded-xl bg-orange-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/30 animate-pulse">[m
+[31m-                                FREE HIT DELIVERY[m
+[31m-                            </span>[m
+[32m+[m[32m                            <span class="rounded-xl bg-orange-500 px-3 py-2 text-xs font-black">FREE HIT</span>[m
+                         @endif[m
+                     </div>[m
+ [m
+[31m-                    <div class="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-white/10 pt-6">[m
+[32m+[m[32m                    <div class="mt-6 grid grid-cols-3 gap-4 border-t border-white/10 pt-6">[m
+                         <div>[m
+[31m-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Score</span>[m
+[31m-                            <span class="text-5xl font-black tracking-tight">{{ $active->total_runs }}/{{ $active->wickets }}</span>[m
+[32m+[m[32m                            <p class="text-xs font-bold uppercase text-indigo-300">Score</p>[m
+[32m+[m[32m                            <p class="text-3xl font-black sm:text-5xl">{{ $active->total_runs }}/{{ $active->wickets }}</p>[m
+                         </div>[m
+[31m-[m
+                         <div>[m
+[31m-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Overs</span>[m
+[31m-                            <span class="text-2xl font-black">{{ $active->oversText() }}</span>[m
+[32m+[m[32m                            <p class="text-xs font-bold uppercase text-indigo-300">Overs</p>[m
+[32m+[m[32m                            <p class="text-2xl font-black sm:text-3xl">{{ $active->oversText() }}</p>[m
+                         </div>[m
+[31m-[m
+                         <div>[m
+[31m-                            <span class="block text-xs font-bold text-indigo-300 uppercase tracking-wider">Run Rate</span>[m
+[31m-                            <span class="text-2xl font-black">{{ number_format($active->runRate(), 2) }}</span>[m
+[32m+[m[32m                            <p class="text-xs font-bold uppercase text-indigo-300">Run Rate</p>[m
+[32m+[m[32m                            <p class="text-2xl font-black sm:text-3xl">{{ number_format($active->runRate(), 2) }}</p>[m
+                         </div>[m
+                     </div>[m
+                 </div>[m
+ [m
+[31m-                <div class="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.2fr_.8fr]">[m
+[32m+[m[32m                <div class="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.2fr_.8fr]">[m
+ [m
+[31m-                    <!-- Left Column: Quick Scoring & Extras -->[m
+                     <div class="space-y-6">[m
+[31m-                        <div>[m
+[32m+[m
+[32m+[m[32m                        <section class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">[m
+[32m+[m[32m                            <h3 class="text-base font-black text-slate-900">Choose Players for Next Delivery</h3>[m
+[32m+[m[32m                            <p class="mt-1 text-xs text-slate-500">[m
+[32m+[m[32m                                Select the batters and bowler before using quick runs or extras.[m
+[32m+[m[32m                            </p>[m
+[32m+[m
+[32m+[m[32m                            <div class="mt-4 grid gap-3 sm:grid-cols-2">[m
+[32m+[m[32m                                <div>[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Striker</label>[m
+[32m+[m[32m                                    <select id="live-striker" class="field live-player" data-team-id="{{ $activeBattingTeamId }}" data-placeholder="Choose striker">[m
+[32m+[m[32m                                        <option value="{{ $active->striker }}">{{ $active->striker }}</option>[m
+[32m+[m[32m                                    </select>[m
+[32m+[m[32m                                </div>[m
+[32m+[m
+[32m+[m[32m                                <div>[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Non-Striker</label>[m
+[32m+[m[32m                                    <select id="live-non-striker" class="field live-player" data-team-id="{{ $activeBattingTeamId }}" data-placeholder="Choose non-striker">[m
+[32m+[m[32m                                        <option value="{{ $active->non_striker }}">{{ $active->non_striker }}</option>[m
+[32m+[m[32m                                    </select>[m
+[32m+[m[32m                                </div>[m
+[32m+[m
+[32m+[m[32m                                <div class="sm:col-span-2">[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Current / Next Bowler</label>[m
+[32m+[m[32m                                    <select id="live-bowler" class="field live-player" data-team-id="{{ $activeBowlingTeamId }}" data-placeholder="Choose bowler">[m
+[32m+[m[32m                                        <option value="{{ $active->current_bowler }}">{{ $active->current_bowler }}</option>[m
+[32m+[m[32m                                    </select>[m
+[32m+[m[32m                                    @if($overComplete)[m
+[32m+[m[32m                                        <p class="mt-2 text-xs font-bold text-orange-700">[m
+[32m+[m[32m                                            Over complete — select the next bowler before recording another ball.[m
+[32m+[m[32m                                        </p>[m
+[32m+[m[32m                                    @endif[m
+[32m+[m[32m                                </div>[m
+[32m+[m[32m                            </div>[m
+[32m+[m
+[32m+[m[32m                            <p id="player-selection-warning" class="mt-3 hidden text-xs font-bold text-rose-600">[m
+[32m+[m[32m                                Select two different batters and a bowler.[m
+[32m+[m[32m                            </p>[m
+[32m+[m[32m                        </section>[m
+[32m+[m
+[32m+[m[32m                        <section>[m
+                             <h3 class="text-base font-black text-slate-900">Tap to Score Runs</h3>[m
+[31m-                            <p class="text-xs text-slate-500">Each action instantly records a delivery and updates match statistics.</p>[m
+[32m+[m[32m                            <p class="mt-1 text-xs text-slate-500">Quick scoring uses the players selected above.</p>[m
+ [m
+                             <div class="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-7">[m
+[31m-                                @foreach([0,1,2,3,4,5,6] as $run)[m
+[32m+[m[32m                                @foreach([0, 1, 2, 3, 4, 5, 6] as $run)[m
+                                     <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" data-live-delivery-form>[m
+                                         @csrf[m
+                                         <input type="hidden" name="innings_id" value="{{ $active->id }}">[m
+[31m-                                        <input type="hidden" name="striker" value="{{ $active->striker }}">[m
+[31m-                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">[m
+[31m-                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">[m
+[32m+[m[32m                                        <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">[m
+[32m+[m[32m                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">[m
+[32m+[m[32m                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">[m
+                                         <input type="hidden" name="batter_runs" value="{{ $run }}">[m
+                                         <input type="hidden" name="extra_type" value="none">[m
+                                         <input type="hidden" name="extra_runs" value="0">[m
+ [m
+[31m-                                        <button type="submit" class="group flex h-16 w-full flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/50 text-xl font-black text-indigo-950 shadow-sm transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95">[m
+[32m+[m[32m                                        <button type="submit" class="run-button">[m
+                                             <span>{{ $run }}</span>[m
+[31m-                                            <span class="text-[9px] font-bold text-slate-400 group-hover:text-orange-100">RUNS</span>[m
+[32m+[m[32m                                            <span class="text-[9px] font-bold">RUNS</span>[m
+                                         </button>[m
+                                     </form>[m
+                                 @endforeach[m
+                             </div>[m
+[31m-                        </div>[m
+[32m+[m[32m                        </section>[m
+ [m
+[31m-                        <!-- Quick Extras -->[m
+[31m-                        <div>[m
+[32m+[m[32m                        <section>[m
+                             <h3 class="text-base font-black text-slate-900">Quick Extras</h3>[m
+[31m-[m
+                             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">[m
+                                 @foreach([[m
+                                     ['wide', 'Wide (+1)', 0, 1],[m
+[31m-                                    ['no_ball', 'No-Ball (+1)', 0, 1],[m
+[31m-                                    ['bye', 'Bye', 0, 1],[m
+[31m-                                    ['leg_bye', 'Leg-Bye', 0, 1],[m
+[32m+[m[32m                                    ['no_ball', 'No-ball (+1)', 0, 1],[m
+[32m+[m[32m                                    ['bye', 'Bye (+1)', 0, 1],[m
+[32m+[m[32m                                    ['leg_bye', 'Leg-bye (+1)', 0, 1],[m
+                                 ] as [$type, $label, $batRuns, $extraRuns])[m
+                                     <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" data-live-delivery-form>[m
+                                         @csrf[m
+                                         <input type="hidden" name="innings_id" value="{{ $active->id }}">[m
+[31m-                                        <input type="hidden" name="striker" value="{{ $active->striker }}">[m
+[31m-                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">[m
+[31m-                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">[m
+[32m+[m[32m                                        <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">[m
+[32m+[m[32m                                        <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">[m
+[32m+[m[32m                                        <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">[m
+                                         <input type="hidden" name="batter_runs" value="{{ $batRuns }}">[m
+                                         <input type="hidden" name="extra_type" value="{{ $type }}">[m
+                                         <input type="hidden" name="extra_runs" value="{{ $extraRuns }}">[m
+ [m
+[31m-                                        <button type="submit" class="w-full rounded-2xl border border-orange-200/80 bg-orange-50/60 px-3 py-3.5 text-xs font-black text-orange-900 transition-all hover:bg-orange-100 active:scale-95">[m
+[32m+[m[32m                                        <button type="submit" class="w-full rounded-2xl border border-orange-200 bg-orange-50 px-3 py-3 text-xs font-black text-orange-900 hover:bg-orange-100">[m
+                                             {{ $label }}[m
+                                         </button>[m
+                                     </form>[m
+                                 @endforeach[m
+                             </div>[m
+[31m-                        </div>[m
+[32m+[m[32m                        </section>[m
+ [m
+[31m-                        <!-- Detailed Delivery Form -->[m
+[31m-                        <div class="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">[m
+[31m-                            <h4 class="text-sm font-black text-slate-900">Detailed Delivery Form</h4>[m
+[31m-                            <p class="text-[11px] text-slate-500">Use for custom extras, multi-run no-balls, or changing bowlers.</p>[m
+[32m+[m[32m                        <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">[m
+[32m+[m[32m                            <h3 class="text-sm font-black text-slate-900">Detailed Delivery Form</h3>[m
+[32m+[m[32m                            <p class="mt-1 text-xs text-slate-500">[m
+[32m+[m[32m                                Select a bowler for this delivery. You can also choose the next bowler at the end of the over.[m
+[32m+[m[32m                            </p>[m
+ [m
+[31m-                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-4" data-live-delivery-form>[m
+[32m+[m[32m                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-4" data-live-delivery-form id="detailed-delivery-form">[m
+                                 @csrf[m
+                                 <input type="hidden" name="innings_id" value="{{ $active->id }}">[m
+[31m-                                <input type="hidden" name="striker" value="{{ $active->striker }}">[m
+[31m-                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">[m
+[32m+[m[32m                                <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">[m
+[32m+[m[32m                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">[m
+ [m
+[31m-                                <div class="grid gap-3 sm:grid-cols-2">[m
+[31m-                                    <div>[m
+[31m-                                        <label class="mb-1 block text-xs font-bold text-slate-600">Bowler (Change at over end)</label>[m
+[31m-                                        <input name="bowler" value="{{ $active->current_bowler }}" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[31m-                                    </div>[m
+[32m+[m[32m                                <div>[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Bowler for This Delivery</label>[m
+[32m+[m[32m                                    <select name="bowler" id="detailed-bowler" required class="field live-player" data-team-id="{{ $activeBowlingTeamId }}" data-placeholder="Choose bowler">[m
+[32m+[m[32m                                        <option value="{{ $active->current_bowler }}">{{ $active->current_bowler }}</option>[m
+[32m+[m[32m                                    </select>[m
+[32m+[m[32m                                </div>[m
+ [m
+[32m+[m[32m                                <div class="grid gap-3 sm:grid-cols-2">[m
+                                     <div>[m
+                                         <label class="mb-1 block text-xs font-bold text-slate-600">Batter Runs</label>[m
+[31m-                                        <select name="batter_runs" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[31m-                                            @foreach([0,1,2,3,4,5,6] as $r)[m
+[32m+[m[32m                                        <select name="batter_runs" class="field">[m
+[32m+[m[32m                                            @foreach([0, 1, 2, 3, 4, 5, 6] as $r)[m
+                                                 <option value="{{ $r }}">{{ $r }}</option>[m
+                                             @endforeach[m
+                                         </select>[m
+[36m@@ -367,7 +369,7 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+ [m
+                                     <div>[m
+                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Type</label>[m
+[31m-                                        <select name="extra_type" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[32m+[m[32m                                        <select name="extra_type" id="detail-extra-type" class="field">[m
+                                             <option value="none">None</option>[m
+                                             <option value="wide">Wide</option>[m
+                                             <option value="no_ball">No-ball</option>[m
+[36m@@ -379,153 +381,123 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+ [m
+                                     <div>[m
+                                         <label class="mb-1 block text-xs font-bold text-slate-600">Extra Runs</label>[m
+[31m-                                        <input name="extra_runs" type="number" min="0" max="7" value="0" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[32m+[m[32m                                        <input name="extra_runs" type="number" min="0" max="7" value="0" required class="field">[m
+[32m+[m[32m                                    </div>[m
+[32m+[m
+[32m+[m[32m                                    <div>[m
+[32m+[m[32m                                        <label class="mb-1 block text-xs font-bold text-slate-600">Delivery Note (Optional)</label>[m
+[32m+[m[32m                                        <input name="note" maxlength="255" class="field" placeholder="Optional note">[m
+                                     </div>[m
+                                 </div>[m
+ [m
+[31m-                                <button type="submit" class="w-full rounded-xl bg-indigo-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md transition-all hover:bg-indigo-800 active:scale-95">[m
+[31m-                                    Record Custom Delivery[m
+[31m-                                </button>[m
+[32m+[m[32m                                <button type="submit" class="primary-button w-full">Record Custom Delivery</button>[m
+                             </form>[m
+[31m-                        </div>[m
+[32m+[m[32m                        </section>[m
+                     </div>[m
+ [m
+[31m-                    <!-- Right Column: Wickets & Current Lineup -->[m
+                     <div class="space-y-6">[m
+ [m
+[31m-                        <!-- Wicket Panel -->[m
+[31m-                        <div class="rounded-2xl border border-rose-200/80 bg-rose-50/40 p-5">[m
+[31m-                            <div class="flex items-center gap-2 text-rose-700">[m
+[31m-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636"/>[m
+[31m-                                </svg>[m
+[31m-                                <h3 class="text-sm font-black uppercase tracking-wider text-rose-900">Record Wicket</h3>[m
+[31m-                            </div>[m
+[32m+[m[32m                        <section class="rounded-2xl border border-rose-200 bg-rose-50/50 p-5">[m
+[32m+[m[32m                            <h3 class="text-sm font-black uppercase tracking-wider text-rose-900">Record Wicket</h3>[m
+ [m
+[31m-                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-3" data-live-delivery-form>[m
+[32m+[m[32m                            <form method="POST" action="{{ route('admin.live.ball', $fixture) }}" class="mt-4 space-y-3" data-live-delivery-form id="wicket-form">[m
+                                 @csrf[m
+                                 <input type="hidden" name="innings_id" value="{{ $active->id }}">[m
+[31m-                                <input type="hidden" name="striker" value="{{ $active->striker }}">[m
+[31m-                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}">[m
+[31m-                                <input type="hidden" name="bowler" value="{{ $active->current_bowler }}">[m
+[32m+[m[32m                                <input type="hidden" name="striker" value="{{ $active->striker }}" data-player-field="striker">[m
+[32m+[m[32m                                <input type="hidden" name="non_striker" value="{{ $active->non_striker }}" data-player-field="non_striker">[m
+[32m+[m[32m                                <input type="hidden" name="bowler" value="{{ $active->current_bowler }}" data-player-field="bowler">[m
+                                 <input type="hidden" name="batter_runs" value="0">[m
+                                 <input type="hidden" name="extra_type" value="none">[m
+                                 <input type="hidden" name="extra_runs" value="0">[m
+                                 <input type="hidden" name="is_wicket" value="1">[m
+ [m
+                                 <div>[m
+[31m-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Dismissal Type</label>[m
+[31m-                                    <select name="wicket_type" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[31m-                                        @foreach(['bowled','caught','lbw','run out','stumped','hit wicket','retired hurt','retired out','obstructing the field','hit the ball twice'] as $type)[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Dismissal Type</label>[m
+[32m+[m[32m                                    <select name="wicket_type" required class="field">[m
+[32m+[m[32m                                        @foreach([[m
+[32m+[m[32m                                            'bowled', 'caught', 'lbw', 'run out', 'stumped',[m
+[32m+[m[32m                                            'hit wicket', 'retired hurt', 'retired out',[m
+[32m+[m[32m                                            'obstructing the field', 'hit the ball twice',[m
+[32m+[m[32m                                            'handled the ball'[m
+[32m+[m[32m                                        ] as $type)[m
+                                             <option value="{{ $type }}">{{ ucfirst($type) }}</option>[m
+                                         @endforeach[m
+                                     </select>[m
+                                 </div>[m
+ [m
+                                 <div>[m
+[31m-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Dismissed Batter</label>[m
+[31m-                                    <select name="dismissed_batter" required class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800">[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Dismissed Batter</label>[m
+[32m+[m[32m                                    <select name="dismissed_batter" id="dismissed-batter" required class="field">[m
+                                         <option value="{{ $active->striker }}">{{ $active->striker }} (Striker)</option>[m
+                                         <option value="{{ $active->non_striker }}">{{ $active->non_striker }} (Non-Striker)</option>[m
+                                     </select>[m
+                                 </div>[m
+ [m
+                                 <div>[m
+[31m-                                    <label class="mb-1 block text-xs font-bold text-slate-700">Incoming Batter</label>[m
+[31m-                                    <input name="incoming_batter" maxlength="100" class="w-full rounded-xl border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400" placeholder="Next batter name">[m
+[32m+[m[32m                                    <label class="mb-1 block text-xs font-bold text-slate-600">Incoming Batter</label>[m
+[32m+[m[32m                                    <select name="incoming_batter" id="incoming-batter" class="field">[m
+[32m+[m[32m                                        <option value="">Choose incoming batter</option>[m
+[32m+[m[32m                                    </select>[m
+                                 </div>[m
+ [m
+[31m-                                <button type="submit" class="w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-rose-600/20 transition-all hover:bg-rose-700 active:scale-95">[m
+[32m+[m[32m                                <button type="submit" class="w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase text-white hover:bg-rose-700">[m
+                                     Confirm & Fall of Wicket[m
+                                 </button>[m
+                             </form>[m
+[31m-                        </div>[m
+[32m+[m[32m                        </section>[m
+ [m
+[31m-                        <!-- Current Batsmen & Bowler Status -->[m
+[31m-                        <div>[m
+[32m+[m[32m                        <section>[m
+                             <h3 class="text-sm font-black text-slate-900">Current On-Field Status</h3>[m
+[31m-[m
+[31m-                            <div class="mt-3 space-y-2.5">[m
+[31m-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">[m
+[31m-                                    <div class="flex items-center gap-2.5">[m
+[31m-                                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>[m
+[31m-                                        <span class="font-extrabold text-slate-800">{{ $active->striker ?: 'Not set' }}</span>[m
+[31m-                                    </div>[m
+[31m-                                    <span class="rounded-lg bg-emerald-100/70 px-2.5 py-1 text-[10px] font-black text-emerald-800">STRIKER</span>[m
+[32m+[m[32m                            <div class="mt-3 space-y-2">[m
+[32m+[m[32m                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">[m
+[32m+[m[32m                                    <p class="text-[10px] font-black uppercase text-emerald-700">Striker</p>[m
+[32m+[m[32m                                    <p id="status-striker" class="mt-1 font-bold text-slate-900">{{ $active->striker ?: 'Not set' }}</p>[m
+                                 </div>[m
+[31m-[m
+[31m-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">[m
+[31m-                                    <div class="flex items-center gap-2.5">[m
+[31m-                                        <span class="h-2 w-2 rounded-full bg-slate-300"></span>[m
+[31m-                                        <span class="font-extrabold text-slate-700">{{ $active->non_striker ?: 'Not set' }}</span>[m
+[31m-                                    </div>[m
+[31m-                                    <span class="rounded-lg bg-slate-200/60 px-2.5 py-1 text-[10px] font-black text-slate-600">NON-STRIKER</span>[m
+[32m+[m[32m                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">[m
+[32m+[m[32m                                    <p class="text-[10px] font-black uppercase text-slate-500">Non-Striker</p>[m
+[32m+[m[32m                                    <p id="status-non-striker" class="mt-1 font-bold text-slate-900">{{ $active->non_striker ?: 'Not set' }}</p>[m
+                                 </div>[m
+[31m-[m
+[31m-                                <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200/60 text-sm">[m
+[31m-                                    <div class="flex items-center gap-2.5">[m
+[31m-                                        <span class="h-2 w-2 rounded-full bg-indigo-500"></span>[m
+[31m-                                        <span class="text-slate-500 font-medium">Bowler</span>[m
+[31m-                                    </div>[m
+[31m-                                    <span class="font-extrabold text-slate-900">{{ $active->current_bowler ?: 'Not set' }}</span>[m
+[32m+[m[32m                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">[m
+[32m+[m[32m                                    <p class="text-[10px] font-black uppercase text-indigo-700">Current Bowler</p>[m
+[32m+[m[32m                                    <p id="status-bowler" class="mt-1 font-bold text-slate-900">{{ $active->current_bowler ?: 'Not set' }}</p>[m
+                                 </div>[m
+                             </div>[m
+[31m-                        </div>[m
+[32m+[m[32m                        </section>[m
+                     </div>[m
+                 </div>[m
+             </section>[m
+         @else[m
+[31m-            <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">[m
+[31m-                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">[m
+[31m-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>[m
+[31m-                    </svg>[m
+[31m-                </div>[m
+[31m-                <h2 class="mt-4 text-base font-black text-slate-900">Ready to start scoring?</h2>[m
+[31m-                <p class="mt-1 text-xs text-slate-500">Save the toss setup and initialize your first innings above to activate the control board.</p>[m
+[32m+[m[32m            <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">[m
+[32m+[m[32m                <h2 class="text-base font-black text-slate-900">Ready to start scoring?</h2>[m
+[32m+[m[32m                <p class="mt-2 text-sm text-slate-500">[m
+[32m+[m[32m                    Choose the batting team, two opening batters, and an opening bowler above.[m
+[32m+[m[32m                </p>[m
+             </section>[m
+         @endif[m
+ [m
+[31m-        {{-- Recent Deliveries / Undo --}}[m
+         @if($active)[m
+[31m-            <section class="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-7">[m
+[31m-                <div class="flex flex-wrap items-center justify-between gap-3">[m
+[31m-                    <div>[m
+[31m-                        <h2 class="text-lg font-black text-slate-900">Recent Deliveries</h2>[m
+[31m-                        <p class="text-xs text-slate-500">Undo is available exclusively for the latest recorded delivery.</p>[m
+[31m-                    </div>[m
+[32m+[m[32m            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    <h2 class="text-lg font-black text-slate-900">Recent Deliveries</h2>[m
+[32m+[m[32m                    <p class="mt-1 text-xs text-slate-500">Only the latest delivery can be undone.</p>[m
+                 </div>[m
+ [m
+[31m-                @php[m
+[31m-                    $recentDeliveries = $active->deliveries->sortByDesc('id')->take(12);[m
+[31m-                    $latestDelivery = $active->deliveries->sortByDesc('id')->first();[m
+[31m-                @endphp[m
+[31m-[m
+                 <div class="mt-5 divide-y divide-slate-100">[m
+[31m-                    @forelse($recentDeliveries as $ball)[m
+[31m-                        <div class="flex flex-wrap items-center justify-between gap-3 py-3.5 first:pt-0 last:pb-0">[m
+[31m-                            <div class="space-y-0.5">[m
+[32m+[m[32m                    @forelse($active->deliveries->sortByDesc('id')->take(12) as $ball)[m
+[32m+[m[32m                        <div class="flex flex-wrap items-center justify-between gap-3 py-4">[m
+[32m+[m[32m                            <div>[m
+                                 <p class="text-sm font-bold text-slate-800">[m
+                                     {{ $ball->striker ?? 'Unknown batter' }}[m
+                                     <span class="font-normal text-slate-400">vs</span>[m
+                                     {{ $ball->bowler ?? 'Unknown bowler' }}[m
+                                 </p>[m
+[31m-[m
+[31m-                                <p class="flex flex-wrap items-center gap-2 text-xs text-slate-500">[m
+[31m-                                    <span class="font-medium text-slate-600">[m
+[31m-                                        {{ ($ball->extra_type ?? 'none') === 'none'[m
+[31m-                                            ? 'Bat runs'[m
+[31m-                                            : ucfirst(str_replace('_', ' ', $ball->extra_type)) }}[m
+[31m-                                    </span>[m
+[31m-[m
+[31m-                                    <span>&bull;</span>[m
+[31m-[m
+[31m-                                    <strong class="text-indigo-900">{{ $ball->totalRuns() }} run(s)</strong>[m
+[31m-[m
+[32m+[m[32m                                <p class="mt-1 text-xs text-slate-500">[m
+[32m+[m[32m                                    {{ ($ball->extra_type ?? 'none') === 'none'[m
+[32m+[m[32m                                        ? 'Bat runs'[m
+[32m+[m[32m                                        : ucfirst(str_replace('_', ' ', $ball->extra_type)) }}[m
+[32m+[m[32m                                    · <strong class="text-indigo-900">{{ $ball->totalRuns() }} run(s)</strong>[m
+                                     @if($ball->is_wicket)[m
+[31m-                                        <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-rose-800">[m
+[31m-                                            Wicket: {{ $ball->wicket_type }}[m
+[31m-                                        </span>[m
+[32m+[m[32m                                        · <strong class="text-rose-700">Wicket: {{ $ball->wicket_type }}</strong>[m
+                                     @endif[m
+                                 </p>[m
+                             </div>[m
+[36m@@ -536,20 +508,14 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+                                       onsubmit="return confirm('Undo the latest delivery? This will alter the recorded score.');">[m
+                                     @csrf[m
+                                     @method('DELETE')[m
+[31m-[m
+[31m-                                    <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95">[m
+[31m-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">[m
+[31m-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>[m
+[31m-                                        </svg>[m
+[32m+[m[32m                                    <button type="submit" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100">[m
+                                         Undo Latest[m
+                                     </button>[m
+                                 </form>[m
+                             @endif[m
+                         </div>[m
+                     @empty[m
+[31m-                        <p class="py-6 text-center text-xs font-medium text-slate-400">[m
+[31m-                            No deliveries recorded in this innings yet.[m
+[31m-                        </p>[m
+[32m+[m[32m                        <p class="py-6 text-center text-xs text-slate-400">No deliveries recorded yet.</p>[m
+                     @endforelse[m
+                 </div>[m
+             </section>[m
+[36m@@ -558,8 +524,242 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+     </div>[m
+ </div>[m
+ [m
+[32m+[m[32m<style>[m
+[32m+[m[32m    .field {[m
+[32m+[m[32m        display: block;[m
+[32m+[m[32m        width: 100%;[m
+[32m+[m[32m        border: 1px solid #cbd5e1;[m
+[32m+[m[32m        border-radius: .75rem;[m
+[32m+[m[32m        background: #fff;[m
+[32m+[m[32m        padding: .7rem .8rem;[m
+[32m+[m[32m        font-size: .875rem;[m
+[32m+[m[32m        font-weight: 600;[m
+[32m+[m[32m        color: #0f172a;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .field:focus {[m
+[32m+[m[32m        outline: 2px solid transparent;[m
+[32m+[m[32m        border-color: #4f46e5;[m
+[32m+[m[32m        box-shadow: 0 0 0 3px rgb(79 70 229 / 12%);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .primary-button {[m
+[32m+[m[32m        border-radius: .75rem;[m
+[32m+[m[32m        background: #312e81;[m
+[32m+[m[32m        padding: .85rem 1rem;[m
+[32m+[m[32m        color: white;[m
+[32m+[m[32m        font-size: .875rem;[m
+[32m+[m[32m        font-weight: 800;[m
+[32m+[m[32m        transition: background .15s ease;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .primary-button:hover {[m
+[32m+[m[32m        background: #3730a3;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .run-button {[m
+[32m+[m[32m        display: flex;[m
+[32m+[m[32m        height: 4rem;[m
+[32m+[m[32m        width: 100%;[m
+[32m+[m[32m        flex-direction: column;[m
+[32m+[m[32m        align-items: center;[m
+[32m+[m[32m        justify-content: center;[m
+[32m+[m[32m        border: 1px solid #e2e8f0;[m
+[32m+[m[32m        border-radius: 1rem;[m
+[32m+[m[32m        background: #f8fafc;[m
+[32m+[m[32m        color: #1e1b4b;[m
+[32m+[m[32m        font-size: 1.25rem;[m
+[32m+[m[32m        font-weight: 900;[m
+[32m+[m[32m        transition: all .15s ease;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .run-button:hover {[m
+[32m+[m[32m        border-color: #f97316;[m
+[32m+[m[32m        background: #f97316;[m
+[32m+[m[32m        color: #fff;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    .run-button:disabled,[m
+[32m+[m[32m    .primary-button:disabled {[m
+[32m+[m[32m        cursor: wait;[m
+[32m+[m[32m        opacity: .6;[m
+[32m+[m[32m    }[m
+[32m+[m[32m</style>[m
+[32m+[m
+ <script>[m
+ document.addEventListener('DOMContentLoaded', function () {[m
+[32m+[m[32m    const players = @json($playerOptions);[m
+[32m+[m[32m    const homeId = @json($homeId);[m
+[32m+[m[32m    const awayId = @json($awayId);[m
+[32m+[m
+[32m+[m[32m    const openingTeam = document.getElementById('opening-batting-team');[m
+[32m+[m[32m    const openingStriker = document.getElementById('opening-striker');[m
+[32m+[m[32m    const openingNonStriker = document.getElementById('opening-non-striker');[m
+[32m+[m[32m    const openingBowler = document.getElementById('opening-bowler');[m
+[32m+[m
+[32m+[m[32m    const liveStriker = document.getElementById('live-striker');[m
+[32m+[m[32m    const liveNonStriker = document.getElementById('live-non-striker');[m
+[32m+[m[32m    const liveBowler = document.getElementById('live-bowler');[m
+[32m+[m[32m    const detailedBowler = document.getElementById('detailed-bowler');[m
+[32m+[m
+[32m+[m[32m    const incomingBatter = document.getElementById('incoming-batter');[m
+[32m+[m[32m    const dismissedBatter = document.getElementById('dismissed-batter');[m
+[32m+[m
+[32m+[m[32m    function teamPlayers(teamId) {[m
+[32m+[m[32m        return players.filter(function (player) {[m
+[32m+[m[32m            return String(player.team_id) === String(teamId);[m
+[32m+[m[32m        });[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    function otherTeamId(teamId) {[m
+[32m+[m[32m        return String(teamId) === homeId ? awayId : homeId;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    function fillSelect(select, items, placeholder, selectedValue) {[m
+[32m+[m[32m        if (!select) return;[m
+[32m+[m
+[32m+[m[32m        const previous = selectedValue !== undefined[m
+[32m+[m[32m            ? String(selectedValue)[m
+[32m+[m[32m            : String(select.value || '');[m
+[32m+[m
+[32m+[m[32m        select.innerHTML = '';[m
+[32m+[m
+[32m+[m[32m        const emptyOption = document.createElement('option');[m
+[32m+[m[32m        emptyOption.value = '';[m
+[32m+[m[32m        emptyOption.textContent = placeholder;[m
+[32m+[m[32m        select.appendChild(emptyOption);[m
+[32m+[m
+[32m+[m[32m        items.forEach(function (player) {[m
+[32m+[m[32m            const option = document.createElement('option');[m
+[32m+[m[32m            option.value = player.name;[m
+[32m+[m[32m            option.textContent = player.name;[m
+[32m+[m[32m            select.appendChild(option);[m
+[32m+[m[32m        });[m
+[32m+[m
+[32m+[m[32m        if (items.some(function (player) {[m
+[32m+[m[32m            return player.name === previous;[m
+[32m+[m[32m        })) {[m
+[32m+[m[32m            select.value = previous;[m
+[32m+[m[32m        } else if (items.length === 1) {[m
+[32m+[m[32m            select.value = items[0].name;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    function fillOpeningSelections() {[m
+[32m+[m[32m        const battingId = openingTeam.value;[m
+[32m+[m[32m        const battingPlayers = teamPlayers(battingId);[m
+[32m+[m[32m        const bowlingPlayers = teamPlayers(otherTeamId(battingId));[m
+[32m+[m
+[32m+[m[32m        fillSelect(openingStriker, battingPlayers, 'Choose striker');[m
+[32m+[m[32m        fillSelect(openingNonStriker, battingPlayers, 'Choose non-striker');[m
+[32m+[m[32m        fillSelect(openingBowler, bowlingPlayers, 'Choose opening bowler');[m
+[32m+[m
+[32m+[m[32m        if (openingStriker.value && openingNonStriker.value === openingStriker.value) {[m
+[32m+[m[32m            openingNonStriker.value = '';[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    function fillActiveSelections() {[m
+[32m+[m[32m        if (!liveStriker) return;[m
+[32m+[m
+[32m+[m[32m        const battingId = liveStriker.dataset.teamId;[m
+[32m+[m[32m        const bowlingId = liveBowler.dataset.teamId;[m
+[32m+[m
+[32m+[m[32m        const battingPlayers = teamPlayers(battingId);[m
+[32m+[m[32m        const bowlingPlayers = teamPlayers(bowlingId);[m
+[32m+[m
+[32m+[m[32m        fillSelect([m
+[32m+[m[32m            liveStriker,[m
+[32m+[m[32m            battingPlayers,[m
+[32m+[m[32m            'Choose striker',[m
+[32m+[m[32m            @json($active->striker)[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        fillSelect([m
+[32m+[m[32m            liveNonStriker,[m
+[32m+[m[32m            battingPlayers,[m
+[32m+[m[32m            'Choose non-striker',[m
+[32m+[m[32m            @json($active->non_striker)[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        fillSelect([m
+[32m+[m[32m            liveBowler,[m
+[32m+[m[32m            bowlingPlayers,[m
+[32m+[m[32m            'Choose current / next bowler',[m
+[32m+[m[32m            @json($active->current_bowler)[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        fillSelect([m
+[32m+[m[32m            detailedBowler,[m
+[32m+[m[32m            bowlingPlayers,[m
+[32m+[m[32m            'Choose bowler for this delivery',[m
+[32m+[m[32m            @json($active->current_bowler)[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        fillSelect(incomingBatter, battingPlayers, 'Choose incoming batter');[m
+[32m+[m
+[32m+[m[32m        updateSelectedPlayers();[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    function updateSelectedPlayers() {[m
+[32m+[m[32m        if (!liveStriker) return;[m
+[32m+[m
+[32m+[m[32m        const striker = liveStriker.value;[m
+[32m+[m[32m        const nonStriker = liveNonStriker.value;[m
+[32m+[m[32m        const bowler = liveBowler.value;[m
+[32m+[m
+[32m+[m[32m        document.querySelectorAll('[data-player-field="striker"]').forEach(function (input) {[m
+[32m+[m[32m            input.value = striker;[m
+[32m+[m[32m        });[m
+[32m+[m
+[32m+[m[32m        document.querySelectorAll('[data-player-field="non_striker"]').forEach(function (input) {[m
+[32m+[m[32m            input.value = nonStriker;[m
+[32m+[m[32m        });[m
+[32m+[m
+[32m+[m[32m        document.querySelectorAll('[data-player-field="bowler"]').forEach(function (input) {[m
+[32m+[m[32m            input.value = bowler;[m
+[32m+[m[32m        });[m
+[32m+[m
+[32m+[m[32m        document.getElementById('status-striker').textContent = striker || 'Not set';[m
+[32m+[m[32m        document.getElementById('status-non-striker').textContent = nonStriker || 'Not set';[m
+[32m+[m[32m        document.getElementById('status-bowler').textContent = bowler || 'Not set';[m
+[32m+[m
+[32m+[m[32m        const warning = document.getElementById('player-selection-warning');[m
+[32m+[m
+[32m+[m[32m        if (warning) {[m
+[32m+[m[32m            warning.classList.toggle([m
+[32m+[m[32m                'hidden',[m
+[32m+[m[32m                Boolean(striker && nonStriker && bowler && striker !== nonStriker)[m
+[32m+[m[32m            );[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (openingTeam) {[m
+[32m+[m[32m        openingTeam.addEventListener('change', fillOpeningSelections);[m
+[32m+[m[32m        fillOpeningSelections();[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (liveStriker) {[m
+[32m+[m[32m        fillActiveSelections();[m
+[32m+[m
+[32m+[m[32m        [liveStriker, liveNonStriker, liveBowler].forEach(function (select) {[m
+[32m+[m[32m            select.addEventListener('change', updateSelectedPlayers);[m
+[32m+[m[32m        });[m
+[32m+[m
+[32m+[m[32m        if (detailedBowler) {[m
+[32m+[m[32m            detailedBowler.addEventListener('change', function () {[m
+[32m+[m[32m                liveBowler.value = detailedBowler.value;[m
+[32m+[m[32m                updateSelectedPlayers();[m
+[32m+[m[32m            });[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (dismissedBatter) {[m
+[32m+[m[32m        dismissedBatter.addEventListener('change', function () {[m
+[32m+[m[32m            // Incoming batter selection remains separate from the dismissed player.[m
+[32m+[m[32m        });[m
+[32m+[m[32m    }[m
+[32m+[m
+     document.querySelectorAll('form[data-live-delivery-form]').forEach(function (form) {[m
+         form.addEventListener('submit', function (event) {[m
+             if (form.dataset.submitting === 'true') {[m
+[36m@@ -571,29 +771,48 @@[m [mclass="group inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo[m
+                 return;[m
+             }[m
+ [m
+[32m+[m[32m            if (liveStriker) {[m
+[32m+[m[32m                const striker = liveStriker.value;[m
+[32m+[m[32m                const nonStriker = liveNonStriker.value;[m
+[32m+[m[32m                const bowler = form.querySelector('[name="bowler"]')?.value[m
+[32m+[m[32m                    || liveBowler.value;[m
+[32m+[m
+[32m+[m[32m                if (!striker || !nonStriker || !bowler || striker === nonStriker) {[m
+[32m+[m[32m                    event.preventDefault();[m
+[32m+[m[32m                    alert('Choose two different batters and a bowler before recording this delivery.');[m
+[32m+[m[32m                    return;[m
+[32m+[m[32m                }[m
+[32m+[m
+[32m+[m[32m                form.querySelector('[name="striker"]').value = striker;[m
+[32m+[m[32m                form.querySelector('[name="non_striker"]').value = nonStriker;[m
+[32m+[m[32m                form.querySelector('[name="bowler"]').value = bowler;[m
+[32m+[m[32m            }[m
+[32m+[m
+             form.dataset.submitting = 'true';[m
+ [m
+[31m-            const submitButton = form.querySelector('button[type="submit"], button:not([type])');[m
+[32m+[m[32m            const button = form.querySelector('button[type="submit"]');[m
+ [m
+[31m-            if (!submitButton) {[m
+[31m-                return;[m
+[32m+[m[32m            if (button) {[m
+[32m+[m[32m                button.disabled = true;[m
+[32m+[m[32m                button.dataset.originalText = button.textContent;[m
+[32m+[m[32m                button.textContent = 'Saving delivery…';[m
+             }[m
+[32m+[m[32m        });[m
+[32m+[m[32m    });[m
+ [m
+[31m-            submitButton.dataset.originalHtml = submitButton.innerHTML;[m
+[31m-            submitButton.disabled = true;[m
+[31m-            submitButton.classList.add('opacity-70', 'cursor-wait');[m
+[31m-            submitButton.setAttribute('aria-busy', 'true');[m
+[32m+[m[32m    const wicketForm = document.getElementById('wicket-form');[m
+ [m
+[31m-            const isQuickRun = submitButton.querySelector('span');[m
+[32m+[m[32m    if (wicketForm && liveStriker) {[m
+[32m+[m[32m        wicketForm.addEventListener('submit', function (event) {[m
+[32m+[m[32m            const dismissed = dismissedBatter.value;[m
+[32m+[m[32m            const incoming = incomingBatter.value;[m
+ [m
+[31m-            if (isQuickRun) {[m
+[31m-                submitButton.innerHTML = '<span class="text-sm font-black">Saving…</span><span class="text-[9px] font-bold">PLEASE WAIT</span>';[m
+[31m-            } else {[m
+[31m-                submitButton.textContent = 'Saving Delivery…';[m
+[32m+[m[32m            if (dismissed && incoming && dismissed === incoming) {[m
+[32m+[m[32m                event.preventDefault();[m
+[32m+[m[32m                alert('The incoming batter must be different from the dismissed batter.');[m
+             }[m
+         });[m
+[31m-    });[m
+[32m+[m[32m    }[m
+ });[m
+ </script>[m
+[31m-[m
+[31m-@endsection[m
+\ No newline at end of file[m
+[32m+[m[32m@endsection[m
