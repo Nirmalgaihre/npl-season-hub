@@ -1,30 +1,102 @@
 
-{{-- resources/views/home.blade.php --}}
-
 @extends('layouts.app')
 
 @php
-    $liveMatches = $liveMatches ?? collect();
-    $teams = $teams ?? collect();
-    $recentResults = $recentResults ?? collect();
-    $latestNews = $latestNews ?? collect();
-    $liveScoreByFixture = $liveScoreByFixture ?? collect();
+    $liveMatches = collect($liveMatches ?? []);
+    $teams = collect($teams ?? []);
+    $recentResults = collect($recentResults ?? []);
+    $latestNews = collect($latestNews ?? []);
+    $liveScoreByFixture = collect($liveScoreByFixture ?? []);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Shared view helpers
+    |--------------------------------------------------------------------------
+    */
+
+    $imageUrl = function ($path) {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        return asset('storage/' . ltrim($path, '/'));
+    };
+
+    $initial = function ($name) {
+        return strtoupper(mb_substr(trim((string) $name) ?: 'N', 0, 1));
+    };
+
+    $scoreOvers = function ($innings) {
+        if (!$innings) {
+            return null;
+        }
+
+        $legalBalls = data_get($innings, 'legal_balls');
+
+        if ($legalBalls !== null) {
+            $legalBalls = max(0, (int) $legalBalls);
+
+            return intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
+        }
+
+        return data_get($innings, 'overs');
+    };
+
+    $formatScore = function ($innings) {
+        if (!$innings) {
+            return null;
+        }
+
+        $runs = data_get($innings, 'total_runs');
+        $wickets = data_get($innings, 'wickets');
+
+        if ($runs === null) {
+            $runs = data_get($innings, 'runs');
+        }
+
+        if ($runs === null) {
+            return null;
+        }
+
+        return number_format((int) $runs) . '/' . (int) ($wickets ?? 0);
+    };
+
+    $matchDate = function ($match) {
+        $date = data_get($match, 'scheduled_at')
+            ?? data_get($match, 'match_date');
+
+        if (!$date) {
+            return 'Date to be announced';
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($date)->format('d M Y');
+        } catch (\Throwable $e) {
+            return 'Date to be announced';
+        }
+    };
 @endphp
 
 @section('title', 'Home')
-@section('meta_description', 'Follow Nepal Premier League fixtures, live cricket scores, teams, match results and the latest NPL news on NPL Cricket Hub.')
+
+@section('meta_description', 'Follow Nepal Premier League fixtures, manually updated cricket scoreboards, teams, match results and the latest NPL news.')
 
 @section('content')
 
 <style>
     .home-page {
-        --home-navy: #202766;
-        --home-dark: #171D50;
-        --home-orange: #F06445;
-        --home-bg: #F6F8FB;
-        --home-border: #E5E9F2;
-        --home-muted: #64748B;
+        --navy: #202766;
+        --navy-dark: #171D50;
+        --orange: #F06445;
+        --bg: #F6F8FB;
+        --border: #E5E9F2;
+        --muted: #64748B;
         color: #1E293B;
+        background: var(--bg);
     }
 
     .home-page * {
@@ -42,31 +114,63 @@
         display: inline-flex;
         align-items: center;
         gap: 9px;
-        color: var(--home-orange);
+        color: var(--orange);
         font-size: 11px;
         font-weight: 800;
-        letter-spacing: 1.8px;
-        line-height: 1.5;
+        letter-spacing: 1.6px;
+        line-height: 1.6;
         text-transform: uppercase;
     }
 
+    .home-section {
+        padding-block: 64px;
+    }
+
+    .home-section-white {
+        border-block: 1px solid #E9EDF4;
+        background: #fff;
+    }
+
     .home-section-title {
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: clamp(25px, 3vw, 34px);
         font-weight: 900;
-        letter-spacing: -1.15px;
+        letter-spacing: -1px;
         line-height: 1.2;
     }
 
     .home-section-description {
         margin-top: 10px;
-        color: var(--home-muted);
+        color: var(--muted);
         font-size: 14px;
         line-height: 1.8;
     }
 
+    .home-section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 27px;
+    }
+
+    .home-text-link {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+        color: var(--navy);
+        font-size: 12px;
+        font-weight: 800;
+        transition: color .2s ease;
+    }
+
+    .home-text-link:hover {
+        color: var(--orange);
+    }
+
     .home-card {
-        border: 1px solid var(--home-border);
+        border: 1px solid var(--border);
         border-radius: 18px;
         background: #fff;
         box-shadow: 0 3px 12px rgb(15 23 42 / 3%);
@@ -81,16 +185,17 @@
 
     .home-button {
         display: inline-flex;
-        min-height: 46px;
+        min-height: 45px;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        gap: 9px;
+        border: 1px solid transparent;
         border-radius: 10px;
-        padding: 12px 19px;
-        font-size: 13px;
+        padding: 11px 17px;
+        font-size: 12px;
         font-weight: 800;
-        transition: background-color .18s ease, transform .18s ease,
-            border-color .18s ease;
+        text-align: center;
+        transition: .2s ease;
     }
 
     .home-button:hover {
@@ -98,7 +203,7 @@
     }
 
     .home-button-primary {
-        background: var(--home-orange);
+        background: var(--orange);
         color: #fff;
     }
 
@@ -108,25 +213,27 @@
     }
 
     .home-button-dark {
-        background: var(--home-navy);
+        background: var(--navy);
         color: #fff;
     }
 
     .home-button-dark:hover {
-        background: var(--home-dark);
+        background: var(--navy-dark);
         color: #fff;
     }
 
     .home-button-outline {
-        border: 1px solid var(--home-border);
+        border-color: var(--border);
         background: #fff;
-        color: var(--home-navy);
+        color: var(--navy);
     }
 
     .home-button-outline:hover {
-        border-color: var(--home-orange);
-        color: var(--home-orange);
+        border-color: var(--orange);
+        color: var(--orange);
     }
+
+    /* Hero */
 
     .home-hero {
         position: relative;
@@ -159,16 +266,15 @@
         height: 410px;
         border: 1px solid rgb(255 255 255 / 8%);
         border-radius: 50%;
-        box-shadow:
-            0 0 0 45px rgb(255 255 255 / 2%),
-            0 0 0 90px rgb(255 255 255 / 2%);
+        box-shadow: 0 0 0 45px rgb(255 255 255 / 2%),
+                    0 0 0 90px rgb(255 255 255 / 2%);
         pointer-events: none;
     }
 
     .home-hero-layout {
         display: grid;
         align-items: center;
-        gap: 42px;
+        gap: 38px;
         padding-block: 56px;
     }
 
@@ -177,17 +283,17 @@
         color: #fff;
         font-size: clamp(38px, 5.3vw, 66px);
         font-weight: 900;
-        letter-spacing: -2.7px;
+        letter-spacing: -2.5px;
         line-height: 1.08;
     }
 
     .home-hero-title span {
-        color: var(--home-orange);
+        color: var(--orange);
     }
 
     .home-hero-description {
         max-width: 530px;
-        margin-top: 23px;
+        margin-top: 22px;
         color: rgb(255 255 255 / 74%);
         font-size: 15px;
         line-height: 1.95;
@@ -202,10 +308,18 @@
         background: rgb(255 255 255 / 7%);
         padding: 9px 13px;
         color: rgb(255 255 255 / 92%);
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 800;
         letter-spacing: .8px;
         text-transform: uppercase;
+    }
+
+    .home-dot {
+        width: 7px;
+        height: 7px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--orange);
     }
 
     .home-hero-checks {
@@ -234,8 +348,9 @@
         border-radius: 8px;
         background: rgb(255 255 255 / 10%);
         color: #FF947C;
-        font-size: 12px;
     }
+
+    /* Featured match */
 
     .home-panel {
         overflow: hidden;
@@ -256,19 +371,18 @@
     }
 
     .home-panel-label {
-        color: #64748B;
+        color: var(--muted);
         font-size: 10px;
         font-weight: 800;
-        letter-spacing: 1.6px;
+        letter-spacing: 1.5px;
         text-transform: uppercase;
     }
 
     .home-panel-heading {
         margin-top: 5px;
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: 20px;
         font-weight: 900;
-        letter-spacing: -.6px;
     }
 
     .home-status {
@@ -278,10 +392,10 @@
         gap: 7px;
         border-radius: 100px;
         padding: 7px 10px;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
-        text-transform: uppercase;
         letter-spacing: .5px;
+        text-transform: uppercase;
     }
 
     .home-status-upcoming {
@@ -289,21 +403,9 @@
         color: #D94D31;
     }
 
-    .home-status-live {
-        background: #FFF0EB;
-        color: #D94D31;
-    }
-
     .home-status-completed {
         background: #EAF8F1;
         color: #16845B;
-    }
-
-    .home-status-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: currentColor;
     }
 
     .home-match-feature {
@@ -331,7 +433,7 @@
         border: 1px solid #E8ECF4;
         border-radius: 15px;
         background: #fff;
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: 21px;
         font-weight: 900;
     }
@@ -344,8 +446,8 @@
     .home-feature-team-name {
         margin-top: 11px;
         overflow-wrap: anywhere;
-        color: var(--home-navy);
-        font-size: 13px;
+        color: var(--navy);
+        font-size: 12px;
         font-weight: 900;
         line-height: 1.5;
     }
@@ -353,16 +455,10 @@
     .home-feature-team-caption {
         margin-top: 3px;
         color: #94A3B8;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
-        text-transform: uppercase;
         letter-spacing: .7px;
-    }
-
-    .home-vs {
-        color: var(--home-orange);
-        font-size: 16px;
-        font-weight: 900;
+        text-transform: uppercase;
     }
 
     .home-match-date {
@@ -372,144 +468,158 @@
         text-align: center;
     }
 
-    .home-section {
-        padding-block: 64px;
-    }
+    /* Manual scoreboard */
 
-    .home-section-white {
-        border-block: 1px solid #E9EDF4;
-        background: #fff;
-    }
-
-    .home-section-head {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 27px;
-    }
-
-    .home-text-link {
-        display: inline-flex;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 8px;
-        color: var(--home-navy);
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .home-text-link:hover {
-        color: var(--home-orange);
-    }
-
-    .home-live-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background: var(--home-orange);
-        animation: homePulse 1.7s infinite;
-    }
-
-    @keyframes homePulse {
-        0%, 100% {
-            box-shadow: 0 0 0 0 rgb(240 100 69 / 35%);
-        }
-        50% {
-            box-shadow: 0 0 0 6px rgb(240 100 69 / 0%);
-        }
-    }
-
-    .home-live-card {
+    .scoreboard-card {
         overflow: hidden;
+        position: relative;
     }
 
-    .home-live-card-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        border-bottom: 1px solid #EDF0F6;
-        padding: 15px 18px;
+    .scoreboard-card::before {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 3px;
+        background: linear-gradient(90deg, var(--navy), var(--orange));
+        content: "";
     }
 
-    .home-live-team-row {
+    .scoreboard-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        padding: 20px 20px 15px;
     }
 
-    .home-live-team-info {
+    .scoreboard-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid #E5E9F2;
+        border-radius: 100px;
+        background: #F8FAFD;
+        padding: 6px 9px;
+        color: #64748B;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: .7px;
+        text-transform: uppercase;
+    }
+
+    .scoreboard-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 100px;
+        background: #EAF8F1;
+        padding: 6px 9px;
+        color: #16845B;
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .scoreboard-teams {
+        margin-inline: 18px;
+        border: 1px solid #E9EDF4;
+        border-radius: 14px;
+        background: #F8FAFD;
+        padding: 16px;
+    }
+
+    .scoreboard-team {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .scoreboard-team + .scoreboard-team {
+        border-top: 1px dashed #DDE3EE;
+        margin-top: 14px;
+        padding-top: 14px;
+    }
+
+    .scoreboard-team-info {
         display: flex;
         min-width: 0;
         align-items: center;
-        gap: 11px;
+        gap: 10px;
     }
 
-    .home-live-team-name {
+    .scoreboard-logo {
+        width: 39px;
+        height: 39px;
+        flex-shrink: 0;
+        object-fit: contain;
+    }
+
+    .scoreboard-team-name {
         overflow-wrap: anywhere;
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: 12px;
         font-weight: 800;
         line-height: 1.5;
     }
 
-    .home-live-score {
-        flex-shrink: 0;
-        color: var(--home-navy);
-        font-size: 21px;
+    .scoreboard-number {
+        color: var(--navy);
+        font-size: clamp(19px, 2.5vw, 25px);
         font-weight: 900;
         letter-spacing: -.8px;
+        line-height: 1.15;
         text-align: right;
+        white-space: nowrap;
     }
 
-    .home-live-overs {
-        margin-top: 3px;
+    .scoreboard-overs {
+        margin-top: 4px;
         color: #94A3B8;
         font-size: 10px;
         font-weight: 700;
         text-align: right;
     }
 
-    .home-empty {
-        border: 1px dashed #D9DFEB;
-        border-radius: 18px;
-        background: #fff;
-        padding: 45px 22px;
-        text-align: center;
+    .scoreboard-result {
+        margin: 15px 18px 0;
+        border: 1px solid #D8EFE4;
+        border-radius: 12px;
+        background: #F0FAF5;
+        padding: 12px 14px;
     }
 
-    .home-empty-icon {
-        display: flex;
-        width: 54px;
-        height: 54px;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        border: 1px solid #F9D8CE;
-        border-radius: 17px;
-        background: #FFF0EB;
-        color: var(--home-orange);
-        font-size: 22px;
-    }
-
-    .home-empty-title {
-        margin-top: 17px;
-        color: var(--home-navy);
-        font-size: 17px;
+    .scoreboard-result-label {
+        color: #16845B;
+        font-size: 9px;
         font-weight: 900;
+        letter-spacing: 1px;
+        text-transform: uppercase;
     }
 
-    .home-empty-text {
-        max-width: 440px;
-        margin: 9px auto 0;
-        color: var(--home-muted);
-        font-size: 13px;
+    .scoreboard-result-text {
+        margin-top: 5px;
+        color: #155D43;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.7;
+    }
+
+    .scoreboard-footer {
+        padding: 17px 18px 19px;
+    }
+
+    .scoreboard-no-score {
+        margin: 15px 18px 0;
+        border: 1px dashed #D9DFEB;
+        border-radius: 12px;
+        background: #FAFBFE;
+        padding: 15px;
+        color: #64748B;
+        font-size: 12px;
         line-height: 1.8;
     }
+
+    /* Teams */
 
     .home-team-card {
         padding: 24px 14px 20px;
@@ -523,14 +633,10 @@
         margin-inline: auto;
     }
 
-    .home-team-card .home-team-fallback {
-        font-size: 23px;
-    }
-
     .home-team-card-name {
         margin-top: 17px;
         overflow-wrap: anywhere;
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: 13px;
         font-weight: 900;
         line-height: 1.55;
@@ -543,48 +649,62 @@
         font-weight: 700;
     }
 
-    .home-result-card {
-        padding: 21px;
-    }
+    /* Empty states */
 
-    .home-result-team {
-        min-width: 0;
+    .home-empty {
+        border: 1px dashed #D9DFEB;
+        border-radius: 18px;
+        background: #fff;
+        padding: 42px 22px;
         text-align: center;
     }
 
-    .home-result-team .home-team-logo,
-    .home-result-team .home-team-fallback {
-        width: 44px;
-        height: 44px;
-        margin-inline: auto;
-        border-radius: 12px;
+    .home-empty-icon {
+        display: flex;
+        width: 54px;
+        height: 54px;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        border: 1px solid #F9D8CE;
+        border-radius: 17px;
+        background: #FFF0EB;
+        color: var(--orange);
+        font-size: 22px;
     }
 
-    .home-result-team .home-team-fallback {
+    .home-empty-title {
+        margin-top: 17px;
+        color: var(--navy);
         font-size: 17px;
+        font-weight: 900;
     }
 
-    .home-result-team-name {
-        margin-top: 10px;
-        overflow-wrap: anywhere;
-        color: var(--home-navy);
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1.5;
+    .home-empty-text {
+        max-width: 440px;
+        margin: 9px auto 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
     }
 
-    .home-news-image {
+    /* News */
+
+    .home-news-card {
+        overflow: hidden;
+    }
+
+    .home-news-image,
+    .home-news-placeholder {
         display: block;
         width: 100%;
         height: 200px;
         object-fit: cover;
         background: #EDF1F7;
-        transition: transform .35s ease;
     }
 
     .home-news-placeholder {
         display: flex;
-        height: 200px;
         flex-direction: column;
         align-items: center;
         justify-content: center;
@@ -594,20 +714,12 @@
         color: #fff;
     }
 
-    .home-news-card:hover .home-news-image {
-        transform: scale(1.035);
-    }
-
-    .home-news-card {
-        overflow: hidden;
-    }
-
     .home-news-title {
         display: -webkit-box;
         overflow: hidden;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
-        color: var(--home-navy);
+        color: var(--navy);
         font-size: 16px;
         font-weight: 900;
         line-height: 1.55;
@@ -618,10 +730,12 @@
         overflow: hidden;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 3;
-        color: var(--home-muted);
+        color: var(--muted);
         font-size: 12px;
         line-height: 1.9;
     }
+
+    /* Final CTA */
 
     .home-cta {
         position: relative;
@@ -630,19 +744,6 @@
             radial-gradient(ellipse at 90% 15%, rgb(240 100 69 / 18%), transparent 30%),
             linear-gradient(120deg, #171D50, #202766);
         color: #fff;
-    }
-
-    .home-cta::after {
-        position: absolute;
-        top: -85px;
-        right: 5%;
-        width: 220px;
-        height: 220px;
-        border: 1px solid rgb(255 255 255 / 10%);
-        border-radius: 50%;
-        box-shadow: 0 0 0 35px rgb(255 255 255 / 3%);
-        content: "";
-        pointer-events: none;
     }
 
     .home-cta-inner {
@@ -668,7 +769,7 @@
 
     @media (min-width: 768px) {
         .home-hero-layout {
-            grid-template-columns: minmax(0, 1.05fr) minmax(370px, .85fr);
+            grid-template-columns: minmax(0, 1.05fr) minmax(350px, .85fr);
             gap: 32px;
         }
 
@@ -715,21 +816,13 @@
             align-items: start;
         }
 
-        .home-section-head .home-text-link {
-            margin-top: 4px;
-        }
-
-        .home-panel-top {
-            padding: 17px;
-        }
-
         .home-match-feature {
             margin: 12px;
             padding: 19px 12px;
         }
 
-        .home-section-title {
-            letter-spacing: -.8px;
+        .home-panel-top {
+            padding: 17px;
         }
     }
 
@@ -750,17 +843,9 @@
         .home-hero-checks {
             flex-direction: column;
         }
-
-        .home-live-score {
-            font-size: 18px;
-        }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .home-live-dot {
-            animation: none;
-        }
-
         .home-page *,
         .home-page *::before,
         .home-page *::after {
@@ -782,7 +867,7 @@
 
                 <div>
                     <div class="home-season-pill">
-                        <span class="home-live-dot"></span>
+                        <span class="home-dot"></span>
                         Nepal Premier League
 
                         @if(isset($season) && $season)
@@ -798,22 +883,20 @@
                     </h1>
 
                     <p class="home-hero-description">
-                        Your home for Nepal cricket. Follow NPL fixtures,
-                        live match scores, team updates, verified results
-                        and the latest stories from the league.
+                        Your home for Nepal cricket. Explore fixtures, check
+                        manually updated scoreboards, discover teams and
+                        catch up on the latest NPL stories.
                     </p>
 
                     <div class="mt-7 flex flex-wrap gap-3">
                         <a href="{{ route('fixtures.index') }}"
                            class="home-button home-button-primary">
-                            Explore Fixtures
-                            <span aria-hidden="true">&rarr;</span>
+                            Explore Fixtures <span aria-hidden="true">&rarr;</span>
                         </a>
 
-                        <a href="#live-scores"
+                        <a href="#recent-matches"
                            class="home-button border border-white/25 bg-white/5 text-white hover:bg-white/10">
-                            <span class="home-live-dot"></span>
-                            Live Match Centre
+                            Recent Scoreboards <span aria-hidden="true">&darr;</span>
                         </a>
                     </div>
 
@@ -825,7 +908,7 @@
 
                         <div class="home-hero-check">
                             <span class="home-check-icon" aria-hidden="true">&#10003;</span>
-                            Verified results
+                            Match results
                         </div>
 
                         <div class="home-hero-check">
@@ -835,16 +918,16 @@
                     </div>
                 </div>
 
-                {{-- FEATURED MATCH --}}
+                {{-- FEATURED UPCOMING MATCH --}}
                 <div class="home-panel">
                     <div class="home-panel-top">
                         <div>
-                            <p class="home-panel-label">The next big game</p>
+                            <p class="home-panel-label">Coming up next</p>
                             <h2 class="home-panel-heading">Match Centre</h2>
                         </div>
 
                         <span class="home-status home-status-upcoming">
-                            <span class="home-status-dot"></span>
+                            <span class="home-dot"></span>
                             Upcoming
                         </span>
                     </div>
@@ -864,16 +947,15 @@
                             </div>
 
                             <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
-
                                 <div class="home-feature-team">
-                                    @if($nextMatch->homeTeam?->logo)
-                                        <img src="{{ asset('storage/' . ltrim($nextMatch->homeTeam->logo, '/')) }}"
+                                    @if($imageUrl($nextMatch->homeTeam?->logo))
+                                        <img src="{{ $imageUrl($nextMatch->homeTeam->logo) }}"
                                              alt="{{ $nextMatch->homeTeam->name }} logo"
                                              class="home-team-logo mx-auto"
                                              loading="lazy">
                                     @else
                                         <div class="home-team-fallback mx-auto">
-                                            {{ strtoupper(substr($nextMatch->homeTeam->name ?? 'H', 0, 1)) }}
+                                            {{ $initial($nextMatch->homeTeam->name ?? 'H') }}
                                         </div>
                                     @endif
 
@@ -884,21 +966,21 @@
                                 </div>
 
                                 <div class="text-center">
-                                    <span class="home-vs">VS</span>
+                                    <span class="text-base font-black text-[#F06445]">VS</span>
                                     <div class="mt-1 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
                                         NPL
                                     </div>
                                 </div>
 
                                 <div class="home-feature-team">
-                                    @if($nextMatch->awayTeam?->logo)
-                                        <img src="{{ asset('storage/' . ltrim($nextMatch->awayTeam->logo, '/')) }}"
+                                    @if($imageUrl($nextMatch->awayTeam?->logo))
+                                        <img src="{{ $imageUrl($nextMatch->awayTeam->logo) }}"
                                              alt="{{ $nextMatch->awayTeam->name }} logo"
                                              class="home-team-logo mx-auto"
                                              loading="lazy">
                                     @else
                                         <div class="home-team-fallback mx-auto">
-                                            {{ strtoupper(substr($nextMatch->awayTeam->name ?? 'A', 0, 1)) }}
+                                            {{ $initial($nextMatch->awayTeam->name ?? 'A') }}
                                         </div>
                                     @endif
 
@@ -928,8 +1010,7 @@
                         <div class="px-[18px] pb-5">
                             <a href="{{ route('fixtures.show', $nextMatch) }}"
                                class="home-button home-button-dark w-full">
-                                View Match Details
-                                <span aria-hidden="true">&rarr;</span>
+                                View Match Details <span aria-hidden="true">&rarr;</span>
                             </a>
                         </div>
                     @else
@@ -941,7 +1022,7 @@
                             </h3>
 
                             <p class="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
-                                There are no upcoming fixtures available right now.
+                                No upcoming fixture is available right now.
                                 Visit the fixtures page to explore the schedule.
                             </p>
 
@@ -957,21 +1038,21 @@
         </div>
     </section>
 
-    {{-- LIVE SCORES --}}
-    <section id="live-scores" class="home-section scroll-mt-24">
+    {{-- RECENT MATCHES: MANUAL SCOREBOARD --}}
+    <section id="recent-matches" class="home-section scroll-mt-24">
         <div class="home-container">
 
             <div class="home-section-head">
                 <div>
                     <div class="home-eyebrow">
-                        <span class="home-live-dot"></span>
-                        Live Match Centre
+                        <span class="home-dot"></span>
+                        Match Results
                     </div>
 
-                    <h2 class="home-section-title mt-3">Live Scores</h2>
+                    <h2 class="home-section-title mt-3">Recent Matches</h2>
 
                     <p class="home-section-description">
-                        Follow the scores of matches currently marked as live.
+                        Match scores and results recorded in the scorecard.
                     </p>
                 </div>
 
@@ -980,193 +1061,238 @@
                 </a>
             </div>
 
-            @if($liveMatches->isNotEmpty())
+            @if($recentResults->isNotEmpty())
                 <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    @foreach($liveMatches as $match)
+
+                    @foreach($recentResults as $result)
                         @php
-                            $inningsForMatch = collect($liveScoreByFixture->get($match->id, collect()));
+                            /*
+                             * Use innings data already supplied to the view,
+                             * or data available through the fixture model.
+                             *
+                             * Expected innings fields:
+                             * innings_number, batting_team_id, total_runs,
+                             * wickets, legal_balls (or overs).
+                             */
+                            $innings = collect(
+                                $liveScoreByFixture->get($result->id, collect())
+                            );
 
-                            $currentInnings = $inningsForMatch->firstWhere('is_current', true)
-                                ?? $inningsForMatch->sortByDesc('innings_number')->first();
-
-                            $homeTeamId = $match->home_team_id;
-                            $awayTeamId = $match->away_team_id;
-
-                            $homeRuns = $homeWickets = $homeOvers = null;
-                            $awayRuns = $awayWickets = $awayOvers = null;
-
-                            foreach ($inningsForMatch as $innings) {
-                                $runs = (int) $innings->total_runs;
-                                $wickets = (int) $innings->wickets;
-                                $legalBalls = (int) $innings->legal_balls;
-                                $overs = intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
-
-                                if ((string) $innings->batting_team_id === (string) $homeTeamId) {
-                                    $homeRuns = $runs;
-                                    $homeWickets = $wickets;
-                                    $homeOvers = $overs;
-                                }
-
-                                if ((string) $innings->batting_team_id === (string) $awayTeamId) {
-                                    $awayRuns = $runs;
-                                    $awayWickets = $wickets;
-                                    $awayOvers = $overs;
-                                }
+                            if ($innings->isEmpty()) {
+                                $innings = collect(
+                                    $result->innings
+                                    ?? $result->scorecards
+                                    ?? []
+                                );
                             }
 
-                            $currentRuns = (int) ($currentInnings?->total_runs ?? 0);
-                            $currentWickets = (int) ($currentInnings?->wickets ?? 0);
-                            $currentLegalBalls = (int) ($currentInnings?->legal_balls ?? 0);
-                            $currentOvers = intdiv($currentLegalBalls, 6) . '.' . ($currentLegalBalls % 6);
+                            $innings = $innings
+                                ->sortBy('innings_number')
+                                ->values();
+
+                            $homeTeamId = data_get($result, 'home_team_id');
+                            $awayTeamId = data_get($result, 'away_team_id');
+
+                            $homeInnings = $innings
+                                ->filter(function ($inning) use ($homeTeamId) {
+                                    return (string) data_get($inning, 'batting_team_id')
+                                        === (string) $homeTeamId;
+                                })
+                                ->sortBy('innings_number')
+                                ->last();
+
+                            $awayInnings = $innings
+                                ->filter(function ($inning) use ($awayTeamId) {
+                                    return (string) data_get($inning, 'batting_team_id')
+                                        === (string) $awayTeamId;
+                                })
+                                ->sortBy('innings_number')
+                                ->last();
+
+                            $homeScore = $formatScore($homeInnings);
+                            $awayScore = $formatScore($awayInnings);
+
+                            $homeOvers = $scoreOvers($homeInnings);
+                            $awayOvers = $scoreOvers($awayInnings);
+
+                            $winnerName = data_get($result, 'winner.name')
+                                ?? data_get($result, 'winner_name');
+
+                            $hasScore = $homeScore !== null || $awayScore !== null;
+
+                            $matchStatus = strtolower(
+                                (string) (
+                                    data_get($result, 'status')
+                                    ?? data_get($result, 'match_status')
+                                    ?? ''
+                                )
+                            );
                         @endphp
 
-                        <article class="home-card home-live-card">
-                            <div class="home-live-card-top">
-                                <div class="flex items-center gap-2">
-                                    <span class="home-live-dot"></span>
-                                    <span class="text-[10px] font-extrabold uppercase tracking-[1.4px] text-[#D94D31]">
-                                        Live Now
-                                    </span>
+                        <article class="home-card scoreboard-card">
+                            {{-- Scoreboard heading --}}
+                            <div class="scoreboard-header">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-extrabold uppercase tracking-[1.3px] text-slate-400">
+                                        {{ $result->season->name ?? 'Nepal Premier League' }}
+                                    </p>
+
+                                    <p class="mt-1.5 text-xs font-extrabold text-[#202766]">
+                                        {{ $result->match_number
+                                            ? 'Match ' . $result->match_number
+                                            : 'Match Scorecard' }}
+                                    </p>
+
+                                    <p class="mt-1 text-[10px] font-medium text-slate-400">
+                                        {{ $matchDate($result) }}
+                                    </p>
                                 </div>
 
-                                <span class="text-[10px] font-bold text-slate-400">
-                                    {{ $match->match_number ? 'Match ' . $match->match_number : 'NPL Match' }}
+                                <span class="scoreboard-status">
+                                    <span class="home-dot" style="background:#16845B"></span>
+                                    Completed
                                 </span>
                             </div>
 
-                            <div class="p-5">
-                                @if($match->season)
-                                    <p class="mb-5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        {{ $match->season->name }}
-                                    </p>
-                                @endif
+                            {{-- Teams and manual scores --}}
+                            <div class="scoreboard-teams">
 
-                                <div class="space-y-5">
-                                    {{-- Home team --}}
-                                    <div class="home-live-team-row">
-                                        <div class="home-live-team-info">
-                                            @if($match->homeTeam?->logo)
-                                                <img src="{{ asset('storage/' . ltrim($match->homeTeam->logo, '/')) }}"
-                                                     alt="{{ $match->homeTeam->name }} logo"
-                                                     class="h-10 w-10 shrink-0 object-contain"
-                                                     loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback !h-10 !w-10 !rounded-xl !text-base">
-                                                    {{ strtoupper(substr($match->homeTeam->name ?? 'H', 0, 1)) }}
-                                                </div>
-                                            @endif
-
-                                            <div class="min-w-0">
-                                                <p class="home-live-team-name">
-                                                    {{ $match->homeTeam->name ?? 'Home Team' }}
-                                                </p>
-
-                                                @if($currentInnings && (string) $currentInnings->batting_team_id === (string) $homeTeamId)
-                                                    <p class="mt-1 text-[10px] font-extrabold text-[#F06445]">BATTING</p>
-                                                @endif
+                                {{-- Home team --}}
+                                <div class="scoreboard-team">
+                                    <div class="scoreboard-team-info">
+                                        @if($imageUrl($result->homeTeam?->logo))
+                                            <img src="{{ $imageUrl($result->homeTeam->logo) }}"
+                                                 alt="{{ $result->homeTeam->name }} logo"
+                                                 class="scoreboard-logo"
+                                                 loading="lazy">
+                                        @else
+                                            <div class="home-team-fallback !h-[39px] !w-[39px] !rounded-xl !text-sm">
+                                                {{ $initial($result->homeTeam->name ?? 'H') }}
                                             </div>
-                                        </div>
+                                        @endif
 
-                                        <div>
-                                            @if($homeRuns !== null)
-                                                <p class="home-live-score">{{ $homeRuns }}/{{ $homeWickets }}</p>
-                                                <p class="home-live-overs">{{ $homeOvers }} overs</p>
-                                            @else
-                                                <p class="text-xs font-bold text-slate-400">Yet to bat</p>
+                                        <div class="min-w-0">
+                                            <p class="scoreboard-team-name">
+                                                {{ $result->homeTeam->name ?? 'Home Team' }}
+                                            </p>
+
+                                            @if($winnerName && $winnerName === ($result->homeTeam->name ?? null))
+                                                <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">
+                                                    Winner
+                                                </span>
                                             @endif
                                         </div>
                                     </div>
 
-                                    <div class="border-t border-dashed border-slate-200"></div>
-
-                                    {{-- Away team --}}
-                                    <div class="home-live-team-row">
-                                        <div class="home-live-team-info">
-                                            @if($match->awayTeam?->logo)
-                                                <img src="{{ asset('storage/' . ltrim($match->awayTeam->logo, '/')) }}"
-                                                     alt="{{ $match->awayTeam->name }} logo"
-                                                     class="h-10 w-10 shrink-0 object-contain"
-                                                     loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback !h-10 !w-10 !rounded-xl !text-base">
-                                                    {{ strtoupper(substr($match->awayTeam->name ?? 'A', 0, 1)) }}
-                                                </div>
-                                            @endif
-
-                                            <div class="min-w-0">
-                                                <p class="home-live-team-name">
-                                                    {{ $match->awayTeam->name ?? 'Away Team' }}
-                                                </p>
-
-                                                @if($currentInnings && (string) $currentInnings->batting_team_id === (string) $awayTeamId)
-                                                    <p class="mt-1 text-[10px] font-extrabold text-[#F06445]">BATTING</p>
+                                    <div>
+                                        @if($homeScore !== null)
+                                            <p class="scoreboard-number">{{ $homeScore }}</p>
+                                            <p class="scoreboard-overs">
+                                                @if($homeOvers !== null)
+                                                    {{ $homeOvers }} overs
+                                                @else
+                                                    Score recorded
                                                 @endif
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            @if($awayRuns !== null)
-                                                <p class="home-live-score">{{ $awayRuns }}/{{ $awayWickets }}</p>
-                                                <p class="home-live-overs">{{ $awayOvers }} overs</p>
-                                            @else
-                                                <p class="text-xs font-bold text-slate-400">Yet to bat</p>
-                                            @endif
-                                        </div>
+                                            </p>
+                                        @else
+                                            <p class="text-xs font-bold text-slate-400">—</p>
+                                            <p class="scoreboard-overs">No score</p>
+                                        @endif
                                     </div>
                                 </div>
 
-                                @if($currentInnings)
-                                    <div class="mt-5 rounded-xl border border-orange-100 bg-orange-50/80 p-4">
-                                        <div class="flex items-center justify-between gap-3">
-                                            <div class="min-w-0">
-                                                <p class="text-[9px] font-extrabold uppercase tracking-[1.3px] text-slate-500">
-                                                    Current Innings
-                                                </p>
-                                                <p class="mt-1 truncate text-xs font-extrabold text-[#202766]">
-                                                    {{ $currentInnings->battingTeam->name ?? 'Batting team' }}
-                                                </p>
+                                {{-- Away team --}}
+                                <div class="scoreboard-team">
+                                    <div class="scoreboard-team-info">
+                                        @if($imageUrl($result->awayTeam?->logo))
+                                            <img src="{{ $imageUrl($result->awayTeam->logo) }}"
+                                                 alt="{{ $result->awayTeam->name }} logo"
+                                                 class="scoreboard-logo"
+                                                 loading="lazy">
+                                        @else
+                                            <div class="home-team-fallback !h-[39px] !w-[39px] !rounded-xl !text-sm">
+                                                {{ $initial($result->awayTeam->name ?? 'A') }}
                                             </div>
+                                        @endif
 
-                                            <div class="shrink-0 text-right">
-                                                <p class="text-xl font-black tracking-tight text-[#D94D31]">
-                                                    {{ $currentRuns }}/{{ $currentWickets }}
-                                                </p>
-                                                <p class="text-[10px] font-semibold text-slate-500">
-                                                    {{ $currentOvers }} overs
-                                                </p>
-                                            </div>
+                                        <div class="min-w-0">
+                                            <p class="scoreboard-team-name">
+                                                {{ $result->awayTeam->name ?? 'Away Team' }}
+                                            </p>
+
+                                            @if($winnerName && $winnerName === ($result->awayTeam->name ?? null))
+                                                <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">
+                                                    Winner
+                                                </span>
+                                            @endif
                                         </div>
                                     </div>
-                                @else
-                                    <div class="mt-5 rounded-xl bg-slate-50 p-4">
-                                        <p class="text-xs font-semibold leading-6 text-slate-500">
-                                            The match is marked live. Score details have not been recorded yet.
-                                        </p>
-                                    </div>
-                                @endif
 
-                                <a href="{{ route('fixtures.show', $match) }}"
-                                   class="home-button home-button-outline mt-5 w-full">
-                                    View Scorecard
+                                    <div>
+                                        @if($awayScore !== null)
+                                            <p class="scoreboard-number">{{ $awayScore }}</p>
+                                            <p class="scoreboard-overs">
+                                                @if($awayOvers !== null)
+                                                    {{ $awayOvers }} overs
+                                                @else
+                                                    Score recorded
+                                                @endif
+                                            </p>
+                                        @else
+                                            <p class="text-xs font-bold text-slate-400">—</p>
+                                            <p class="scoreboard-overs">No score</p>
+                                        @endif
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {{-- Result or scorecard notice --}}
+                            @if($winnerName)
+                                <div class="scoreboard-result">
+                                    <p class="scoreboard-result-label">Match Winner</p>
+                                    <p class="scoreboard-result-text">
+                                        {{ $winnerName }}
+                                    </p>
+                                </div>
+                            @elseif(!$hasScore)
+                                <div class="scoreboard-no-score">
+                                    The match result is available, but a detailed scorecard
+                                    has not been recorded yet.
+                                </div>
+                            @else
+                                <div class="mx-[18px] mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                    <p class="text-xs font-semibold leading-6 text-slate-600">
+                                        Final score recorded. Open the match page for the full result.
+                                    </p>
+                                </div>
+                            @endif
+
+                            <div class="scoreboard-footer">
+                                <a href="{{ route('fixtures.show', $result) }}"
+                                   class="home-button home-button-outline w-full">
+                                    View Full Scorecard
                                     <span aria-hidden="true">&rarr;</span>
                                 </a>
                             </div>
                         </article>
                     @endforeach
+
                 </div>
             @else
                 <div class="home-empty">
                     <div class="home-empty-icon">&#127951;</div>
 
-                    <h3 class="home-empty-title">No Live Matches Right Now</h3>
+                    <h3 class="home-empty-title">No Recent Matches Yet</h3>
 
                     <p class="home-empty-text">
-                        There are currently no fixtures marked as live.
-                        Check the schedule for upcoming games and completed results.
+                        Completed matches will appear here after results
+                        and scorecards have been entered.
                     </p>
 
-                    <a href="{{ route('fixtures.index') }}" class="home-button home-button-dark mt-5">
-                        View Fixtures <span aria-hidden="true">&rarr;</span>
+                    <a href="{{ route('fixtures.index') }}"
+                       class="home-button home-button-dark mt-5">
+                        Browse Fixtures <span aria-hidden="true">&rarr;</span>
                     </a>
                 </div>
             @endif
@@ -1197,14 +1323,14 @@
                         <a href="{{ route('teams.show', $team) }}"
                            class="home-card home-team-card group">
 
-                            @if($team->logo)
-                                <img src="{{ asset('storage/' . ltrim($team->logo, '/')) }}"
+                            @if($imageUrl($team->logo))
+                                <img src="{{ $imageUrl($team->logo) }}"
                                      alt="{{ $team->name }} logo"
                                      class="home-team-logo transition duration-200 group-hover:scale-105"
                                      loading="lazy">
                             @else
                                 <div class="home-team-fallback transition group-hover:border-orange-200 group-hover:bg-orange-50 group-hover:text-[#F06445]">
-                                    {{ strtoupper(substr($team->name, 0, 1)) }}
+                                    {{ $initial($team->name) }}
                                 </div>
                             @endif
 
@@ -1229,128 +1355,7 @@
                     </p>
                 </div>
             @endif
-        </div>
-    </section>
 
-    {{-- RECENT RESULTS --}}
-    <section id="results" class="home-section scroll-mt-24">
-        <div class="home-container">
-
-            <div class="home-section-head">
-                <div>
-                    <div class="home-eyebrow">Full Time</div>
-                    <h2 class="home-section-title mt-3">Recent Results</h2>
-                    <p class="home-section-description">
-                        Catch up on the latest completed fixtures and match outcomes.
-                    </p>
-                </div>
-
-                <a href="{{ route('fixtures.index') }}" class="home-text-link">
-                    All Results <span aria-hidden="true">&rarr;</span>
-                </a>
-            </div>
-
-            @if($recentResults->isNotEmpty())
-                <div class="grid gap-5 md:grid-cols-2">
-                    @foreach($recentResults as $result)
-                        <article class="home-card home-result-card">
-
-                            <div class="flex items-center justify-between gap-3">
-                                <span class="home-status home-status-completed">
-                                    <span class="home-status-dot"></span>
-                                    Completed
-                                </span>
-
-                                <span class="text-[10px] font-bold text-slate-400">
-                                    {{ $result->match_number ? 'MATCH ' . $result->match_number : 'FINAL RESULT' }}
-                                </span>
-                            </div>
-
-                            @if($result->season)
-                                <p class="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                    {{ $result->season->name }}
-                                </p>
-                            @endif
-
-                            <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-
-                                <div class="home-result-team">
-                                    @if($result->homeTeam?->logo)
-                                        <img src="{{ asset('storage/' . ltrim($result->homeTeam->logo, '/')) }}"
-                                             alt="{{ $result->homeTeam->name }} logo"
-                                             class="home-team-logo"
-                                             loading="lazy">
-                                    @else
-                                        <div class="home-team-fallback">
-                                            {{ strtoupper(substr($result->homeTeam->name ?? 'H', 0, 1)) }}
-                                        </div>
-                                    @endif
-
-                                    <p class="home-result-team-name">
-                                        {{ $result->homeTeam->name ?? 'Home Team' }}
-                                    </p>
-                                </div>
-
-                                <span class="text-xs font-black text-slate-300">VS</span>
-
-                                <div class="home-result-team">
-                                    @if($result->awayTeam?->logo)
-                                        <img src="{{ asset('storage/' . ltrim($result->awayTeam->logo, '/')) }}"
-                                             alt="{{ $result->awayTeam->name }} logo"
-                                             class="home-team-logo"
-                                             loading="lazy">
-                                    @else
-                                        <div class="home-team-fallback">
-                                            {{ strtoupper(substr($result->awayTeam->name ?? 'A', 0, 1)) }}
-                                        </div>
-                                    @endif
-
-                                    <p class="home-result-team-name">
-                                        {{ $result->awayTeam->name ?? 'Away Team' }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="mt-6 rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 text-center">
-                                @if($result->winner)
-                                    <p class="text-[9px] font-extrabold uppercase tracking-[1.4px] text-slate-400">
-                                        Match Winner
-                                    </p>
-                                    <p class="mt-1.5 text-sm font-extrabold text-[#202766]">
-                                        {{ $result->winner->name }}
-                                    </p>
-                                @else
-                                    <p class="text-xs font-bold text-slate-500">
-                                        Match completed
-                                    </p>
-                                @endif
-                            </div>
-
-                            @if($result->scheduled_at)
-                                <p class="mt-4 text-center text-[10px] font-semibold text-slate-400">
-                                    {{ \Illuminate\Support\Carbon::parse($result->scheduled_at)->format('d M Y') }}
-                                </p>
-                            @endif
-
-                            <a href="{{ route('fixtures.show', $result) }}"
-                               class="home-button home-button-outline mt-4 w-full">
-                                View Match Details <span aria-hidden="true">&rarr;</span>
-                            </a>
-                        </article>
-                    @endforeach
-                </div>
-            @else
-                <div class="home-empty">
-                    <div class="home-empty-icon">&#127942;</div>
-                    <h3 class="home-empty-title">No Results Available Yet</h3>
-                    <p class="home-empty-text">
-                        Completed fixtures will appear here when results are available.
-                    </p>
-                    <a href="{{ route('fixtures.index') }}" class="home-button home-button-dark mt-5">
-                        Browse Fixtures &rarr;
-                    </a>
-                </div>
-            @endif
         </div>
     </section>
 
@@ -1386,10 +1391,10 @@
                                class="block overflow-hidden"
                                aria-label="Read {{ $article->title }}">
 
-                                @if($articleImage)
-                                    <img src="{{ asset('storage/' . ltrim($articleImage, '/')) }}"
+                                @if($imageUrl($articleImage))
+                                    <img src="{{ $imageUrl($articleImage) }}"
                                          alt="{{ $article->title }}"
-                                         class="home-news-image"
+                                         class="home-news-image transition duration-300 group-hover:scale-[1.03]"
                                          loading="lazy">
                                 @else
                                     <div class="home-news-placeholder">
@@ -1414,6 +1419,7 @@
                                     @endif
 
                                     <span aria-hidden="true">/</span>
+
                                     <span class="font-extrabold uppercase tracking-wider text-[#F06445]">
                                         NPL News
                                     </span>
@@ -1458,6 +1464,7 @@
                     </p>
                 </div>
             @endif
+
         </div>
     </section>
 
@@ -1474,7 +1481,7 @@
 
                     <p class="mt-3 max-w-xl text-sm leading-7 text-white/70">
                         Explore match schedules, discover your favourite teams,
-                        check the results and stay connected with Nepal cricket.
+                        check recent scoreboards and stay connected with Nepal cricket.
                     </p>
                 </div>
 
