@@ -9,6 +9,131 @@ use Illuminate\Validation\ValidationException;
 
 class ScorecardController extends Controller
 {
+    /**
+     * Display fixtures with scorecard filters.
+     */
+    public function index(Request $request)
+    {
+        // Seasons for the season filter.
+        $seasons = DB::table('seasons')
+            ->orderByDesc('id')
+            ->get();
+
+        // Teams for the team filter.
+        $teams = DB::table('teams')
+            ->orderBy('name')
+            ->get();
+
+        // Start with fixtures and load their team and season relationships
+        // through explicit joins, so this works without Eloquent relations.
+        $fixturesQuery = DB::table('fixtures as f')
+            ->leftJoin('teams as home', 'home.id', '=', 'f.home_team_id')
+            ->leftJoin('teams as away', 'away.id', '=', 'f.away_team_id')
+            ->leftJoin('seasons as s', 's.id', '=', 'f.season_id')
+            ->select([
+                'f.id',
+                'f.season_id',
+                'f.home_team_id',
+                'f.away_team_id',
+                'f.match_number',
+                'f.scheduled_at',
+                'f.status',
+                'f.match_type',
+                'f.home_runs',
+                'f.home_wickets',
+                'f.home_overs',
+                'f.away_runs',
+                'f.away_wickets',
+                'f.away_overs',
+                'f.winner_team_id',
+                'f.result_summary',
+
+                'home.name as home_team_name',
+                'home.short_name as home_team_short_name',
+
+                'away.name as away_team_name',
+                'away.short_name as away_team_short_name',
+
+                's.name as season_name',
+            ]);
+
+        // Filter by season.
+        if ($request->filled('season_id')) {
+            $fixturesQuery->where(
+                'f.season_id',
+                $request->integer('season_id')
+            );
+        }
+
+        // Filter by either home or away team.
+        if ($request->filled('team_id')) {
+            $teamId = $request->integer('team_id');
+
+            $fixturesQuery->where(function ($query) use ($teamId) {
+                $query->where('f.home_team_id', $teamId)
+                    ->orWhere('f.away_team_id', $teamId);
+            });
+        }
+
+        // Filter by match number.
+        if ($request->filled('match_number')) {
+            $fixturesQuery->where(
+                'f.match_number',
+                $request->integer('match_number')
+            );
+        }
+
+        $fixtures = $fixturesQuery
+            ->orderByDesc('f.scheduled_at')
+            ->orderByDesc('f.id')
+            ->paginate(20)
+            ->withQueryString();
+
+        // Get fixture IDs with at least one saved manual scorecard.
+        $fixtureIds = $fixtures->getCollection()->pluck('id');
+
+        $savedFixtures = DB::table('manual_scorecards')
+            ->whereIn('fixture_id', $fixtureIds)
+            ->distinct()
+            ->pluck('fixture_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        // Adapt joined records to the property structure expected by
+        // index.blade.php: homeTeam, awayTeam and season.
+        $fixtures->getCollection()->transform(function ($fixture) {
+            $fixture->homeTeam = (object) [
+                'id' => $fixture->home_team_id,
+                'name' => $fixture->home_team_name,
+                'short_name' => $fixture->home_team_short_name,
+            ];
+
+            $fixture->awayTeam = (object) [
+                'id' => $fixture->away_team_id,
+                'name' => $fixture->away_team_name,
+                'short_name' => $fixture->away_team_short_name,
+            ];
+
+            $fixture->season = (object) [
+                'id' => $fixture->season_id,
+                'name' => $fixture->season_name,
+                'title' => $fixture->season_name,
+            ];
+
+            return $fixture;
+        });
+
+        return view('admin.scorecards.index', compact(
+            'seasons',
+            'teams',
+            'fixtures',
+            'savedFixtures'
+        ));
+    }
+
+    /**
+     * Show the scorecard editor for a fixture.
+     */
     public function edit($fixtureId)
     {
         $fixture = DB::table('fixtures')
@@ -46,7 +171,10 @@ class ScorecardController extends Controller
                 foreach (['batters', 'bowlers'] as $field) {
                     $decoded = is_array($scorecard->{$field})
                         ? $scorecard->{$field}
-                        : json_decode($scorecard->{$field} ?? '[]', true);
+                        : json_decode(
+                            $scorecard->{$field} ?? '[]',
+                            true
+                        );
 
                     $scorecard->{$field} = is_array($decoded)
                         ? array_values($decoded)
@@ -80,6 +208,9 @@ class ScorecardController extends Controller
         ));
     }
 
+    /**
+     * Save or update innings scorecards.
+     */
     public function update(Request $request, $fixtureId)
     {
         $fixture = DB::table('fixtures')
@@ -138,22 +269,78 @@ class ScorecardController extends Controller
             ],
 
             'innings.*.batters' => ['nullable', 'array'],
-            'innings.*.batters.*.name' => ['nullable', 'string', 'max:255'],
-            'innings.*.batters.*.custom_name' => ['nullable', 'string', 'max:255'],
-            'innings.*.batters.*.runs' => ['nullable', 'integer', 'min:0'],
-            'innings.*.batters.*.balls' => ['nullable', 'integer', 'min:0'],
-            'innings.*.batters.*.fours' => ['nullable', 'integer', 'min:0'],
-            'innings.*.batters.*.sixes' => ['nullable', 'integer', 'min:0'],
-            'innings.*.batters.*.strike_rate' => ['nullable', 'numeric', 'min:0'],
+            'innings.*.batters.*.name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'innings.*.batters.*.custom_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'innings.*.batters.*.runs' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.batters.*.balls' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.batters.*.fours' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.batters.*.sixes' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.batters.*.strike_rate' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
 
             'innings.*.bowlers' => ['nullable', 'array'],
-            'innings.*.bowlers.*.name' => ['nullable', 'string', 'max:255'],
-            'innings.*.bowlers.*.custom_name' => ['nullable', 'string', 'max:255'],
-            'innings.*.bowlers.*.overs' => ['nullable', 'numeric', 'min:0'],
-            'innings.*.bowlers.*.maidens' => ['nullable', 'integer', 'min:0'],
-            'innings.*.bowlers.*.runs' => ['nullable', 'integer', 'min:0'],
-            'innings.*.bowlers.*.wickets' => ['nullable', 'integer', 'min:0'],
-            'innings.*.bowlers.*.economy' => ['nullable', 'numeric', 'min:0'],
+            'innings.*.bowlers.*.name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'innings.*.bowlers.*.custom_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'innings.*.bowlers.*.overs' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+            'innings.*.bowlers.*.maidens' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.bowlers.*.runs' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.bowlers.*.wickets' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'innings.*.bowlers.*.economy' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
         ]);
 
         DB::transaction(function () use ($data, $fixture, $teamIds) {
@@ -167,7 +354,8 @@ class ScorecardController extends Controller
                     $battingTeamId === $bowlingTeamId
                 ) {
                     throw ValidationException::withMessages([
-                        'innings' => 'Choose two different teams from this fixture.',
+                        'innings' =>
+                            'Choose two different teams from this fixture.',
                     ]);
                 }
 
@@ -183,7 +371,9 @@ class ScorecardController extends Controller
                             'balls' => (int) ($row['balls'] ?? 0),
                             'fours' => (int) ($row['fours'] ?? 0),
                             'sixes' => (int) ($row['sixes'] ?? 0),
-                            'strike_rate' => (float) ($row['strike_rate'] ?? 0),
+                            'strike_rate' => (float) (
+                                $row['strike_rate'] ?? 0
+                            ),
                         ];
                     })
                     ->filter(fn ($row) => $row['name'] !== '')
@@ -202,7 +392,9 @@ class ScorecardController extends Controller
                             'maidens' => (int) ($row['maidens'] ?? 0),
                             'runs' => (int) ($row['runs'] ?? 0),
                             'wickets' => (int) ($row['wickets'] ?? 0),
-                            'economy' => (float) ($row['economy'] ?? 0),
+                            'economy' => (float) (
+                                $row['economy'] ?? 0
+                            ),
                         ];
                     })
                     ->filter(fn ($row) => $row['name'] !== '')
@@ -221,8 +413,14 @@ class ScorecardController extends Controller
                         'wickets' => (int) ($inning['wickets'] ?? 0),
                         'overs' => $inning['overs'] ?? '0.0',
                         'extras' => (int) ($inning['extras'] ?? 0),
-                        'batters' => json_encode($batters, JSON_UNESCAPED_UNICODE),
-                        'bowlers' => json_encode($bowlers, JSON_UNESCAPED_UNICODE),
+                        'batters' => json_encode(
+                            $batters,
+                            JSON_UNESCAPED_UNICODE
+                        ),
+                        'bowlers' => json_encode(
+                            $bowlers,
+                            JSON_UNESCAPED_UNICODE
+                        ),
                         'updated_at' => now(),
                         'created_at' => now(),
                     ]
