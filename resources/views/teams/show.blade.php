@@ -25,13 +25,13 @@
         ->filter(fn ($match) => strtolower($match->status ?? '') === 'completed')
         ->sortByDesc(fn ($match) => $match->scheduled_at?->timestamp ?? 0);
 
-    // Load actual players registered to this team.
+    // Actual players registered to this team.
     $players = DB::table('players')
         ->where('team_id', $team->id)
         ->orderBy('name')
         ->get();
 
-    // Load scorecards for the fixtures already available on this page.
+    // Scorecards belonging to fixtures available on this page.
     $fixtureIds = $teamFixtures->pluck('id')->filter()->values();
 
     $scorecardsByFixture = $fixtureIds->isNotEmpty()
@@ -55,7 +55,8 @@
             ->pluck('name', 'id')
         : collect();
 
-    $teamLogo = $team->logo
+    // Existing team logo field.
+    $teamLogo = !empty($team->logo)
         ? asset('storage/' . $team->logo)
         : null;
 @endphp
@@ -155,7 +156,7 @@
 
         </section>
 
-        {{-- Cricket trading-style player cards --}}
+        {{-- Player squad --}}
         <section id="squad" class="mt-12">
 
             <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
@@ -209,58 +210,73 @@
 
                         <article class="group relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
 
-                            {{-- Card portrait and artwork --}}
+                            {{-- Player portrait --}}
                             <div class="relative h-52 overflow-hidden bg-[#102052] sm:h-60">
 
                                 {{-- Navy gradient --}}
                                 <div class="absolute inset-0 bg-gradient-to-br from-[#203D88] via-[#14285F] to-[#091538]"></div>
 
-                                {{-- Decorative diagonal shapes --}}
+                                {{-- Decorative shapes --}}
                                 <div class="absolute -bottom-12 -left-10 h-36 w-36 rotate-[28deg] bg-[#F06445]"></div>
 
                                 <div class="absolute -bottom-16 -right-12 h-44 w-44 -rotate-[25deg] bg-[#FF815D]"></div>
 
-                                {{-- Subtle pattern --}}
+                                {{-- Background pattern --}}
                                 <div
                                     class="absolute inset-0 opacity-[0.07]"
                                     style="background-image: repeating-linear-gradient(130deg, transparent 0, transparent 24px, #ffffff 25px, transparent 39px);"
                                 ></div>
 
-                                {{-- Player photo --}}
+                                {{-- Player photo or team-logo fallback --}}
                                 @if ($playerPhoto)
                                     <img
                                         src="{{ $playerPhoto }}"
                                         alt="{{ $playerName }}"
                                         loading="lazy"
-                                        class="absolute inset-x-0 bottom-0 z-[1] mx-auto h-[96%] w-full object-contain object-bottom transition duration-500 group-hover:scale-105"
+                                        class="absolute inset-0 z-[1] h-full w-full object-contain object-bottom transition duration-500 group-hover:scale-105"
                                     >
                                 @else
-                                    <div class="absolute inset-0 z-[1] flex flex-col items-center justify-center px-3 text-center">
-                                        <div class="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/10 text-2xl font-black text-white shadow-lg">
-                                            {{ Str::upper(Str::substr($playerName, 0, 2)) }}
-                                        </div>
+                                    <div class="absolute inset-0 z-[1] flex flex-col items-center justify-center px-3 pb-10 text-center">
 
-                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wider text-white/80">
+                                        @if ($teamLogo)
+                                            <img
+                                                src="{{ $teamLogo }}"
+                                                alt="{{ $team->name }} logo"
+                                                loading="lazy"
+                                                class="mb-2 h-16 w-16 object-contain drop-shadow-lg"
+                                            >
+                                        @else
+                                            <div class="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/10 text-2xl font-black text-white shadow-lg">
+                                                {{ Str::upper(Str::substr($playerName, 0, 2)) }}
+                                            </div>
+                                        @endif
+
+                                        <p class="mt-2 max-w-full text-[10px] font-bold uppercase tracking-wider text-white/90">
+                                            {{ $team->name }}
+                                        </p>
+
+                                        <p class="mt-1 text-[9px] font-semibold uppercase tracking-wider text-white/75">
                                             Photo unavailable
                                         </p>
                                     </div>
                                 @endif
 
                                 {{-- Team abbreviation --}}
-                                <div class="absolute left-3 top-3 z-[2] rounded-md border border-white/20 bg-black/20 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
+                                <div class="absolute left-3 top-3 z-[4] rounded-md border border-white/25 bg-black/25 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
                                     {{ $team->short_name ?: Str::upper(Str::substr($team->name, 0, 3)) }}
                                 </div>
 
-                                {{-- Role badge --}}
-                                <div class="absolute inset-x-0 bottom-0 z-[3] flex translate-y-1/2 justify-center">
-                                    <span class="{{ $roleBadge }} max-w-[92%] truncate rounded-full border-2 border-white px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-wider text-white shadow-lg sm:px-4 sm:text-[10px]">
+                                {{-- Full role badge: stays inside portrait --}}
+                                <div class="absolute inset-x-2 bottom-2 z-[5] flex justify-center">
+                                    <span class="{{ $roleBadge }} max-w-full rounded-full border border-white/80 px-2.5 py-1.5 text-center text-[8px] font-extrabold uppercase leading-tight tracking-wide text-white shadow-lg sm:px-3 sm:text-[9px]">
                                         {{ $playerRole !== '' ? $playerRole : 'Player' }}
                                     </span>
                                 </div>
+
                             </div>
 
                             {{-- Player details --}}
-                            <div class="relative px-2 pb-4 pt-7 text-center sm:px-3">
+                            <div class="relative px-2 pb-4 pt-4 text-center sm:px-3">
 
                                 <h3 class="break-words text-sm font-black leading-5 text-[#172554] sm:text-base">
                                     {{ $playerName }}
