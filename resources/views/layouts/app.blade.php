@@ -8,14 +8,14 @@
 
     <title>@yield('title', 'NPL Cricket Hub') | Nepal Cricket</title>
 
-    <meta name="description" content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, player statistics, match results and the latest Nepal cricket news.')">
+    <meta name="description" content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, points table, player statistics, match results and the latest Nepal cricket news.')">
     <meta name="theme-color" content="#202766">
     <meta name="color-scheme" content="light">
 
     <meta property="og:site_name" content="NPL Cricket Hub">
     <meta property="og:type" content="website">
     <meta property="og:title" content="@yield('title', 'NPL Cricket Hub')">
-    <meta property="og:description" content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, player stats, match results and cricket news.')">
+    <meta property="og:description" content="@yield('meta_description', 'Follow Nepal Premier League fixtures, teams, points table, player stats, match results and cricket news.')">
     <meta property="og:url" content="@yield('canonical_url', url()->current())">
 
     <link rel="canonical" href="@yield('canonical_url', url()->current())">
@@ -109,22 +109,33 @@
                 border-color 160ms ease;
         }
 
-        button { font: inherit; }
+        button {
+            font: inherit;
+        }
 
-        button:focus-visible, a:focus-visible, summary:focus-visible {
+        button:focus-visible,
+        a:focus-visible,
+        summary:focus-visible {
             outline: 3px solid var(--npl-orange);
             outline-offset: 4px;
         }
 
-        img { max-width: 100%; }
+        img {
+            max-width: 100%;
+        }
 
         ::selection {
             color: #fff;
             background: var(--npl-navy);
         }
 
-        summary { list-style: none; }
-        summary::-webkit-details-marker { display: none; }
+        summary {
+            list-style: none;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
 
         .npl-container {
             width: 100%;
@@ -187,8 +198,13 @@
             font-weight: 600;
         }
 
-        .npl-nav-link:hover { color: #fff; }
-        .npl-nav-link-active { color: #fff; }
+        .npl-nav-link:hover {
+            color: #fff;
+        }
+
+        .npl-nav-link-active {
+            color: #fff;
+        }
 
         .npl-nav-link-active::after {
             position: absolute;
@@ -212,14 +228,18 @@
             font-weight: 600;
         }
 
-        .npl-mobile-link:hover { background: #F6F8FB; }
+        .npl-mobile-link:hover {
+            background: #F6F8FB;
+        }
 
         .npl-mobile-link-active {
             background: #FFF0EC;
             color: #D94D31;
         }
 
-        .npl-menu-panel { animation: fadeIn 160ms ease-out; }
+        .npl-menu-panel {
+            animation: fadeIn 160ms ease-out;
+        }
 
         .npl-footer-link {
             display: inline-flex;
@@ -228,7 +248,9 @@
             font-size: 13px;
         }
 
-        .npl-footer-link:hover { color: #fff; }
+        .npl-footer-link:hover {
+            color: #fff;
+        }
 
         .npl-footer-heading {
             color: #fff;
@@ -251,27 +273,50 @@
             font-weight: 700;
         }
 
-        .npl-skip-link:focus { transform: translateY(0); }
+        .npl-skip-link:focus {
+            transform: translateY(0);
+        }
 
         @media (min-width: 640px) {
-            .npl-container { padding-inline: 28px; }
+            .npl-container {
+                padding-inline: 28px;
+            }
         }
 
         @media (min-width: 1024px) {
-            .npl-container { padding-inline: 32px; }
+            .npl-container {
+                padding-inline: 32px;
+            }
         }
 
         @media (max-width: 420px) {
-            .npl-brand-logo { width: 40px; height: 40px; }
-            .npl-brand { gap: 8px; }
-            .npl-brand-name { font-size: 15px; }
-            .npl-brand-subtitle { font-size: 9px; letter-spacing: 1px; }
+            .npl-brand-logo {
+                width: 40px;
+                height: 40px;
+            }
+
+            .npl-brand {
+                gap: 8px;
+            }
+
+            .npl-brand-name {
+                font-size: 15px;
+            }
+
+            .npl-brand-subtitle {
+                font-size: 9px;
+                letter-spacing: 1px;
+            }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            html { scroll-behavior: auto; }
+            html {
+                scroll-behavior: auto;
+            }
 
-            *, *::before, *::after {
+            *,
+            *::before,
+            *::after {
                 animation-duration: .01ms !important;
                 animation-iteration-count: 1 !important;
                 scroll-behavior: auto !important;
@@ -285,14 +330,20 @@
 
 <body class="flex min-h-screen flex-col bg-npl-background text-slate-800 antialiased">
 
-    <a href="#main-content" class="npl-skip-link">Skip to main content</a>
+    <a href="#main-content" class="npl-skip-link">
+        Skip to main content
+    </a>
 
     {{-- PUBLIC HEADER --}}
     <header class="sticky top-0 z-40 border-b border-white/10 bg-npl-navy text-white shadow-sm">
         <div class="npl-container">
             <div class="flex min-h-[72px] items-center justify-between gap-4 lg:min-h-[76px]">
 
-                <a href="{{ route('home') }}" class="npl-brand" aria-label="NPL Cricket Hub home">
+                {{-- BRAND --}}
+                <a href="{{ route('home') }}"
+                   class="npl-brand"
+                   aria-label="NPL Cricket Hub home">
+
                     <img
                         src="{{ asset('images/npl.png') }}"
                         alt="NPL Cricket Hub logo"
@@ -303,40 +354,71 @@
                     >
 
                     <span class="min-w-0">
-                        <span class="npl-brand-name block">NPL Cricket Hub</span>
-                        <span class="npl-brand-subtitle">Nepal Cricket</span>
+                        <span class="npl-brand-name block">
+                            NPL Cricket Hub
+                        </span>
+
+                        <span class="npl-brand-subtitle">
+                            Nepal Cricket
+                        </span>
                     </span>
                 </a>
 
                 {{-- DESKTOP NAVIGATION --}}
-                <nav class="hidden h-full items-center gap-5 lg:flex xl:gap-7" aria-label="Main navigation">
+                <nav class="hidden h-full items-center gap-4 lg:flex xl:gap-6"
+                     aria-label="Main navigation">
 
                     <a href="{{ route('home') }}"
-                       @class(['npl-nav-link', 'npl-nav-link-active' => request()->routeIs('home')])
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('home')
+                       ])
                        @if(request()->routeIs('home')) aria-current="page" @endif>
                         Home
                     </a>
 
                     <a href="{{ route('fixtures.index') }}"
-                       @class(['npl-nav-link', 'npl-nav-link-active' => request()->routeIs('fixtures.*')])
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('fixtures.*')
+                       ])
                        @if(request()->routeIs('fixtures.*')) aria-current="page" @endif>
                         Fixtures
                     </a>
 
                     <a href="{{ route('teams.index') }}"
-                       @class(['npl-nav-link', 'npl-nav-link-active' => request()->routeIs('teams.*')])
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('teams.*')
+                       ])
                        @if(request()->routeIs('teams.*')) aria-current="page" @endif>
                         Teams
                     </a>
 
+                    {{-- POINTS TABLE --}}
+                    <a href="{{ route('pointtable.index') }}"
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('pointtable.*')
+                       ])
+                       @if(request()->routeIs('pointtable.*')) aria-current="page" @endif>
+                        Points Table
+                    </a>
+
                     <a href="{{ route('seasons.index') }}"
-                       @class(['npl-nav-link', 'npl-nav-link-active' => request()->routeIs('seasons.*')])
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('seasons.*')
+                       ])
                        @if(request()->routeIs('seasons.*')) aria-current="page" @endif>
                         Seasons
                     </a>
 
                     <a href="{{ route('news.index') }}"
-                       @class(['npl-nav-link', 'npl-nav-link-active' => request()->routeIs('news.*')])
+                       @class([
+                           'npl-nav-link',
+                           'npl-nav-link-active' => request()->routeIs('news.*')
+                       ])
                        @if(request()->routeIs('news.*')) aria-current="page" @endif>
                         News
                     </a>
@@ -346,8 +428,8 @@
                 <details class="relative shrink-0 lg:hidden">
                     <summary
                         class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-white/20 text-white transition hover:bg-white/10"
-                        aria-label="Open navigation menu"
-                    >
+                        aria-label="Open navigation menu">
+
                         <svg xmlns="http://www.w3.org/2000/svg"
                              class="h-5 w-5"
                              fill="none"
@@ -355,7 +437,9 @@
                              stroke="currentColor"
                              stroke-width="1.8"
                              aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round"
+
+                            <path stroke-linecap="round"
+                                  stroke-linejoin="round"
                                   d="M4 7h16M4 12h16M4 17h16"/>
                         </svg>
                     </summary>
@@ -370,46 +454,87 @@
                         </div>
 
                         <div class="grid gap-1 py-2">
+
                             <a href="{{ route('home') }}"
-                               @class(['npl-mobile-link', 'npl-mobile-link-active' => request()->routeIs('home')])
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('home')
+                               ])
                                @if(request()->routeIs('home')) aria-current="page" @endif>
+
                                 <span class="flex-1">Home</span>
+
                                 @if(request()->routeIs('home'))
                                     <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
                                 @endif
                             </a>
 
                             <a href="{{ route('fixtures.index') }}"
-                               @class(['npl-mobile-link', 'npl-mobile-link-active' => request()->routeIs('fixtures.*')])
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('fixtures.*')
+                               ])
                                @if(request()->routeIs('fixtures.*')) aria-current="page" @endif>
+
                                 <span class="flex-1">Fixtures &amp; Results</span>
+
                                 @if(request()->routeIs('fixtures.*'))
                                     <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
                                 @endif
                             </a>
 
                             <a href="{{ route('teams.index') }}"
-                               @class(['npl-mobile-link', 'npl-mobile-link-active' => request()->routeIs('teams.*')])
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('teams.*')
+                               ])
                                @if(request()->routeIs('teams.*')) aria-current="page" @endif>
+
                                 <span class="flex-1">Teams</span>
+
                                 @if(request()->routeIs('teams.*'))
                                     <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
                                 @endif
                             </a>
 
+                            {{-- POINTS TABLE --}}
+                            <a href="{{ route('pointtable.index') }}"
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('pointtable.*')
+                               ])
+                               @if(request()->routeIs('pointtable.*')) aria-current="page" @endif>
+
+                                <span class="flex-1">Points Table</span>
+
+                                @if(request()->routeIs('pointtable.*'))
+                                    <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
+                                @endif
+                            </a>
+
                             <a href="{{ route('seasons.index') }}"
-                               @class(['npl-mobile-link', 'npl-mobile-link-active' => request()->routeIs('seasons.*')])
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('seasons.*')
+                               ])
                                @if(request()->routeIs('seasons.*')) aria-current="page" @endif>
+
                                 <span class="flex-1">Seasons</span>
+
                                 @if(request()->routeIs('seasons.*'))
                                     <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
                                 @endif
                             </a>
 
                             <a href="{{ route('news.index') }}"
-                               @class(['npl-mobile-link', 'npl-mobile-link-active' => request()->routeIs('news.*')])
+                               @class([
+                                   'npl-mobile-link',
+                                   'npl-mobile-link-active' => request()->routeIs('news.*')
+                               ])
                                @if(request()->routeIs('news.*')) aria-current="page" @endif>
+
                                 <span class="flex-1">Latest News</span>
+
                                 @if(request()->routeIs('news.*'))
                                     <span class="h-2 w-2 rounded-full bg-npl-orange"></span>
                                 @endif
@@ -443,17 +568,21 @@
                     <a href="{{ route('home') }}"
                        class="inline-flex items-center gap-3"
                        aria-label="NPL Cricket Hub home">
-                        <img src="{{ asset('images/npl.png') }}"
-                             alt="NPL Cricket Hub logo"
-                             class="npl-brand-logo-footer"
-                             width="42"
-                             height="42"
-                             loading="lazy">
+
+                        <img
+                            src="{{ asset('images/npl.png') }}"
+                            alt="NPL Cricket Hub logo"
+                            class="npl-brand-logo-footer"
+                            width="42"
+                            height="42"
+                            loading="lazy"
+                        >
 
                         <span>
                             <span class="block text-base font-extrabold tracking-tight">
                                 NPL Cricket Hub
                             </span>
+
                             <span class="mt-1 block text-[10px] font-semibold uppercase tracking-[1.5px] text-white/50">
                                 Nepal Cricket
                             </span>
@@ -462,12 +591,14 @@
 
                     <p class="mt-5 max-w-md text-sm leading-7 text-white/60">
                         Your place to follow Nepal Premier League teams,
-                        upcoming fixtures, match results and cricket news
-                        from across Nepal.
+                        upcoming fixtures, the points table, match results
+                        and cricket news from across Nepal.
                     </p>
 
                     <div class="mt-5 flex items-center gap-2">
-                        <span class="h-2 w-2 rounded-full bg-npl-orange" aria-hidden="true"></span>
+                        <span class="h-2 w-2 rounded-full bg-npl-orange"
+                              aria-hidden="true"></span>
+
                         <span class="text-xs font-medium text-white/60">
                             Made for Nepal cricket fans
                         </span>
@@ -478,15 +609,45 @@
                 <div class="lg:col-span-3">
                     <h2 class="npl-footer-heading">Explore</h2>
 
-                    <nav class="mt-5 grid justify-items-start gap-4" aria-label="Footer navigation">
-                        <a href="{{ route('home') }}" class="npl-footer-link">Home</a>
-                        <a href="{{ route('fixtures.index') }}" class="npl-footer-link">Fixtures &amp; Results</a>
-                        <a href="{{ route('teams.index') }}" class="npl-footer-link">Teams</a>
-                        <a href="{{ route('seasons.index') }}" class="npl-footer-link">Season Archive</a>
-                        <a href="{{ route('news.index') }}" class="npl-footer-link">Latest News</a>
-                        <a href="{{ route('about') }}" class="npl-footer-link">About Us</a>
-                        <a href="{{ route('contact') }}" class="npl-footer-link">Contact Us</a>
-                        <a href="{{ route('privacy-policy') }}" class="npl-footer-link">Privacy Policy</a>
+                    <nav class="mt-5 grid justify-items-start gap-4"
+                         aria-label="Footer navigation">
+
+                        <a href="{{ route('home') }}" class="npl-footer-link">
+                            Home
+                        </a>
+
+                        <a href="{{ route('fixtures.index') }}" class="npl-footer-link">
+                            Fixtures &amp; Results
+                        </a>
+
+                        <a href="{{ route('teams.index') }}" class="npl-footer-link">
+                            Teams
+                        </a>
+
+                        {{-- POINTS TABLE --}}
+                        <a href="{{ route('pointtable.index') }}" class="npl-footer-link">
+                            Points Table
+                        </a>
+
+                        <a href="{{ route('seasons.index') }}" class="npl-footer-link">
+                            Season Archive
+                        </a>
+
+                        <a href="{{ route('news.index') }}" class="npl-footer-link">
+                            Latest News
+                        </a>
+
+                        <a href="{{ route('about') }}" class="npl-footer-link">
+                            About Us
+                        </a>
+
+                        <a href="{{ route('contact') }}" class="npl-footer-link">
+                            Contact Us
+                        </a>
+
+                        <a href="{{ route('privacy-policy') }}" class="npl-footer-link">
+                            Privacy Policy
+                        </a>
                     </nav>
                 </div>
 
@@ -495,14 +656,15 @@
                     <h2 class="npl-footer-heading">Match Information</h2>
 
                     <p class="mt-5 text-sm leading-7 text-white/60">
-                        Scores, results and match details are displayed
-                        according to information entered and verified by
-                        the site's administrators.
+                        Scores, results, standings and match details are
+                        displayed according to information entered and
+                        verified by the site's administrators.
                     </p>
 
                     <p class="mt-4 text-sm leading-7 text-white/60">
-                        Follow the fixtures, discover the teams and keep
-                        up with the latest NPL coverage.
+                        Follow the fixtures, check the league standings,
+                        discover the teams and keep up with the latest
+                        NPL coverage.
                     </p>
                 </div>
 
@@ -513,10 +675,14 @@
         <div class="border-t border-white/10">
             <div class="npl-container">
                 <div class="flex flex-col gap-3 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
+
                     <p>
                         &copy; {{ date('Y') }} NPL Cricket Hub. All rights reserved.
                     </p>
-                    <p>Built for Nepal cricket fans.</p>
+
+                    <p>
+                        Built for Nepal cricket fans.
+                    </p>
                 </div>
             </div>
         </div>

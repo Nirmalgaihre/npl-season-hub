@@ -5,8 +5,9 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Teams: use the actual teams assigned to this manual innings
+    | NPL OFFICIAL MATCH CENTRE — INNINGS SCORECARD
     |--------------------------------------------------------------------------
+    | Existing models, relationships, manual scorecards and routes are retained.
     */
 
     $battingTeam = $inning->battingTeam
@@ -23,44 +24,27 @@
                 : $fixture->awayTeam
         );
 
-    /*
-    |--------------------------------------------------------------------------
-    | Manual scorecard data
-    |--------------------------------------------------------------------------
-    */
-
     $scorecard = $scorecards->get($inning->id, []);
 
     $batters = data_get($scorecard, 'batters', []);
     $bowlers = data_get($scorecard, 'bowlers', []);
     $extras = data_get($scorecard, 'extras', $inning->extras ?? 0);
 
-    /*
-     * Support arrays and Laravel collections.
-     */
-    if ($batters instanceof \Illuminate\Support\Collection) {
-        $batters = $batters->all();
-    }
+    $batters = $batters instanceof \Illuminate\Support\Collection
+        ? $batters->all()
+        : $batters;
 
-    if ($bowlers instanceof \Illuminate\Support\Collection) {
-        $bowlers = $bowlers->all();
-    }
+    $bowlers = $bowlers instanceof \Illuminate\Support\Collection
+        ? $bowlers->all()
+        : $bowlers;
 
     $batters = is_array($batters) || $batters instanceof \Traversable
-        ? $batters
-        : [];
+        ? collect($batters)->filter(fn ($item) => is_array($item) || is_object($item))->values()
+        : collect();
 
     $bowlers = is_array($bowlers) || $bowlers instanceof \Traversable
-        ? $bowlers
-        : [];
-
-    $batters = collect($batters)->filter(
-        fn ($item) => is_array($item) || is_object($item)
-    )->values();
-
-    $bowlers = collect($bowlers)->filter(
-        fn ($item) => is_array($item) || is_object($item)
-    )->values();
+        ? collect($bowlers)->filter(fn ($item) => is_array($item) || is_object($item))->values()
+        : collect();
 
     /*
     |--------------------------------------------------------------------------
@@ -69,10 +53,10 @@
     */
 
     if (is_string($extras)) {
-        $decodedExtras = json_decode($extras, true);
+        $decoded = json_decode($extras, true);
 
         if (json_last_error() === JSON_ERROR_NONE) {
-            $extras = $decodedExtras;
+            $extras = $decoded;
         }
     }
 
@@ -80,13 +64,15 @@
         $extras = $extras->toArray();
     }
 
+    $extras = is_array($extras) ? $extras : (is_numeric($extras) ? (int) $extras : []);
+
     $extrasTotal = is_numeric($extras)
         ? (int) $extras
         : (int) data_get($extras, 'total', 0);
 
     /*
     |--------------------------------------------------------------------------
-    | Innings totals
+    | Innings statistics
     |--------------------------------------------------------------------------
     */
 
@@ -94,22 +80,29 @@
     $wickets = (int) ($inning->wickets ?? 0);
     $legalBalls = max(0, (int) ($inning->legal_balls ?? 0));
 
-    $overs = isset($inning->overs_display)
-        ? (string) $inning->overs_display
-        : intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
+    $overs = $inning->overs_display
+        ?? (intdiv($legalBalls, 6) . '.' . ($legalBalls % 6));
 
     $runRate = $legalBalls > 0
-        ? number_format($totalRuns / ($legalBalls / 6), 2)
+        ? number_format($totalRuns * 6 / $legalBalls, 2)
         : '0.00';
+
+    $battingCount = $batters->count();
+    $bowlingCount = $bowlers->count();
 
     /*
     |--------------------------------------------------------------------------
-    | Image helpers
+    | Team and player images
     |--------------------------------------------------------------------------
+    | Supports filenames, teams/filename, players/filename and storage paths.
     */
 
-    $imageUrl = static function ($path, $fallback = null) {
-        $fallback = $fallback ?: asset('images/player-placeholder.png');
+    $imageUrl = static function ($path, $folder = 'players') {
+        $fallback = asset(
+            $folder === 'teams'
+                ? 'images/team-placeholder.png'
+                : 'images/player-placeholder.png'
+        );
 
         if (! is_string($path) || trim($path) === '') {
             return $fallback;
@@ -121,7 +114,15 @@
             return $path;
         }
 
-        return asset('storage/' . ltrim($path, '/'));
+        $path = ltrim($path, '/');
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        if (! Str::startsWith($path, ['teams/', 'players/'])) {
+            $path = $folder . '/' . $path;
+        }
+
+        return asset('storage/' . $path);
     };
 
     $photoUrl = static function ($player) use ($imageUrl) {
@@ -129,15 +130,13 @@
             data_get($player, 'photo_url')
                 ?: data_get($player, 'photo_path')
                 ?: data_get($player, 'photo')
-                ?: data_get($player, 'image')
+                ?: data_get($player, 'image'),
+            'players'
         );
     };
 
     $teamLogoUrl = static function ($team) use ($imageUrl) {
-        return $imageUrl(
-            data_get($team, 'logo'),
-            asset('images/team-placeholder.png')
-        );
+        return $imageUrl(data_get($team, 'logo'), 'teams');
     };
 
     /*
@@ -158,145 +157,194 @@
             return null;
         }
 
-        if (! Route::has('players.performance')) {
-            return null;
-        }
-
-        return route('players.performance', [
-            'playerName' => trim($name),
-        ]);
+        return Route::has('players.performance')
+            ? route('players.performance', ['playerName' => trim($name)])
+            : null;
     };
 
-    $battingCount = $batters->count();
-    $bowlingCount = $bowlers->count();
+    $teamInitials = static function ($team) {
+        $name = data_get($team, 'short_name')
+            ?: data_get($team, 'name')
+            ?: 'NPL';
+
+        return Str::upper(Str::substr($name, 0, 3));
+    };
 @endphp
 
-<section class="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+<section class="npl-innings-card mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white">
 
-    {{-- INNINGS HEADER --}}
-    <div class="relative overflow-hidden bg-[#202766] px-5 py-6 text-white sm:px-7">
-        <div class="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full border-[24px] border-white/5"></div>
-        <div class="pointer-events-none absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-[#f06445]/10"></div>
+    {{-- =========================================================
+         SCOREBOARD HEADER
+    ========================================================== --}}
+    <header class="relative overflow-hidden bg-[#111b35] text-white">
 
-        <div class="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-            <div class="flex min-w-0 items-center gap-4">
-                @if ($battingTeam?->logo)
-                    <img
-                        src="{{ $teamLogoUrl($battingTeam) }}"
-                        alt="{{ $battingTeam->name }} logo"
-                        class="h-14 w-14 shrink-0 rounded-xl bg-white p-1.5 object-contain sm:h-16 sm:w-16"
-                        loading="lazy"
-                        onerror="this.onerror=null;this.src='{{ asset('images/team-placeholder.png') }}';"
-                    >
-                @else
-                    <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/10 text-lg font-black text-white sm:h-16 sm:w-16">
-                        {{ strtoupper(substr($battingTeam?->short_name ?? $battingTeam?->name ?? 'NPL', 0, 3)) }}
+        <div class="absolute inset-x-0 top-0 h-1 bg-[#e23b45]"></div>
+
+        <div class="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border-[35px] border-white/[0.035]"></div>
+        <div class="pointer-events-none absolute -bottom-28 right-1/4 h-56 w-56 rounded-full bg-[#e23b45]/[0.06]"></div>
+
+        <div class="relative px-5 pb-5 pt-6 sm:px-7 sm:pb-7">
+
+            {{-- League identity --}}
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e23b45] text-[11px] font-black tracking-tight text-white">
+                        NPL
+                    </span>
+
+                    <div>
+                        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-white">
+                            Nepal Premier League
+                        </p>
+                        <p class="mt-0.5 text-[10px] font-medium text-slate-400">
+                            Official Match Centre
+                        </p>
                     </div>
-                @endif
+                </div>
 
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="rounded-md bg-[#f06445] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
-                            Innings {{ $inning->innings_number ?? 1 }}
-                        </span>
+                <span class="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                    <span class="h-1.5 w-1.5 rounded-full bg-[#e23b45]"></span>
+                    Innings {{ $inning->innings_number ?? 1 }}
+                </span>
+            </div>
 
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-200">
-                            NPL Scorecard
-                        </span>
+            {{-- Team identity and score --}}
+            <div class="grid grid-cols-1 items-center gap-5 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-8 sm:py-8">
+
+                <div class="flex min-w-0 items-center gap-4 sm:gap-5">
+
+                    <div class="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white p-2 shadow-lg sm:h-[84px] sm:w-[84px]">
+                        @if (data_get($battingTeam, 'logo'))
+                            <img
+                                src="{{ $teamLogoUrl($battingTeam) }}"
+                                alt="{{ data_get($battingTeam, 'name', 'Batting team') }} logo"
+                                class="h-full w-full object-contain"
+                                loading="lazy"
+                                onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';"
+                            >
+                            <span style="display:none" class="h-full w-full items-center justify-center text-lg font-black text-[#111b35]">
+                                {{ $teamInitials($battingTeam) }}
+                            </span>
+                        @else
+                            <span class="flex h-full w-full items-center justify-center text-lg font-black text-[#111b35]">
+                                {{ $teamInitials($battingTeam) }}
+                            </span>
+                        @endif
                     </div>
 
-                    <h3 class="mt-2 text-xl font-black leading-tight sm:text-2xl">
-                        {{ $battingTeam?->name ?? 'Batting team' }}
-                    </h3>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                            Batting team
+                        </p>
 
-                    <p class="mt-1 text-xs text-indigo-200 sm:text-sm">
-                        vs {{ $opponentTeam?->name ?? 'Opponent' }}
-                    </p>
+                        <h3 class="mt-1.5 break-words text-xl font-black leading-tight tracking-tight sm:text-2xl lg:text-3xl">
+                            {{ data_get($battingTeam, 'name', 'Batting team') }}
+                        </h3>
+
+                        <p class="mt-2 text-xs text-slate-400 sm:text-sm">
+                            Batting against
+                            <span class="font-semibold text-slate-200">
+                                {{ data_get($opponentTeam, 'name', 'Opponent') }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-end justify-between gap-5 border-t border-white/10 pt-5 sm:block sm:border-0 sm:pt-0 sm:text-right">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                            Innings total
+                        </p>
+                        <p class="mt-1 text-4xl font-black leading-none tracking-tight tabular-nums sm:text-5xl lg:text-6xl">
+                            {{ $totalRuns }}<span class="px-1 text-[#e23b45]">/</span>{{ $wickets }}
+                        </p>
+                        <p class="mt-2 text-xs font-semibold text-slate-300">
+                            {{ $overs }} overs
+                        </p>
+                    </div>
+
+                    <div class="sm:hidden">
+                        <p class="text-right text-[10px] uppercase tracking-wider text-slate-400">
+                            Run rate
+                        </p>
+                        <p class="mt-1 text-lg font-black tabular-nums">{{ $runRate }}</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="flex items-center justify-between gap-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 sm:min-w-[190px] sm:justify-end sm:text-right">
-                <div class="sm:hidden">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-200">
-                        Total
+            {{-- Key match figures --}}
+            <div class="grid grid-cols-3 divide-x divide-white/10 border-t border-white/10 pt-4">
+
+                <div class="pr-3 sm:pr-5">
+                    <p class="text-[9px] font-bold uppercase tracking-[0.13em] text-slate-400 sm:text-[10px]">
+                        Run rate
+                    </p>
+                    <p class="mt-1.5 text-lg font-black tabular-nums sm:text-xl">
+                        {{ $runRate }}
                     </p>
                 </div>
 
-                <div>
-                    <p class="text-3xl font-black tracking-tight sm:text-4xl">
-                        {{ $totalRuns }}<span class="text-indigo-300">/</span>{{ $wickets }}
+                <div class="px-3 sm:px-5">
+                    <p class="text-[9px] font-bold uppercase tracking-[0.13em] text-slate-400 sm:text-[10px]">
+                        Extras
                     </p>
+                    <p class="mt-1.5 text-lg font-black tabular-nums sm:text-xl">
+                        {{ $extrasTotal }}
+                    </p>
+                </div>
 
-                    <p class="mt-1 text-xs font-medium text-indigo-200">
-                        {{ $overs }} overs
+                <div class="pl-3 sm:pl-5">
+                    <p class="text-[9px] font-bold uppercase tracking-[0.13em] text-slate-400 sm:text-[10px]">
+                        Legal balls
+                    </p>
+                    <p class="mt-1.5 text-lg font-black tabular-nums sm:text-xl">
+                        {{ $legalBalls }}
                     </p>
                 </div>
             </div>
         </div>
+    </header>
 
-        {{-- QUICK STATS --}}
-        <div class="relative mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5">
-            <div>
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
-                    Run rate
-                </p>
-                <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $runRate }}</p>
-            </div>
+    {{-- =========================================================
+         BATTING SCORECARD
+    ========================================================== --}}
+    <div class="px-4 py-6 sm:px-6 sm:py-7">
 
-            <div class="border-l border-white/10 pl-3 sm:pl-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
-                    Extras
-                </p>
-                <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $extrasTotal }}</p>
-            </div>
-
-            <div class="border-l border-white/10 pl-3 sm:pl-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
-                    Legal balls
-                </p>
-                <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $legalBalls }}</p>
-            </div>
-        </div>
-    </div>
-
-    {{-- BATTING SECTION --}}
-    <div class="p-4 sm:p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-[#202766]">
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                         class="h-5 w-5"
-                         fill="none"
-                         viewBox="0 0 24 24"
-                         stroke="currentColor"
-                         stroke-width="1.8">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0f0] text-[#c62835]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 5.5 18.5 9.5M5 19l4.2-1.1L19 8.1a2.83 2.83 0 0 0-4-4L5.2 13.9 5 19Z"/>
                     </svg>
                 </div>
 
                 <div>
-                    <h4 class="text-lg font-black text-[#202766]">Batting</h4>
-                    <p class="text-xs text-slate-500">Individual batting performance</p>
+                    <h4 class="text-lg font-black tracking-tight text-[#111b35] sm:text-xl">
+                        Batting
+                    </h4>
+                    <p class="mt-0.5 text-xs text-slate-500">
+                        Batting scorecard
+                    </p>
                 </div>
             </div>
 
-            <span class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+            <span class="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600">
                 {{ $battingCount }} {{ $battingCount === 1 ? 'batter' : 'batters' }}
             </span>
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-200">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[660px] text-left text-sm">
-                    <thead class="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                        <tr>
-                            <th class="px-4 py-3.5 sm:px-5">Batter</th>
-                            <th class="px-3 py-3.5">Dismissal</th>
-                            <th class="px-3 py-3.5 text-center">R</th>
-                            <th class="px-3 py-3.5 text-center">B</th>
-                            <th class="px-3 py-3.5 text-center">4s</th>
-                            <th class="px-3 py-3.5 text-center">6s</th>
-                            <th class="px-4 py-3.5 text-right">SR</th>
+                <table class="w-full min-w-[640px] border-collapse text-left text-sm">
+                    <thead class="bg-[#f5f7fa]">
+                        <tr class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                            <th scope="col" class="px-4 py-3.5 sm:px-5">Batter</th>
+                            <th scope="col" class="px-3 py-3.5">Dismissal</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">R</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">B</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">4s</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">6s</th>
+                            <th scope="col" class="px-4 py-3.5 text-right">SR</th>
                         </tr>
                     </thead>
 
@@ -315,57 +363,50 @@
 
                                 $runs = (int) data_get($batter, 'runs', 0);
                                 $balls = (int) data_get($batter, 'balls', 0);
+                                $fours = (int) data_get($batter, 'fours', 0);
+                                $sixes = (int) data_get($batter, 'sixes', 0);
 
                                 $strikeRate = data_get($batter, 'strike_rate');
 
-                                if ($strikeRate === null) {
-                                    $strikeRate = $balls > 0
-                                        ? ($runs / $balls) * 100
-                                        : 0;
-                                }
+                                $strikeRate = $strikeRate !== null
+                                    ? (float) $strikeRate
+                                    : ($balls > 0 ? ($runs / $balls) * 100 : 0);
 
-                                $dismissal = (string) data_get($batter, 'dismissal', '');
+                                $dismissal = trim((string) data_get($batter, 'dismissal', ''));
 
-                                $isNotOut = data_get($batter, 'is_not_out');
+                                $notOutValue = data_get($batter, 'is_not_out');
 
-                                if ($isNotOut === null) {
-                                    $isNotOut = str_contains(
-                                        strtolower($dismissal),
-                                        'not out'
-                                    );
-                                }
+                                $isNotOut = $notOutValue !== null
+                                    ? filter_var($notOutValue, FILTER_VALIDATE_BOOLEAN)
+                                    : str_contains(strtolower($dismissal), 'not out');
+
+                                $photoSource = $photoUrl($player ?: $batter);
                             @endphp
 
-                            <tr class="transition-colors hover:bg-slate-50/80">
-                                <td class="px-4 py-3 sm:px-5">
+                            <tr class="transition-colors hover:bg-slate-50">
+                                <td class="px-4 py-3.5 sm:px-5">
                                     <div class="flex items-center gap-3">
                                         <img
-                                            src="{{ $photoUrl($player ?: $batter) }}"
+                                            src="{{ $photoSource }}"
                                             alt="{{ $name }}"
-                                            loading="lazy"
                                             class="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-slate-100 object-cover"
+                                            loading="lazy"
                                             onerror="this.onerror=null;this.src='{{ asset('images/player-placeholder.png') }}';"
                                         >
 
                                         <div class="min-w-0">
                                             @if ($profileUrl)
-                                                <a href="{{ $profileUrl }}"
-                                                   class="group inline-flex items-center gap-1 font-extrabold text-[#202766] transition hover:text-[#e65d43]">
-                                                    <span>{{ $name }}</span>
-                                                    <svg xmlns="http://www.w3.org/2000/svg"
-                                                         class="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5"
-                                                         viewBox="0 0 20 20"
-                                                         fill="currentColor"
-                                                         aria-hidden="true">
-                                                        <path fill-rule="evenodd" d="M3 10a1 1 0 0 1 1-1h9.586l-3.293-3.293a1 1 0 0 1 1.414-1.414l5 5a1 1 0 0 1 0 1.414l-5 5a1 1 0 1 1-1.414-1.414L13.586 11H4a1 1 0 0 1-1-1Z" clip-rule="evenodd"/>
-                                                    </svg>
+                                                <a href="{{ $profileUrl }}" class="font-bold leading-5 text-[#17264a] transition-colors hover:text-[#c62835]">
+                                                    {{ $name }}
                                                 </a>
                                             @else
-                                                <p class="font-extrabold text-[#202766]">{{ $name }}</p>
+                                                <p class="font-bold leading-5 text-[#17264a]">
+                                                    {{ $name }}
+                                                </p>
                                             @endif
 
                                             @if ($isNotOut)
-                                                <span class="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                                                <span class="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
                                                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                                                     Not out
                                                 </span>
@@ -374,38 +415,57 @@
                                     </div>
                                 </td>
 
-                                <td class="max-w-[200px] px-3 py-3 text-xs leading-5 text-slate-500">
+                                <td class="max-w-[200px] px-3 py-3.5 text-xs leading-5 text-slate-500">
                                     {{ $dismissal ?: ($isNotOut ? 'Not out' : '—') }}
                                 </td>
 
-                                <td class="px-3 py-3 text-center font-black text-slate-900">{{ $runs }}</td>
-                                <td class="px-3 py-3 text-center text-slate-600">{{ $balls }}</td>
-                                <td class="px-3 py-3 text-center text-slate-600">{{ data_get($batter, 'fours', 0) }}</td>
-                                <td class="px-3 py-3 text-center text-slate-600">{{ data_get($batter, 'sixes', 0) }}</td>
-                                <td class="px-4 py-3 text-right font-bold text-slate-800">{{ number_format((float) $strikeRate, 2) }}</td>
+                                <td class="px-3 py-3.5 text-center font-black tabular-nums text-[#111b35]">
+                                    {{ $runs }}
+                                </td>
+
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">
+                                    {{ $balls }}
+                                </td>
+
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">
+                                    {{ $fours }}
+                                </td>
+
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">
+                                    {{ $sixes }}
+                                </td>
+
+                                <td class="px-4 py-3.5 text-right font-semibold tabular-nums text-slate-700">
+                                    {{ number_format($strikeRate, 2) }}
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-5 py-10 text-center">
-                                    <p class="font-bold text-slate-700">No batting figures yet</p>
-                                    <p class="mt-1 text-xs text-slate-500">
-                                        Player-wise batting statistics will appear here when available.
-                                    </p>
+                                <td colspan="7" class="px-5 py-12 text-center">
+                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                                        </svg>
+                                    </div>
+                                    <p class="mt-3 font-bold text-slate-700">Batting figures unavailable</p>
+                                    <p class="mt-1 text-xs text-slate-500">Statistics will appear when batting data is recorded.</p>
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
 
                     @if ($battingCount > 0)
-                        <tfoot class="border-t-2 border-slate-200 bg-slate-50">
+                        <tfoot class="border-t-2 border-slate-200 bg-[#f5f7fa]">
                             <tr>
-                                <td colspan="2" class="px-4 py-4 font-black text-slate-900 sm:px-5">
+                                <td colspan="2" class="px-4 py-4 font-black text-[#111b35] sm:px-5">
                                     Total
                                 </td>
-                                <td class="px-3 py-4 text-center font-black text-[#202766]">
+
+                                <td class="px-3 py-4 text-center font-black tabular-nums text-[#111b35]">
                                     {{ $totalRuns }}
                                 </td>
-                                <td colspan="4" class="px-4 py-4 text-right text-xs font-bold text-slate-500">
+
+                                <td colspan="4" class="px-4 py-4 text-right text-[11px] font-semibold text-slate-500">
                                     {{ $wickets }} wickets · {{ $overs }} overs
                                 </td>
                             </tr>
@@ -415,62 +475,90 @@
             </div>
         </div>
 
-        {{-- EXTRAS --}}
-        @if (is_array($extras))
-            <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                <span class="font-extrabold text-slate-800">Extras: {{ $extrasTotal }}</span>
-                <span>Wides: {{ data_get($extras, 'wides', 0) }}</span>
-                <span>No-balls: {{ data_get($extras, 'no_balls', 0) }}</span>
-                <span>Byes: {{ data_get($extras, 'byes', 0) }}</span>
-                <span>Leg byes: {{ data_get($extras, 'leg_byes', 0) }}</span>
-                <span>Penalty: {{ data_get($extras, 'penalty', 0) }}</span>
+        {{-- EXTRAS BREAKDOWN --}}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Extras
+                    </p>
+                    <p class="mt-1 text-2xl font-black tabular-nums text-[#111b35]">
+                        {{ $extrasTotal }}
+                    </p>
+                </div>
+
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m-4-4h8M4.5 4.5h15v15h-15z"/>
+                    </svg>
+                </div>
             </div>
-        @else
-            <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span class="font-extrabold text-slate-800">Extras:</span>
-                {{ $extrasTotal }}
+
+            <div class="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-slate-100 pt-4 sm:grid-cols-5">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Wides</p>
+                    <p class="mt-1 text-sm font-bold text-slate-800">{{ data_get($extras, 'wides', 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">No-balls</p>
+                    <p class="mt-1 text-sm font-bold text-slate-800">{{ data_get($extras, 'no_balls', 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Byes</p>
+                    <p class="mt-1 text-sm font-bold text-slate-800">{{ data_get($extras, 'byes', 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Leg byes</p>
+                    <p class="mt-1 text-sm font-bold text-slate-800">{{ data_get($extras, 'leg_byes', 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Penalty</p>
+                    <p class="mt-1 text-sm font-bold text-slate-800">{{ data_get($extras, 'penalty', 0) }}</p>
+                </div>
             </div>
-        @endif
+        </div>
     </div>
 
-    {{-- BOWLING SECTION --}}
-    <div class="border-t border-slate-200 p-4 sm:p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    {{-- =========================================================
+         BOWLING SCORECARD
+    ========================================================== --}}
+    <div class="border-t border-slate-200 bg-[#fafbfd] px-4 py-6 sm:px-6 sm:py-7">
+
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#e65d43]">
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                         class="h-5 w-5"
-                         fill="none"
-                         viewBox="0 0 24 24"
-                         stroke="currentColor"
-                         stroke-width="1.8">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#edf1fa] text-[#253a70]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
                         <circle cx="12" cy="12" r="8.5"/>
                         <path stroke-linecap="round" stroke-linejoin="round" d="m8.5 5 2 3-1 2m6-4 1 3-2 2m-6 3 3 1 1 3m4-4 2 1"/>
                     </svg>
                 </div>
 
                 <div>
-                    <h4 class="text-lg font-black text-[#202766]">Bowling</h4>
-                    <p class="text-xs text-slate-500">Individual bowling performance</p>
+                    <h4 class="text-lg font-black tracking-tight text-[#111b35] sm:text-xl">
+                        Bowling
+                    </h4>
+                    <p class="mt-0.5 text-xs text-slate-500">
+                        Bowling figures
+                    </p>
                 </div>
             </div>
 
-            <span class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+            <span class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">
                 {{ $bowlingCount }} {{ $bowlingCount === 1 ? 'bowler' : 'bowlers' }}
             </span>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-slate-200">
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[570px] text-left text-sm">
-                    <thead class="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                        <tr>
-                            <th class="px-4 py-3.5 sm:px-5">Bowler</th>
-                            <th class="px-3 py-3.5 text-center">O</th>
-                            <th class="px-3 py-3.5 text-center">M</th>
-                            <th class="px-3 py-3.5 text-center">R</th>
-                            <th class="px-3 py-3.5 text-center">W</th>
-                            <th class="px-4 py-3.5 text-right">Econ</th>
+                <table class="w-full min-w-[540px] border-collapse text-left text-sm">
+                    <thead class="bg-[#f0f3f8]">
+                        <tr class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                            <th scope="col" class="px-4 py-3.5 sm:px-5">Bowler</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">O</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">M</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">R</th>
+                            <th scope="col" class="px-3 py-3.5 text-center">W</th>
+                            <th scope="col" class="px-4 py-3.5 text-right">Econ</th>
                         </tr>
                     </thead>
 
@@ -492,74 +580,76 @@
                                 $runsConceded = (int) data_get($bowler, 'runs', 0);
                                 $wicketsTaken = (int) data_get($bowler, 'wickets', 0);
 
-                                $overParts = explode('.', $bowlerOvers);
+                                /*
+                                 * Cricket overs use base-six ball notation:
+                                 * 4.2 means four overs and two balls, not 4.2 decimal overs.
+                                 */
+                                $explicitBalls = data_get($bowler, 'legal_balls')
+                                    ?? data_get($bowler, 'balls_bowled');
 
-                                $completedOvers = max(
-                                    0,
-                                    (int) ($overParts[0] ?? 0)
-                                );
+                                if ($explicitBalls !== null) {
+                                    $bowlerLegalBalls = max(0, (int) $explicitBalls);
+                                } else {
+                                    $overParts = explode('.', $bowlerOvers);
 
-                                $ballsInOver = min(
-                                    5,
-                                    max(0, (int) ($overParts[1] ?? 0))
-                                );
+                                    $completedOvers = max(0, (int) ($overParts[0] ?? 0));
+                                    $ballsInOver = min(5, max(0, (int) ($overParts[1] ?? 0)));
 
-                                $bowlerLegalBalls = ($completedOvers * 6)
-                                    + $ballsInOver;
+                                    $bowlerLegalBalls = ($completedOvers * 6) + $ballsInOver;
+                                }
 
                                 $economy = data_get($bowler, 'economy');
 
-                                if ($economy === null) {
-                                    $economy = $bowlerLegalBalls > 0
-                                        ? $runsConceded / ($bowlerLegalBalls / 6)
-                                        : 0;
-                                }
+                                $economy = $economy !== null
+                                    ? (float) $economy
+                                    : ($bowlerLegalBalls > 0
+                                        ? $runsConceded * 6 / $bowlerLegalBalls
+                                        : 0);
+
+                                $photoSource = $photoUrl($player ?: $bowler);
                             @endphp
 
-                            <tr class="transition-colors hover:bg-slate-50/80">
-                                <td class="px-4 py-3 sm:px-5">
+                            <tr class="transition-colors hover:bg-slate-50">
+                                <td class="px-4 py-3.5 sm:px-5">
                                     <div class="flex items-center gap-3">
                                         <img
-                                            src="{{ $photoUrl($player ?: $bowler) }}"
+                                            src="{{ $photoSource }}"
                                             alt="{{ $name }}"
-                                            loading="lazy"
                                             class="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-slate-100 object-cover"
+                                            loading="lazy"
                                             onerror="this.onerror=null;this.src='{{ asset('images/player-placeholder.png') }}';"
                                         >
 
-                                        @if ($profileUrl)
-                                            <a href="{{ $profileUrl }}"
-                                               class="group inline-flex items-center gap-1 font-extrabold text-[#202766] transition hover:text-[#e65d43]">
-                                                <span>{{ $name }}</span>
-                                                <svg xmlns="http://www.w3.org/2000/svg"
-                                                     class="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5"
-                                                     viewBox="0 0 20 20"
-                                                     fill="currentColor"
-                                                     aria-hidden="true">
-                                                    <path fill-rule="evenodd" d="M3 10a1 1 0 0 1 1-1h9.586l-3.293-3.293a1 1 0 0 1 1.414-1.414l5 5a1 1 0 0 1 0 1.414l-5 5a1 1 0 1 1-1.414-1.414L13.586 11H4a1 1 0 0 1-1-1Z" clip-rule="evenodd"/>
-                                                </svg>
-                                            </a>
-                                        @else
-                                            <p class="font-extrabold text-[#202766]">{{ $name }}</p>
-                                        @endif
+                                        <div class="min-w-0">
+                                            @if ($profileUrl)
+                                                <a href="{{ $profileUrl }}" class="font-bold leading-5 text-[#17264a] transition-colors hover:text-[#c62835]">
+                                                    {{ $name }}
+                                                </a>
+                                            @else
+                                                <p class="font-bold leading-5 text-[#17264a]">
+                                                    {{ $name }}
+                                                </p>
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
 
-                                <td class="px-3 py-3 text-center text-slate-700">{{ $bowlerOvers }}</td>
-                                <td class="px-3 py-3 text-center text-slate-700">{{ $maidens }}</td>
-                                <td class="px-3 py-3 text-center text-slate-700">{{ $runsConceded }}</td>
-                                <td class="px-3 py-3 text-center font-black text-slate-900">{{ $wicketsTaken }}</td>
-                                <td class="px-4 py-3 text-right font-bold text-slate-800">
-                                    {{ number_format((float) $economy, 2) }}
-                                </td>
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">{{ $bowlerOvers }}</td>
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">{{ $maidens }}</td>
+                                <td class="px-3 py-3.5 text-center tabular-nums text-slate-600">{{ $runsConceded }}</td>
+                                <td class="px-3 py-3.5 text-center font-black tabular-nums text-[#111b35]">{{ $wicketsTaken }}</td>
+                                <td class="px-4 py-3.5 text-right font-semibold tabular-nums text-slate-700">{{ number_format($economy, 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-5 py-10 text-center">
-                                    <p class="font-bold text-slate-700">No bowling figures yet</p>
-                                    <p class="mt-1 text-xs text-slate-500">
-                                        Bowling statistics will appear here when available.
-                                    </p>
+                                <td colspan="6" class="px-5 py-12 text-center">
+                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                                        </svg>
+                                    </div>
+                                    <p class="mt-3 font-bold text-slate-700">Bowling figures unavailable</p>
+                                    <p class="mt-1 text-xs text-slate-500">Statistics will appear when bowling data is recorded.</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -569,24 +659,50 @@
         </div>
     </div>
 
-    {{-- FOOTER SUMMARY --}}
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
-        <div>
-            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Innings total
-            </p>
-            <p class="mt-1 text-lg font-black text-[#202766]">
-                {{ $totalRuns }}/{{ $wickets }}
-            </p>
-        </div>
+    {{-- =========================================================
+         INNINGS SUMMARY
+    ========================================================== --}}
+    <footer class="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
 
-        <div class="text-right">
-            <p class="text-xs text-slate-500">
-                {{ $legalBalls }} legal balls bowled
-            </p>
-            <p class="mt-1 text-xs font-bold text-slate-600">
-                Run rate {{ $runRate }}
-            </p>
+            <div class="flex items-center gap-3">
+                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#111b35] text-[10px] font-black text-white">
+                    NPL
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Innings summary
+                    </p>
+                    <p class="mt-0.5 text-sm font-black text-[#111b35]">
+                        {{ data_get($battingTeam, 'short_name') ?: data_get($battingTeam, 'name', 'Batting team') }}
+                        <span class="mx-1 text-slate-300">·</span>
+                        {{ $totalRuns }}/{{ $wickets }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-5">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Overs
+                    </p>
+                    <p class="mt-1 text-sm font-bold tabular-nums text-slate-700">
+                        {{ $overs }}
+                    </p>
+                </div>
+
+                <div class="h-8 w-px bg-slate-200"></div>
+
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Run rate
+                    </p>
+                    <p class="mt-1 text-sm font-bold tabular-nums text-slate-700">
+                        {{ $runRate }}
+                    </p>
+                </div>
+            </div>
         </div>
-    </div>
+    </footer>
 </section>
