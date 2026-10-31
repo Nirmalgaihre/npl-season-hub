@@ -120,6 +120,8 @@ Route::get('/fixtures/{fixture}', [
 ])->whereNumber('fixture')
     ->name('fixtures.show');
 
+  
+
 Route::get('/fixtures/{fixture}/players/{player}', [
     PublicMatchController::class,
     'playerPerformance',
@@ -192,6 +194,9 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         Route::resource('fixtures', MatchController::class)
             ->except(['show']);
+
+        Route::post('/fixtures/{fixture}/verify', [MatchController::class, 'verify'])
+            ->name('fixtures.verify');
 
         /*
         |--------------------------------------------------------------------------
@@ -269,6 +274,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
         ])->whereNumber('fixture')
             ->whereNumber('delivery')
             ->name('live.undo');
+            
 
         /*
         |--------------------------------------------------------------------------

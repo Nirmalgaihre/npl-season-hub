@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Fixture;
+use App\Models\ManualScorecard;
 use App\Models\Season;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
@@ -84,10 +85,14 @@ class MatchController extends Controller
 
         $fixture = new Fixture();
 
+        // A new fixture has no saved manual scorecards yet.
+        $manualScorecards = collect();
+
         return view('admin.fixtures.create', compact(
             'seasons',
             'teams',
-            'fixture'
+            'fixture',
+            'manualScorecards'
         ));
     }
 
@@ -97,6 +102,7 @@ class MatchController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateFixture($request);
+
         $this->validateFixtureTeams($data);
 
         $data = $this->prepareResultData($data, $request);
@@ -109,7 +115,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Show the edit form.
+     * Show the edit form with manual scoreboard data.
      */
     public function edit(Fixture $fixture): View
     {
@@ -126,10 +132,16 @@ class MatchController extends Controller
             ->orderBy('name')
             ->get();
 
+        $manualScorecards = ManualScorecard::query()
+            ->where('fixture_id', $fixture->id)
+            ->orderBy('innings_number')
+            ->get();
+
         return view('admin.fixtures.edit', compact(
             'fixture',
             'seasons',
-            'teams'
+            'teams',
+            'manualScorecards'
         ));
     }
 
@@ -141,6 +153,7 @@ class MatchController extends Controller
         Fixture $fixture
     ): RedirectResponse {
         $data = $this->validateFixture($request, $fixture);
+
         $this->validateFixtureTeams($data);
 
         $data = $this->prepareResultData($data, $request);
@@ -307,7 +320,7 @@ class MatchController extends Controller
      */
     private function validateFixtureTeams(array $data): void
     {
-        if ($data['home_team_id'] === $data['away_team_id']) {
+        if ((int) $data['home_team_id'] === (int) $data['away_team_id']) {
             abort(422, 'Home and away teams must be different.');
         }
 
@@ -337,7 +350,7 @@ class MatchController extends Controller
             }
         }
 
-        if ($data['status'] === 'completed') {
+        if (($data['status'] ?? '') === 'completed') {
             $requiredScoreFields = [
                 'home_runs',
                 'home_wickets',
@@ -361,6 +374,48 @@ class MatchController extends Controller
             }
         }
     }
+    public function verify(\App\Models\Fixture $fixture)
+{
+    if ($fixture->is_result_verified) {
+        return back()->with('success', 'This result is already verified.');
+    }
+
+    if ($fixture->status !== 'completed') {
+        return back()->with(
+            'error',
+            'Only completed matches can have their results verified.'
+        );
+    }
+
+    $scorecards = \App\Models\ManualScorecard::query()
+        ->where('fixture_id', $fixture->id)
+        ->get();
+
+    $homeInnings = $scorecards->first(
+        fn ($scorecard) =>
+            (int) $scorecard->batting_team_id === (int) $fixture->home_team_id
+    );
+
+    $awayInnings = $scorecards->first(
+        fn ($scorecard) =>
+            (int) $scorecard->batting_team_id === (int) $fixture->away_team_id
+    );
+
+    if (!$homeInnings || !$awayInnings) {
+        return back()->with(
+            'error',
+            'Cannot verify this result. Both teams must have a saved manual scorecard.'
+        );
+    }
+
+    $fixture->is_result_verified = true;
+    $fixture->save();
+
+    return back()->with(
+        'success',
+        'Match result verified successfully.'
+    );
+}
 
     /**
      * Prepare result verification and audit fields.

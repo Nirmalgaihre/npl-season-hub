@@ -1,3 +1,4 @@
+
 @php
     $statuses = [
         'scheduled' => ['label' => 'Scheduled', 'badge' => 'bg-blue-50 text-blue-700 border-blue-200'],
@@ -17,9 +18,60 @@
 
     $selectedHome = old('home_team_id', $fixture->home_team_id);
     $selectedAway = old('away_team_id', $fixture->away_team_id);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Manual scoreboard integration
+    |--------------------------------------------------------------------------
+    | The controller must pass $manualScorecards to this view.
+    | Scores are mapped using batting_team_id, not innings_number.
+    */
+
+    $manualScorecards = $manualScorecards ?? collect();
+
+    $manualHomeInnings = $manualScorecards->first(
+        fn ($scorecard) =>
+            (int) $scorecard->batting_team_id === (int) $selectedHome
+    );
+
+    $manualAwayInnings = $manualScorecards->first(
+        fn ($scorecard) =>
+            (int) $scorecard->batting_team_id === (int) $selectedAway
+    );
+
+    $homeRunsValue = old(
+        'home_runs',
+        $manualHomeInnings?->total_runs ?? $fixture->home_runs
+    );
+
+    $homeWicketsValue = old(
+        'home_wickets',
+        $manualHomeInnings?->wickets ?? $fixture->home_wickets
+    );
+
+    $homeOversValue = old(
+        'home_overs',
+        $manualHomeInnings?->overs ?? $fixture->home_overs
+    );
+
+    $awayRunsValue = old(
+        'away_runs',
+        $manualAwayInnings?->total_runs ?? $fixture->away_runs
+    );
+
+    $awayWicketsValue = old(
+        'away_wickets',
+        $manualAwayInnings?->wickets ?? $fixture->away_wickets
+    );
+
+    $awayOversValue = old(
+        'away_overs',
+        $manualAwayInnings?->overs ?? $fixture->away_overs
+    );
 @endphp
 
 <div class="mx-auto max-w-5xl space-y-8 font-sans">
+
     {{-- Validation Errors Banner --}}
     @if ($errors->any())
         <div class="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-5 shadow-sm">
@@ -62,6 +114,7 @@
 
         <div class="p-6 sm:p-8">
             <div class="grid gap-6 md:grid-cols-2">
+
                 {{-- Season --}}
                 <div class="space-y-1.5">
                     <label for="season_id" class="block text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -79,7 +132,9 @@
                             @endforeach
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -95,12 +150,14 @@
                         class="w-full rounded-xl border border-slate-200 bg-slate-50/30 px-4 py-2.5 text-sm font-medium text-slate-800 transition duration-150 ease-in-out placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">
                 </div>
 
-                {{-- Teams Card Container --}}
+                {{-- Teams --}}
                 <div class="md:col-span-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
                     <div class="grid gap-4 sm:grid-cols-2">
+
                         <div class="space-y-1.5">
                             <label for="home_team_id" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
-                                <span class="inline-block h-2 w-2 rounded-full bg-red-600"></span> Home Team <span class="text-red-500">*</span>
+                                <span class="inline-block h-2 w-2 rounded-full bg-red-600"></span>
+                                Home Team <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
                                 <select id="home_team_id" name="home_team_id" required
@@ -113,14 +170,17 @@
                                     @endforeach
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
                                 </div>
                             </div>
                         </div>
 
                         <div class="space-y-1.5">
                             <label for="away_team_id" class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
-                                <span class="inline-block h-2 w-2 rounded-full bg-blue-600"></span> Away Team <span class="text-red-500">*</span>
+                                <span class="inline-block h-2 w-2 rounded-full bg-blue-600"></span>
+                                Away Team <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
                                 <select id="away_team_id" name="away_team_id" required
@@ -133,10 +193,13 @@
                                     @endforeach
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -156,7 +219,9 @@
                             @endforeach
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -177,7 +242,9 @@
                             @endforeach
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -201,7 +268,7 @@
                         <input id="venue" name="venue" maxlength="180"
                             value="{{ old('venue', $fixture->venue) }}"
                             placeholder="e.g. Lord's Cricket Ground"
-                            class="w-full rounded-xl border border-slate-200 bg-slate-50/30 pl-10 pr-4 py-2.5 text-sm font-medium text-slate-800 transition duration-150 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">
+                            class="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-2.5 pl-10 pr-4 text-sm font-medium text-slate-800 transition duration-150 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">
                         <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -210,6 +277,7 @@
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </section>
@@ -231,34 +299,61 @@
         </div>
 
         <div class="p-6 sm:p-8">
+
+            {{-- Scorecard source indicator --}}
+            @if ($manualHomeInnings || $manualAwayInnings)
+                <div class="mb-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m6.023-4.306A11.954 11.954 0 0112 2.25a11.954 11.954 0 01-9.273 3.194A12.003 12.003 0 0012 21.75a12.003 12.003 0 009.273-16.806z" />
+                    </svg>
+                    <div>
+                        <p class="font-bold">Manual scoreboard data loaded</p>
+                        <p class="mt-0.5 text-xs text-emerald-700">
+                            Available innings have been matched to their batting teams. Saving this form updates the fixture fields, not the manual scorecard records.
+                        </p>
+                    </div>
+                </div>
+            @endif
+
             <div class="grid gap-6 md:grid-cols-2">
+
                 {{-- Home Team Innings --}}
                 <div class="rounded-2xl border border-slate-200/60 bg-gradient-to-b from-slate-50/80 to-slate-50/30 p-5">
                     <div class="flex items-center gap-2">
                         <span class="h-2.5 w-2.5 rounded-full bg-red-600"></span>
                         <h3 class="font-bold text-slate-900">Home Team Innings</h3>
                     </div>
+
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ $teams->firstWhere('id', (int) $selectedHome)?->name ?? 'Home team' }}
+                        @if ($manualHomeInnings)
+                            <span class="font-semibold text-emerald-700">· Manual scorecard</span>
+                        @endif
+                    </p>
+
                     <div class="mt-4 grid grid-cols-3 gap-3">
                         <div>
                             <label for="home_runs" class="mb-1 block text-xs font-bold text-slate-600">Runs</label>
                             <input id="home_runs" type="number" min="0" max="999" name="home_runs"
-                                value="{{ old('home_runs', $fixture->home_runs) }}"
+                                value="{{ $homeRunsValue }}"
                                 placeholder="0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
+
                         <div>
                             <label for="home_wickets" class="mb-1 block text-xs font-bold text-slate-600">Wickets</label>
                             <input id="home_wickets" type="number" min="0" max="10" name="home_wickets"
-                                value="{{ old('home_wickets', $fixture->home_wickets) }}"
+                                value="{{ $homeWicketsValue }}"
                                 placeholder="0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
+
                         <div>
                             <label for="home_overs" class="mb-1 block text-xs font-bold text-slate-600">Overs</label>
                             <input id="home_overs" type="number" min="0" max="50" step="0.1" name="home_overs"
-                                value="{{ old('home_overs', $fixture->home_overs) }}"
+                                value="{{ $homeOversValue }}"
                                 placeholder="20.0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
                     </div>
                 </div>
@@ -269,27 +364,37 @@
                         <span class="h-2.5 w-2.5 rounded-full bg-blue-600"></span>
                         <h3 class="font-bold text-slate-900">Away Team Innings</h3>
                     </div>
+
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ $teams->firstWhere('id', (int) $selectedAway)?->name ?? 'Away team' }}
+                        @if ($manualAwayInnings)
+                            <span class="font-semibold text-emerald-700">· Manual scorecard</span>
+                        @endif
+                    </p>
+
                     <div class="mt-4 grid grid-cols-3 gap-3">
                         <div>
                             <label for="away_runs" class="mb-1 block text-xs font-bold text-slate-600">Runs</label>
                             <input id="away_runs" type="number" min="0" max="999" name="away_runs"
-                                value="{{ old('away_runs', $fixture->away_runs) }}"
+                                value="{{ $awayRunsValue }}"
                                 placeholder="0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
+
                         <div>
                             <label for="away_wickets" class="mb-1 block text-xs font-bold text-slate-600">Wickets</label>
                             <input id="away_wickets" type="number" min="0" max="10" name="away_wickets"
-                                value="{{ old('away_wickets', $fixture->away_wickets) }}"
+                                value="{{ $awayWicketsValue }}"
                                 placeholder="0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
+
                         <div>
                             <label for="away_overs" class="mb-1 block text-xs font-bold text-slate-600">Overs</label>
                             <input id="away_overs" type="number" min="0" max="50" step="0.1" name="away_overs"
-                                value="{{ old('away_overs', $fixture->away_overs) }}"
+                                value="{{ $awayOversValue }}"
                                 placeholder="20.0"
-                                class="w-full rounded-xl border border-slate-200 bg-white text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+                                class="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-center font-semibold text-slate-900 shadow-2xs focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
                         </div>
                     </div>
                 </div>
@@ -311,7 +416,9 @@
                             @endforeach
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -325,7 +432,7 @@
                         <input id="player_of_match" name="player_of_match" maxlength="150"
                             value="{{ old('player_of_match', $fixture->player_of_match) }}"
                             placeholder="e.g. Virat Kohli"
-                            class="w-full rounded-xl border border-slate-200 bg-slate-50/30 pl-10 pr-4 py-2.5 text-sm font-medium text-slate-800 transition duration-150 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">
+                            class="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-2.5 pl-10 pr-4 text-sm font-medium text-slate-800 transition duration-150 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">
                         <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 003-3V8.25a3 3 0 00-3-3h-9a3 3 0 00-3 3v7.5a3 3 0 003 3m9 0v-11.25a3 3 0 00-3-3h-9a3 3 0 00-3 3v11.25" />
@@ -344,7 +451,7 @@
                         class="w-full rounded-xl border border-slate-200 bg-slate-50/30 p-4 text-sm font-medium text-slate-800 transition duration-150 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-600/10">{{ old('result_summary', $fixture->result_summary) }}</textarea>
                 </div>
 
-                {{-- Verification Checkbox Card --}}
+                {{-- Verification --}}
                 <div class="md:col-span-2">
                     <label class="group relative flex cursor-pointer items-start gap-4 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 to-orange-50/30 p-4 transition duration-150 hover:bg-amber-50">
                         <div class="flex items-center pt-0.5">
@@ -363,6 +470,7 @@
                         </div>
                     </label>
                 </div>
+
             </div>
         </div>
     </section>
@@ -382,4 +490,5 @@
             {{ $fixture->exists ? 'Save Changes' : 'Create Fixture' }}
         </button>
     </div>
+
 </div>
