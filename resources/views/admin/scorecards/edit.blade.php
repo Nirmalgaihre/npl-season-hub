@@ -1,4 +1,3 @@
-
 @extends('layouts.admin')
 
 @section('title', 'Edit Scorecard')
@@ -9,6 +8,7 @@
     $awayTeam = $teams->firstWhere('id', $fixture->away_team_id);
 
     $scorecards = collect($scorecards)->sortBy('innings_number')->values();
+
     $hasSecondInnings = $scorecards->contains(
         fn ($inning) => (int) ($inning->innings_number ?? 0) === 2
     );
@@ -154,11 +154,10 @@
                     id="enable-second-innings"
                     {{ $hasSecondInnings ? 'checked' : '' }}
                 >
+
                 <span class="toggle-copy">
                     <strong>Enable second innings</strong>
-                    <small>
-                        Save the first innings now and enter the second innings later.
-                    </small>
+                    <small>Save the first innings now and enter the second innings later.</small>
                 </span>
             </label>
 
@@ -177,13 +176,8 @@
                     $inning->bowling_team_id ?? $fixture->away_team_id
                 );
 
-                $batters = is_array($inning->batters ?? null)
-                    ? $inning->batters
-                    : [];
-
-                $bowlers = is_array($inning->bowlers ?? null)
-                    ? $inning->bowlers
-                    : [];
+                $batters = is_array($inning->batters ?? null) ? $inning->batters : [];
+                $bowlers = is_array($inning->bowlers ?? null) ? $inning->bowlers : [];
 
                 if (!$batters) {
                     $batters = [[
@@ -216,9 +210,7 @@
                 class="innings-card innings-section"
                 data-innings-index="{{ $inningIndex }}"
                 data-innings-number="{{ $inningsNumber }}"
-                @if($inningsNumber === 2 && !$hasSecondInnings)
-                    hidden
-                @endif
+                @if($inningsNumber === 2 && !$hasSecondInnings) hidden @endif
             >
                 <div class="innings-heading">
                     <div class="innings-title">
@@ -324,16 +316,11 @@
                                     <input
                                         type="number"
                                         min="0"
-                                        @if($config[2] !== null)
-                                            max="{{ $config[2] }}"
-                                        @endif
+                                        @if($config[2] !== null) max="{{ $config[2] }}" @endif
                                         step="{{ $field === 'overs' ? '0.1' : '1' }}"
                                         inputmode="{{ $field === 'overs' ? 'decimal' : 'numeric' }}"
                                         name="innings[{{ $inningIndex }}][{{ $field }}]"
-                                        value="{{ old(
-                                            'innings.'.$inningIndex.'.'.$field,
-                                            $inning->$field ?? ($field === 'overs' ? '0.0' : 0)
-                                        ) }}"
+                                        value="{{ old('innings.'.$inningIndex.'.'.$field, $inning->$field ?? ($field === 'overs' ? '0.0' : 0)) }}"
                                         required
                                     >
 
@@ -385,33 +372,22 @@
                                             $savedName = $batter['name'] ?? '';
 
                                             $knownPlayer = $players->first(
-                                                fn ($p) =>
-                                                    (int) $p->team_id === $battingTeamId
+                                                fn ($p) => (int) $p->team_id === $battingTeamId
                                                     && $p->name === $savedName
                                             );
 
                                             $dismissal = $batter['dismissal_type'] ?? 'not_out';
-
                                             $legacyDismissedBy = $batter['dismissed_by'] ?? '';
 
                                             $dismissedByBowler = $batter['dismissed_by_bowler']
-                                                ?? (
-                                                    in_array($dismissal, [
-                                                        'bowled', 'lbw', 'caught',
-                                                        'stumped', 'hit_wicket'
-                                                    ], true)
-                                                        ? $legacyDismissedBy
-                                                        : ''
-                                                );
+                                                ?? (in_array($dismissal, [
+                                                    'bowled', 'lbw', 'caught', 'stumped', 'hit_wicket'
+                                                ], true) ? $legacyDismissedBy : '');
 
                                             $dismissedByFielder = $batter['dismissed_by_fielder']
-                                                ?? (
-                                                    in_array($dismissal, [
-                                                        'caught', 'run_out', 'stumped'
-                                                    ], true)
-                                                        ? $legacyDismissedBy
-                                                        : ''
-                                                );
+                                                ?? (in_array($dismissal, [
+                                                    'caught', 'run_out', 'stumped'
+                                                ], true) ? $legacyDismissedBy : '');
                                         @endphp
 
                                         <tr class="batter-row">
@@ -461,9 +437,11 @@
                                                         min="0"
                                                         step="{{ $field === 'strike_rate' ? '0.01' : '1' }}"
                                                         inputmode="{{ $field === 'strike_rate' ? 'decimal' : 'numeric' }}"
-                                                        class="form-control stat-input"
+                                                        class="form-control stat-input {{ $field === 'strike_rate' ? 'calculated-stat' : '' }}"
+                                                        data-field="{{ $field }}"
                                                         name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][{{ $field }}]"
                                                         value="{{ $batter[$field] ?? 0 }}"
+                                                        @readonly($field === 'strike_rate')
                                                     >
                                                 </td>
                                             @endforeach
@@ -475,10 +453,7 @@
                                                     name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][dismissal_type]"
                                                 >
                                                     @foreach($dismissalTypes as $value => $label)
-                                                        <option
-                                                            value="{{ $value }}"
-                                                            @selected($dismissal === $value)
-                                                        >
+                                                        <option value="{{ $value }}" @selected($dismissal === $value)>
                                                             {{ $label }}
                                                         </option>
                                                     @endforeach
@@ -506,11 +481,7 @@
                                                         @endif
                                                     @endforeach
 
-                                                    @if($dismissedByBowler && !$players->contains(
-                                                        fn ($p) =>
-                                                            (int) $p->team_id === $bowlingTeamId
-                                                            && $p->name === $dismissedByBowler
-                                                    ))
+                                                    @if($dismissedByBowler && !$players->contains(fn ($p) => (int) $p->team_id === $bowlingTeamId && $p->name === $dismissedByBowler))
                                                         <option value="{{ $dismissedByBowler }}" selected>
                                                             {{ $dismissedByBowler }} (saved)
                                                         </option>
@@ -539,11 +510,7 @@
                                                         @endif
                                                     @endforeach
 
-                                                    @if($dismissedByFielder && !$players->contains(
-                                                        fn ($p) =>
-                                                            (int) $p->team_id === $bowlingTeamId
-                                                            && $p->name === $dismissedByFielder
-                                                    ))
+                                                    @if($dismissedByFielder && !$players->contains(fn ($p) => (int) $p->team_id === $bowlingTeamId && $p->name === $dismissedByFielder))
                                                         <option value="{{ $dismissedByFielder }}" selected>
                                                             {{ $dismissedByFielder }} (saved)
                                                         </option>
@@ -552,11 +519,7 @@
                                             </td>
 
                                             <td>
-                                                <button
-                                                    type="button"
-                                                    class="btn-remove remove-row"
-                                                    aria-label="Remove batter"
-                                                >
+                                                <button type="button" class="btn-remove remove-row" aria-label="Remove batter">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
@@ -606,8 +569,7 @@
                                             $savedName = $bowler['name'] ?? '';
 
                                             $knownPlayer = $players->first(
-                                                fn ($p) =>
-                                                    (int) $p->team_id === $bowlingTeamId
+                                                fn ($p) => (int) $p->team_id === $bowlingTeamId
                                                     && $p->name === $savedName
                                             );
                                         @endphp
@@ -659,19 +621,17 @@
                                                         min="0"
                                                         step="{{ in_array($field, ['overs', 'economy']) ? '0.01' : '1' }}"
                                                         inputmode="{{ in_array($field, ['overs', 'economy']) ? 'decimal' : 'numeric' }}"
-                                                        class="form-control stat-input"
+                                                        class="form-control stat-input {{ $field === 'economy' ? 'calculated-stat' : '' }}"
+                                                        data-field="{{ $field }}"
                                                         name="innings[{{ $inningIndex }}][bowlers][{{ $rowIndex }}][{{ $field }}]"
                                                         value="{{ $bowler[$field] ?? 0 }}"
+                                                        @readonly($field === 'economy')
                                                     >
                                                 </td>
                                             @endforeach
 
                                             <td>
-                                                <button
-                                                    type="button"
-                                                    class="btn-remove remove-row"
-                                                    aria-label="Remove bowler"
-                                                >
+                                                <button type="button" class="btn-remove remove-row" aria-label="Remove bowler">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
@@ -727,9 +687,10 @@
                     type="number"
                     min="0"
                     step="{{ $field === 'strike_rate' ? '0.01' : '1' }}"
-                    class="form-control stat-input"
+                    class="form-control stat-input {{ $field === 'strike_rate' ? 'calculated-stat' : '' }}"
                     data-field="{{ $field }}"
                     value="0"
+                    @readonly($field === 'strike_rate')
                 >
             </td>
         @endforeach
@@ -775,9 +736,10 @@
                     type="number"
                     min="0"
                     step="{{ in_array($field, ['overs', 'economy']) ? '0.01' : '1' }}"
-                    class="form-control stat-input"
+                    class="form-control stat-input {{ $field === 'economy' ? 'calculated-stat' : '' }}"
                     data-field="{{ $field }}"
                     value="0"
+                    @readonly($field === 'economy')
                 >
             </td>
         @endforeach
@@ -791,6 +753,19 @@
 </template>
 
 <style>
+.calculated-stat {
+    background: #f3f5f8 !important;
+    color: #697386 !important;
+    font-weight: 800 !important;
+    cursor: not-allowed;
+}
+
+.calculated-stat:focus {
+    border-color: #e0e5ed !important;
+    box-shadow: none !important;
+}
+
+/* Existing scorecard styling */
 .score-editor{--red:#c6283d;--red-dark:#a91f32;--text:#202633;--muted:#778092;--border:#e7eaf0;color:var(--text);padding-bottom:100px}
 .score-page-heading,.section-heading,.innings-heading,.match-banner-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .score-page-heading{align-items:flex-end;margin-bottom:24px}
@@ -875,6 +850,9 @@
 .btn-save{border:1px solid var(--red);background:var(--red);color:#fff}
 .btn-save:hover{border-color:var(--red-dark);background:var(--red-dark);color:#fff}
 .btn-save:disabled{opacity:.65;cursor:wait}
+
+.dismissal-not-needed{background:#f3f5f8!important;color:#a1a9b7!important}
+
 @media(max-width:767px){
     .score-page-heading{align-items:flex-start}.editor-status{display:none}
     .match-banner{padding:16px}
@@ -914,6 +892,72 @@ document.addEventListener('DOMContentLoaded', function () {
         return Array.from(optionTemplate.content.querySelectorAll('option'));
     }
 
+    function getNumber(row, field) {
+        const input = row.querySelector(`[data-field="${field}"]`);
+        const value = Number.parseFloat(input?.value ?? '0');
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    function setCalculatedValue(row, field, value) {
+        const input = row.querySelector(`[data-field="${field}"]`);
+        if (!input) return;
+
+        const formatted = Number.isFinite(value) ? value.toFixed(2) : '0.00';
+        input.value = formatted;
+    }
+
+    function calculateStrikeRate(row) {
+        const runs = getNumber(row, 'runs');
+        const balls = getNumber(row, 'balls');
+
+        setCalculatedValue(row, 'strike_rate', balls > 0 ? (runs / balls) * 100 : 0);
+    }
+
+    // Cricket notation: 3.4 means 3 overs and 4 balls, not 3.4 decimal overs.
+    function oversToBalls(value) {
+        const text = String(value ?? '0').trim();
+
+        if (!text) return 0;
+
+        const match = text.match(/^(\d+)(?:\.(\d+))?$/);
+        if (!match) return null;
+
+        const overs = Number.parseInt(match[1], 10);
+        let ballPart = match[2] ?? '0';
+
+        // Accept harmless trailing zeros such as 3.40, but reject 3.45.
+        ballPart = ballPart.replace(/0+$/, '') || '0';
+
+        if (ballPart.length !== 1) return null;
+
+        const balls = Number.parseInt(ballPart, 10);
+
+        if (!Number.isInteger(overs) || !Number.isInteger(balls) || balls < 0 || balls > 5) {
+            return null;
+        }
+
+        return overs * 6 + balls;
+    }
+
+    function calculateEconomy(row) {
+        const runs = getNumber(row, 'runs');
+        const oversInput = row.querySelector('[data-field="overs"]');
+        const legalBalls = oversToBalls(oversInput?.value ?? '0.0');
+
+        // Do not display a misleading value while overs notation is invalid.
+        if (legalBalls === null) {
+            setCalculatedValue(row, 'economy', 0);
+            return;
+        }
+
+        setCalculatedValue(row, 'economy', legalBalls > 0 ? (runs * 6) / legalBalls : 0);
+    }
+
+    function calculateAllStatistics(section) {
+        section.querySelectorAll('.batter-row').forEach(calculateStrikeRate);
+        section.querySelectorAll('.bowler-row').forEach(calculateEconomy);
+    }
+
     function toggleCustomName(select) {
         const row = select.closest('tr');
         const input = row?.querySelector('.custom-player-name');
@@ -942,9 +986,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        const exists = Array.from(select.options).some(
-            option => option.value === currentValue
-        );
+        const exists = Array.from(select.options).some(option => option.value === currentValue);
 
         if (exists) {
             select.value = currentValue;
@@ -978,9 +1020,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        const exists = Array.from(select.options).some(
-            option => option.value === currentValue
-        );
+        const exists = Array.from(select.options).some(option => option.value === currentValue);
 
         if (currentValue && !exists) {
             const saved = document.createElement('option');
@@ -1018,8 +1058,13 @@ document.addEventListener('DOMContentLoaded', function () {
         bowler.disabled = !bowlerNeeded;
         fielder.disabled = !fielderNeeded;
 
-        bowler.title = bowlerNeeded ? 'Bowler involved in dismissal' : 'Not needed for this dismissal';
-        fielder.title = fielderNeeded ? 'Fielder or catcher involved in dismissal' : 'Not needed for this dismissal';
+        bowler.title = bowlerNeeded
+            ? 'Bowler involved in dismissal'
+            : 'Not needed for this dismissal';
+
+        fielder.title = fielderNeeded
+            ? 'Fielder or catcher involved in dismissal'
+            : 'Not needed for this dismissal';
 
         bowler.classList.toggle('dismissal-not-needed', !bowlerNeeded);
         fielder.classList.toggle('dismissal-not-needed', !fielderNeeded);
@@ -1074,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         section.querySelectorAll('.batter-row').forEach(toggleDismissalFields);
+        calculateAllStatistics(section);
     }
 
     function renumberRows(section, type) {
@@ -1092,24 +1138,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             row.querySelectorAll('[data-field]').forEach(input => {
                 input.name = `${base}[${input.dataset.field}]`;
-            });
-
-            if (isBatter) {
-                ['dismissed_by_bowler', 'dismissed_by_fielder'].forEach(field => {
-                    const input = row.querySelector(`[data-field="${field}"]`);
-                    if (input) input.name = `${base}[${field}]`;
-                });
-            }
-
-            const fields = isBatter
-                ? ['runs', 'balls', 'fours', 'sixes', 'strike_rate']
-                : ['overs', 'maidens', 'runs', 'wickets', 'economy'];
-
-            fields.forEach(field => {
-                const input = row.querySelector(`input[name$="[${field}]"]`)
-                    || row.querySelector(`input[data-field="${field}"]`);
-
-                if (input) input.name = `${base}[${field}]`;
             });
         });
     }
@@ -1142,8 +1170,6 @@ document.addEventListener('DOMContentLoaded', function () {
             control.disabled = !enabled;
         });
 
-        // Re-enable the second-innings controls only when the innings is active.
-        // This also keeps hidden required inputs from blocking first-innings saves.
         if (enabled) {
             second.querySelectorAll('.team-select, .score-input input, .player-select').forEach(control => {
                 control.disabled = false;
@@ -1152,6 +1178,26 @@ document.addEventListener('DOMContentLoaded', function () {
             refreshInnings(second);
         }
     }
+
+    // Live calculation as you type.
+    form.addEventListener('input', function (event) {
+        const target = event.target;
+        const row = target.closest('.batter-row, .bowler-row');
+
+        if (!row) return;
+
+        if (row.classList.contains('batter-row')) {
+            if (target.matches('[data-field="runs"], [data-field="balls"]')) {
+                calculateStrikeRate(row);
+            }
+        }
+
+        if (row.classList.contains('bowler-row')) {
+            if (target.matches('[data-field="runs"], [data-field="overs"]')) {
+                calculateEconomy(row);
+            }
+        }
+    });
 
     document.querySelectorAll('.innings-section').forEach(section => {
         const batting = section.querySelector('.batting-team');
@@ -1231,6 +1277,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             renumberRows(section, type);
+            calculateAllStatistics(section);
         });
 
         refreshInnings(section);
@@ -1242,13 +1289,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     form.addEventListener('submit', function () {
-        // Renumber rows immediately before submission so all dynamic names are correct.
         document.querySelectorAll('.innings-section').forEach(section => {
             renumberRows(section, 'batters');
             renumberRows(section, 'bowlers');
         });
 
         const button = document.getElementById('save-button');
+
         if (button) {
             button.disabled = true;
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';

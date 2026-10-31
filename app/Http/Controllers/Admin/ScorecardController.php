@@ -43,10 +43,7 @@ class ScorecardController extends Controller
             ]);
 
         if ($request->filled('season_id')) {
-            $fixturesQuery->where(
-                'f.season_id',
-                $request->integer('season_id')
-            );
+            $fixturesQuery->where('f.season_id', $request->integer('season_id'));
         }
 
         if ($request->filled('team_id')) {
@@ -59,10 +56,7 @@ class ScorecardController extends Controller
         }
 
         if ($request->filled('match_number')) {
-            $fixturesQuery->where(
-                'f.match_number',
-                $request->integer('match_number')
-            );
+            $fixturesQuery->where('f.match_number', $request->integer('match_number'));
         }
 
         $fixtures = $fixturesQuery
@@ -142,10 +136,7 @@ class ScorecardController extends Controller
                 foreach (['batters', 'bowlers'] as $field) {
                     $decoded = is_array($scorecard->{$field})
                         ? $scorecard->{$field}
-                        : json_decode(
-                            $scorecard->{$field} ?? '[]',
-                            true
-                        );
+                        : json_decode($scorecard->{$field} ?? '[]', true);
 
                     $scorecard->{$field} = is_array($decoded)
                         ? array_values($decoded)
@@ -197,81 +188,66 @@ class ScorecardController extends Controller
             'innings' => ['required', 'array', 'min:1', 'max:2'],
 
             'innings.*.innings_number' => [
-                'required',
-                'integer',
-                'in:1,2',
+                'required', 'integer', 'in:1,2',
             ],
 
             'innings.*.batting_team_id' => [
-                'required',
-                'integer',
+                'required', 'integer',
             ],
 
             'innings.*.bowling_team_id' => [
-                'required',
-                'integer',
+                'required', 'integer',
             ],
 
             'innings.*.total_runs' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
 
             'innings.*.wickets' => [
-                'nullable',
-                'integer',
-                'min:0',
-                'max:10',
+                'nullable', 'integer', 'min:0', 'max:10',
             ],
 
             'innings.*.overs' => [
                 'nullable',
                 'numeric',
                 'min:0',
+                'regex:/^\d+(?:\.[0-5]0*)?$/',
             ],
 
             'innings.*.extras' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
 
             'innings.*.batters' => ['nullable', 'array'],
+
             'innings.*.batters.*.name' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
+
             'innings.*.batters.*.custom_name' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
+
             'innings.*.batters.*.runs' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
             'innings.*.batters.*.balls' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
             'innings.*.batters.*.fours' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
             'innings.*.batters.*.sixes' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
+            // Accepted for form compatibility.
+            // The saved value is calculated by Laravel below.
             'innings.*.batters.*.strike_rate' => [
-                'nullable',
-                'numeric',
-                'min:0',
+                'nullable', 'numeric', 'min:0',
             ],
 
             'innings.*.batters.*.dismissal_type' => [
@@ -279,61 +255,52 @@ class ScorecardController extends Controller
                 'in:not_out,bowled,caught,lbw,run_out,stumped,hit_wicket,retired_out,obstructing_field,other',
             ],
 
-            // New separate dismissal fields
             'innings.*.batters.*.dismissed_by_bowler' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
 
             'innings.*.batters.*.dismissed_by_fielder' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
 
-            // Keep accepting old saved/form data
+            // Support older saved form data.
             'innings.*.batters.*.dismissed_by' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
 
             'innings.*.bowlers' => ['nullable', 'array'],
+
             'innings.*.bowlers.*.name' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
+
             'innings.*.bowlers.*.custom_name' => [
-                'nullable',
-                'string',
-                'max:255',
+                'nullable', 'string', 'max:255',
             ],
+
             'innings.*.bowlers.*.overs' => [
                 'nullable',
                 'numeric',
                 'min:0',
+                'regex:/^\d+(?:\.[0-5]0*)?$/',
             ],
+
             'innings.*.bowlers.*.maidens' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
             'innings.*.bowlers.*.runs' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
             'innings.*.bowlers.*.wickets' => [
-                'nullable',
-                'integer',
-                'min:0',
+                'nullable', 'integer', 'min:0',
             ],
+
+            // Accepted for form compatibility.
+            // The saved value is calculated by Laravel below.
             'innings.*.bowlers.*.economy' => [
-                'nullable',
-                'numeric',
-                'min:0',
+                'nullable', 'numeric', 'min:0',
             ],
         ]);
 
@@ -370,8 +337,7 @@ class ScorecardController extends Controller
                             ? trim((string) ($row['custom_name'] ?? ''))
                             : trim((string) ($row['name'] ?? ''));
 
-                        $dismissalType = $row['dismissal_type']
-                            ?? 'not_out';
+                        $dismissalType = $row['dismissal_type'] ?? 'not_out';
 
                         $legacyDismissedBy = trim(
                             (string) ($row['dismissed_by'] ?? '')
@@ -385,7 +351,6 @@ class ScorecardController extends Controller
                             (string) ($row['dismissed_by_fielder'] ?? '')
                         );
 
-                        // Backward compatibility with existing scorecards.
                         if ($legacyDismissedBy !== '') {
                             if (
                                 $dismissedByBowler === '' &&
@@ -413,17 +378,10 @@ class ScorecardController extends Controller
                         }
 
                         $dismissedBy = match ($dismissalType) {
-                            'caught' => $dismissedByFielder !== ''
-                                ? $dismissedByFielder
-                                : null,
-
-                            'run_out' => $dismissedByFielder !== ''
-                                ? $dismissedByFielder
-                                : null,
-
-                            'stumped' => $dismissedByFielder !== ''
-                                ? $dismissedByFielder
-                                : null,
+                            'caught', 'run_out', 'stumped' =>
+                                $dismissedByFielder !== ''
+                                    ? $dismissedByFielder
+                                    : null,
 
                             'not_out', 'retired_out' => null,
 
@@ -436,22 +394,29 @@ class ScorecardController extends Controller
                                 ),
                         };
 
+                        $runs = (int) ($row['runs'] ?? 0);
+                        $balls = (int) ($row['balls'] ?? 0);
+
                         return [
                             'name' => $name,
-                            'runs' => (int) ($row['runs'] ?? 0),
-                            'balls' => (int) ($row['balls'] ?? 0),
+                            'runs' => $runs,
+                            'balls' => $balls,
                             'fours' => (int) ($row['fours'] ?? 0),
                             'sixes' => (int) ($row['sixes'] ?? 0),
-                            'strike_rate' => round(
-                                (float) ($row['strike_rate'] ?? 0),
-                                2
-                            ),
+
+                            // Automatic strike-rate calculation.
+                            'strike_rate' => $balls > 0
+                                ? round(($runs / $balls) * 100, 2)
+                                : 0,
+
                             'dismissal_type' => $dismissalType,
                             'dismissed_by' => $dismissedBy,
+
                             'dismissed_by_bowler' =>
                                 $dismissedByBowler !== ''
                                     ? $dismissedByBowler
                                     : null,
+
                             'dismissed_by_fielder' =>
                                 $dismissedByFielder !== ''
                                     ? $dismissedByFielder
@@ -468,16 +433,21 @@ class ScorecardController extends Controller
                             ? trim((string) ($row['custom_name'] ?? ''))
                             : trim((string) ($row['name'] ?? ''));
 
+                        $overs = (float) ($row['overs'] ?? 0);
+                        $runs = (int) ($row['runs'] ?? 0);
+                        $legalBalls = $this->oversToLegalBalls($overs);
+
                         return [
                             'name' => $name,
-                            'overs' => (float) ($row['overs'] ?? 0),
+                            'overs' => $overs,
                             'maidens' => (int) ($row['maidens'] ?? 0),
-                            'runs' => (int) ($row['runs'] ?? 0),
+                            'runs' => $runs,
                             'wickets' => (int) ($row['wickets'] ?? 0),
-                            'economy' => round(
-                                (float) ($row['economy'] ?? 0),
-                                2
-                            ),
+
+                            // Automatic economy calculation.
+                            'economy' => $legalBalls > 0
+                                ? round(($runs * 6) / $legalBalls, 2)
+                                : 0,
                         ];
                     })
                     ->filter(fn ($row) => $row['name'] !== '')
@@ -508,7 +478,6 @@ class ScorecardController extends Controller
                 ];
 
                 if ($existing) {
-                    // Update only the innings that was submitted.
                     DB::table('manual_scorecards')
                         ->where('id', $existing->id)
                         ->update($values);
@@ -527,5 +496,27 @@ class ScorecardController extends Controller
         return redirect()
             ->route('admin.scorecards.edit', $fixtureId)
             ->with('success', 'Submitted innings saved successfully.');
+    }
+
+    /**
+     * Convert cricket overs notation into legal balls.
+     *
+     * Example: 3.4 means 3 overs and 4 balls = 22 legal balls.
+     */
+    private function oversToLegalBalls(float $overs): int
+    {
+        $formatted = number_format($overs, 1, '.', '');
+        $parts = explode('.', $formatted);
+
+        $completedOvers = (int) ($parts[0] ?? 0);
+        $extraBalls = (int) ($parts[1] ?? 0);
+
+        if ($extraBalls < 0 || $extraBalls > 5) {
+            throw ValidationException::withMessages([
+                'innings' => 'Overs must use valid cricket notation, such as 3.4. The ball digit must be between 0 and 5.',
+            ]);
+        }
+
+        return ($completedOvers * 6) + $extraBalls;
     }
 }

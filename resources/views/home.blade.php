@@ -11,11 +11,8 @@
     $latestNews         = collect($latestNews ?? []);
     $liveScoreByFixture = collect($liveScoreByFixture ?? []);
 
-    /*
-     * A fixture only counts as live if it is not already finished.
-     * This makes the hero switch back to "Upcoming" automatically
-     * the moment a live match is marked completed.
-     */
+    /* A finished fixture is never "live". When the scorer completes the
+       match, the hero falls back to the upcoming match automatically. */
     $isFinished = function ($match) {
         $status = strtolower((string) data_get($match, 'status'));
 
@@ -25,10 +22,7 @@
             || filled(data_get($match, 'winner.name'));
     };
 
-    $liveMatches = collect($liveMatches ?? [])
-        ->reject(fn ($m) => $isFinished($m))
-        ->values();
-
+    $liveMatches = collect($liveMatches ?? [])->reject(fn ($m) => $isFinished($m))->values();
     $liveMatch   = $liveMatches->first();
     $hasLive     = $liveMatch !== null;
     $otherLive   = $liveMatches->slice(1)->values();
@@ -36,7 +30,7 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Shared view helpers
+    | View helpers
     |--------------------------------------------------------------------------
     */
     $imageUrl = function ($path) {
@@ -53,7 +47,26 @@
 
     $initial = fn ($name) => strtoupper(mb_substr(trim((string) $name) ?: 'N', 0, 1));
 
-    /* Cricket overs: 10.3 means 10 overs and 3 balls, never 10.5 decimal. */
+    /* Team logo, or a lettered badge when there is no logo. */
+    $logo = function ($team, $px = 40) use ($imageUrl, $initial) {
+        $url  = $imageUrl(data_get($team, 'logo'));
+        $name = (string) data_get($team, 'name', 'Team');
+
+        if ($url) {
+            return new \Illuminate\Support\HtmlString(
+                '<img class="np-logo" src="' . e($url) . '" alt="' . e($name) . ' logo" width="' . $px . '" height="' . $px . '" loading="lazy" style="width:' . $px . 'px;height:' . $px . 'px">'
+            );
+        }
+
+        return new \Illuminate\Support\HtmlString(
+            '<span class="np-logo-fb" style="width:' . $px . 'px;height:' . $px . 'px;font-size:' . round($px * .42) . 'px">' . e($initial($name)) . '</span>'
+        );
+    };
+
+    $shortName = fn ($team, $fallback) => data_get($team, 'short_name')
+        ?: \Illuminate\Support\Str::limit((string) data_get($team, 'name', $fallback), 14, '');
+
+    /* Cricket overs: 10.3 = 10 overs 3 balls. */
     $scoreOvers = function ($innings) {
         if (!$innings) {
             return null;
@@ -104,24 +117,21 @@
         return number_format($runs) . '/' . (int) ($wickets ?? 0);
     };
 
-    $matchDate = function ($match) {
-        $date = data_get($match, 'scheduled_at') ?? data_get($match, 'match_date');
-
+    $fmtDate = function ($date, $format = 'd M Y') {
         if (!$date) {
-            return 'Date to be announced';
+            return null;
         }
 
         try {
-            return \Illuminate\Support\Carbon::parse($date)->format('d M Y');
+            return \Illuminate\Support\Carbon::parse($date)->format($format);
         } catch (\Throwable $e) {
-            return 'Date to be announced';
+            return null;
         }
     };
 
-    /*
-     * One place that turns a fixture + its innings into everything a
-     * scoreboard needs. Used by the live panel and the recent results.
-     */
+    $matchDate = fn ($m) => $fmtDate(data_get($m, 'scheduled_at') ?? data_get($m, 'match_date')) ?? 'Date to be announced';
+
+    /* Everything a scoreboard needs for one fixture. */
     $scoreFor = function ($fixture) use ($liveScoreByFixture, $formatScore, $scoreOvers, $inningsRuns) {
         $innings = collect($liveScoreByFixture->get(data_get($fixture, 'id'), collect()));
 
@@ -154,22 +164,17 @@
         $current   = $innings->last();
         $battingId = $current ? (string) data_get($current, 'batting_team_id') : null;
 
-        /* Chase summary, only when two innings exist. */
         $chase = null;
 
         if ($innings->count() >= 2) {
-            $first  = $innings->first();
-            $second = $innings->last();
-            $target = ($inningsRuns($first) ?? 0) + 1;
-            $need   = $target - ($inningsRuns($second) ?? 0);
+            $target = ($inningsRuns($innings->first()) ?? 0) + 1;
+            $need   = $target - ($inningsRuns($innings->last()) ?? 0);
 
-            $chasingName = (string) data_get($second, 'batting_team_id') === (string) $homeId
-                ? $homeName
-                : $awayName;
+            $chasing = (string) data_get($innings->last(), 'batting_team_id') === (string) $homeId ? $homeName : $awayName;
 
             $chase = $need > 0
-                ? "{$chasingName} need {$need} " . ($need === 1 ? 'run' : 'runs') . " to win"
-                : "{$chasingName} have reached the target";
+                ? "{$chasing} need {$need} " . ($need === 1 ? 'run' : 'runs') . ' to win'
+                : "{$chasing} have reached the target";
         } elseif ($innings->count() === 1 && $current) {
             $chase = ((string) $battingId === (string) $homeId ? $homeName : $awayName) . ' batting first';
         }
@@ -187,6 +192,21 @@
             'winnerName' => data_get($fixture, 'winner.name') ?? data_get($fixture, 'winner_name'),
         ];
     };
+
+    /* Match ticker: live first, then next, then latest results. */
+    $ticker = collect();
+
+    foreach ($liveMatches as $m) {
+        $ticker->push(['type' => 'live', 'f' => $m]);
+    }
+
+    if ($nextMatch && !$liveMatches->contains(fn ($m) => data_get($m, 'id') === data_get($nextMatch, 'id'))) {
+        $ticker->push(['type' => 'up', 'f' => $nextMatch]);
+    }
+
+    foreach ($recentResults->take(8) as $m) {
+        $ticker->push(['type' => 'done', 'f' => $m]);
+    }
 @endphp
 
 @section('title', $hasLive ? 'Live Now' : 'Home')
@@ -195,193 +215,77 @@
 
 @section('content')
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,700;1,800;1,900&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+
 <style>
     /* =========================================================
        Tokens
        ========================================================= */
-    .home-page {
-        --navy: #202766;
-        --navy-dark: #171D50;
-        --navy-deep: #0E1238;
+    .np {
+        --ink: #070A24;
+        --ink-2: #0B1034;
+        --navy: #131A52;
+        --royal: #202766;
+        --blue: #3445C8;
         --orange: #F06445;
-        --live: #E5304A;
-        --win: #16845B;
-        --bg: #F6F8FB;
-        --border: #E5E9F2;
-        --muted: #64748B;
+        --live: #FF3B57;
+        --gold: #FFC53D;
+        --win: #2BD9A0;
+        --line: rgb(255 255 255 / 11%);
+        --soft: rgb(255 255 255 / 62%);
+        --glass: rgb(255 255 255 / 6%);
+        --cut: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+        --cut-sm: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+        --display: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+        --text: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
         --ease: cubic-bezier(.2, .7, .2, 1);
-        color: #1E293B;
-        background: var(--bg);
+        background: var(--ink);
+        color: #fff;
+        font-family: var(--text);
+        overflow-x: clip;
     }
 
-    .home-page * { box-sizing: border-box; }
+    .np *, .np *::before, .np *::after { box-sizing: border-box; }
+    .np a { color: inherit; text-decoration: none; }
+    .np a:focus-visible, .np button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 
-    .home-page a:focus-visible,
-    .home-page button:focus-visible {
-        outline: 3px solid var(--orange);
-        outline-offset: 3px;
-        border-radius: 8px;
-    }
+    .np-wrap { width: 100%; max-width: 1320px; margin-inline: auto; padding-inline: 20px; }
 
-    .home-container {
-        width: 100%;
-        max-width: 1280px;
-        margin-inline: auto;
-        padding-inline: 20px;
-    }
-
-    /* =========================================================
-       Type + section scaffolding
-       ========================================================= */
-    .home-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        color: var(--orange);
-        font-size: 11px;
+    .np-display {
+        font-family: var(--display);
+        font-style: italic;
         font-weight: 800;
-        letter-spacing: 1.6px;
-        line-height: 1.6;
+        letter-spacing: -.01em;
+        line-height: .94;
         text-transform: uppercase;
     }
 
-    .home-section { padding-block: 64px; }
-
-    .home-section-white {
-        border-block: 1px solid #E9EDF4;
-        background: #fff;
-    }
-
-    .home-section-title {
-        color: var(--navy);
-        font-size: clamp(25px, 3vw, 34px);
-        font-weight: 900;
-        letter-spacing: -1px;
-        line-height: 1.2;
-    }
-
-    .home-section-description {
-        margin-top: 10px;
-        max-width: 56ch;
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.8;
-    }
-
-    .home-section-head {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 27px;
-    }
-
-    .home-text-link {
-        display: inline-flex;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 8px;
-        color: var(--navy);
-        font-size: 12px;
-        font-weight: 800;
-        transition: color .2s ease;
-    }
-
-    .home-text-link:hover { color: var(--orange); }
-
-    .home-dot {
-        width: 7px;
-        height: 7px;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background: var(--orange);
-    }
+    .np-num { font-variant-numeric: tabular-nums; }
 
     /* =========================================================
-       Buttons
+       3D engine
        ========================================================= */
-    .home-button {
-        display: inline-flex;
-        min-height: 45px;
-        align-items: center;
-        justify-content: center;
-        gap: 9px;
-        border: 1px solid transparent;
-        border-radius: 10px;
-        padding: 11px 17px;
-        font-size: 12px;
-        font-weight: 800;
-        text-align: center;
-        transition: background .2s ease, color .2s ease, border-color .2s ease,
-            transform .2s var(--ease), box-shadow .2s ease;
-    }
-
-    .home-button:hover { transform: translateY(-2px); }
-
-    .home-button-primary {
-        background: var(--orange);
-        color: #fff;
-        box-shadow: 0 6px 0 #B94328, 0 14px 24px rgb(240 100 69 / 28%);
-    }
-    .home-button-primary:hover { background: #D94D31; color: #fff; }
-    .home-button-primary:active { transform: translateY(3px); box-shadow: 0 2px 0 #B94328; }
-
-    .home-button-live {
-        background: var(--live);
-        color: #fff;
-        box-shadow: 0 6px 0 #AD1F36, 0 14px 24px rgb(229 48 74 / 28%);
-    }
-    .home-button-live:hover { background: #CC2640; color: #fff; }
-    .home-button-live:active { transform: translateY(3px); box-shadow: 0 2px 0 #AD1F36; }
-
-    .home-button-dark { background: var(--navy); color: #fff; }
-    .home-button-dark:hover { background: var(--navy-dark); color: #fff; }
-
-    .home-button-outline { border-color: var(--border); background: #fff; color: var(--navy); }
-    .home-button-outline:hover { border-color: var(--orange); color: var(--orange); }
-
-    /* =========================================================
-       Cards
-       ========================================================= */
-    .home-card {
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: #fff;
-        box-shadow: 0 3px 12px rgb(15 23 42 / 3%);
-        transition: border-color .2s ease, box-shadow .25s ease;
-    }
-
-    .home-card:hover {
-        border-color: #D8DDF0;
-        box-shadow: 0 24px 45px rgb(32 39 102 / 13%);
-    }
-
-    /* =========================================================
-       3D engine (driven by the script at the bottom)
-       ========================================================= */
-    .scene3d { perspective: 1200px; }
+    .scene { perspective: 1300px; }
 
     [data-tilt] {
-        --rx: 0deg;
-        --ry: 0deg;
-        --gx: 50%;
-        --gy: 50%;
+        --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50%;
         position: relative;
         transform: rotateX(var(--rx)) rotateY(var(--ry));
         transform-style: preserve-3d;
-        transition: transform .5s var(--ease);
+        transition: transform .55s var(--ease);
         will-change: transform;
     }
 
     [data-tilt].is-tilting { transition: transform .08s linear; }
 
-    /* Soft light that follows the pointer */
     [data-tilt]::after {
         position: absolute;
-        z-index: 5;
+        z-index: 6;
         inset: 0;
-        border-radius: inherit;
-        background: radial-gradient(circle at var(--gx) var(--gy), rgb(255 255 255 / 26%), transparent 48%);
+        background: radial-gradient(circle at var(--gx) var(--gy), rgb(255 255 255 / 20%), transparent 46%);
+        clip-path: var(--cut);
         content: "";
         opacity: 0;
         pointer-events: none;
@@ -390,738 +294,587 @@
 
     [data-tilt].is-tilting::after { opacity: 1; }
 
-    .z-1 { transform: translateZ(18px); }
-    .z-2 { transform: translateZ(34px); }
-    .z-3 { transform: translateZ(54px); }
+    /* A chamfered card made of separate layers so depth survives:
+       shadow (back) -> shape -> content (front). */
+    .np-tcard { position: relative; transform-style: preserve-3d; }
+
+    .np-tcard::before {
+        position: absolute;
+        inset: 10% 5% -5%;
+        background: rgb(0 0 0 / 55%);
+        content: "";
+        filter: blur(26px);
+        transform: translateZ(-50px);
+    }
+
+    .np-shape {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(160deg, #1A2266 0%, #101650 55%, #0B1034 100%);
+        box-shadow: inset 0 0 0 1px var(--line);
+        clip-path: var(--cut);
+    }
+
+    .np-shape::before {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 4px;
+        background: linear-gradient(90deg, var(--orange), var(--gold));
+        content: "";
+    }
+
+    .np-body { position: relative; transform: translateZ(26px); transform-style: preserve-3d; }
+
+    .d1 { transform: translateZ(14px); }
+    .d2 { transform: translateZ(30px); }
+    .d3 { transform: translateZ(52px); }
+
+    /* =========================================================
+       Shared pieces
+       ========================================================= */
+    .np-logo { flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 8px 10px rgb(0 0 0 / 45%)); }
+
+    .np-logo-fb {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: linear-gradient(160deg, #2C3790, #171F63);
+        box-shadow: inset 0 0 0 1px var(--line), 0 6px 0 rgb(0 0 0 / 25%);
+        font-family: var(--display);
+        font-style: italic;
+        font-weight: 800;
+    }
+
+    .np-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        clip-path: var(--cut-sm);
+        font-family: var(--display);
+        font-size: 13px;
+        font-style: italic;
+        font-weight: 800;
+        letter-spacing: .08em;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    .np-tag-live { background: var(--live); color: #fff; }
+    .np-tag-up   { background: var(--gold); color: #1A1500; }
+    .np-tag-done { background: rgb(255 255 255 / 14%); color: #fff; }
+
+    .np-pulse {
+        width: 8px; height: 8px; border-radius: 50%; background: #fff;
+        animation: np-blink 1.1s ease-in-out infinite;
+    }
+
+    @keyframes np-blink { 50% { opacity: .2; } }
+
+    .np-btn {
+        display: inline-flex;
+        min-height: 50px;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border: 0;
+        padding: 0 26px;
+        clip-path: var(--cut-sm);
+        font-family: var(--display);
+        font-size: 18px;
+        font-style: italic;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        transition: transform .2s var(--ease), filter .2s ease, background .2s ease;
+    }
+
+    .np-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+
+    .np-btn-orange { background: var(--orange); color: #fff; }
+    .np-btn-live   { background: var(--live); color: #fff; }
+    .np-btn-ghost  { background: rgb(255 255 255 / 10%); color: #fff; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%); }
+    .np-btn-white  { background: #fff; color: var(--royal); }
+    .np-btn-block  { width: 100%; }
+
+    /* Section heading: angled orange bar + condensed title */
+    .np-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .np-title {
+        position: relative;
+        padding-left: 22px;
+        font-size: clamp(38px, 5vw, 62px);
+    }
+
+    .np-title::before {
+        position: absolute;
+        top: 4px; bottom: 4px; left: 0;
+        width: 9px;
+        background: linear-gradient(var(--orange), var(--gold));
+        clip-path: polygon(0 0, 100% 12%, 100% 100%, 0 88%);
+        content: "";
+    }
+
+    .np-sub { margin: 10px 0 0 22px; max-width: 54ch; color: var(--soft); font-size: 15px; line-height: 1.7; }
+
+    .np-more {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--display);
+        font-size: 18px;
+        font-style: italic;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--gold);
+        transition: gap .2s var(--ease), color .2s ease;
+    }
+
+    .np-more:hover { gap: 14px; color: #fff; }
+
+    .np-section { position: relative; padding-block: 78px; }
+    .np-section-alt { background: linear-gradient(180deg, var(--ink-2), var(--ink)); }
+
+    /* =========================================================
+       Match ticker
+       ========================================================= */
+    .np-ticker { position: relative; z-index: 5; border-bottom: 1px solid var(--line); background: #05071A; }
+
+    .np-ticker-in { display: flex; align-items: stretch; gap: 10px; padding: 12px 0; }
+
+    .np-ticker-label {
+        display: none;
+        flex-shrink: 0;
+        align-items: center;
+        padding: 0 16px;
+        background: var(--orange);
+        clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+        font-family: var(--display);
+        font-size: 17px;
+        font-style: italic;
+        font-weight: 800;
+        letter-spacing: .08em;
+        line-height: 1.1;
+        text-transform: uppercase;
+    }
+
+    .np-ticker-track {
+        display: flex;
+        flex: 1;
+        gap: 10px;
+        min-width: 0;
+        overflow-x: auto;
+        padding: 2px;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+    }
+
+    .np-ticker-track::-webkit-scrollbar { display: none; }
+
+    .np-ticker-btn {
+        display: none;
+        width: 38px;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: var(--glass);
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+        clip-path: var(--cut-sm);
+        transition: background .2s ease;
+    }
+
+    .np-ticker-btn:hover { background: rgb(255 255 255 / 16%); }
+
+    .np-tk {
+        display: block;
+        flex: 0 0 272px;
+        scroll-snap-align: start;
+        padding: 10px 14px 11px;
+        background: linear-gradient(160deg, #161E5E, #0E1443);
+        box-shadow: inset 0 0 0 1px var(--line);
+        clip-path: var(--cut-sm);
+        transition: transform .25s var(--ease), background .25s ease;
+    }
+
+    .np-tk:hover { transform: translateY(-3px); background: linear-gradient(160deg, #1D2776, #121A55); }
+    .np-tk.is-live { box-shadow: inset 0 0 0 1px rgb(255 59 87 / 60%); }
+
+    .np-tk-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--soft); font-size: 11px; font-weight: 700; }
+
+    .np-tk-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .np-tk-row + .np-tk-row { margin-top: 6px; }
+    .np-tk-team { display: flex; min-width: 0; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+    .np-tk-score { font-family: var(--display); font-size: 22px; font-style: italic; font-weight: 800; line-height: 1; white-space: nowrap; }
+    .np-tk-score small { margin-left: 4px; color: var(--soft); font-family: var(--text); font-size: 10px; font-style: normal; font-weight: 600; }
+    .np-tk-foot { margin-top: 9px; border-top: 1px dashed var(--line); padding-top: 8px; color: var(--gold); font-size: 11px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .np-tk.is-live .np-tk-foot { color: #FF8CA0; }
+    .np-tk.is-done .np-tk-foot { color: var(--win); }
 
     /* =========================================================
        Hero
        ========================================================= */
-    .home-hero {
+    .np-hero {
         position: relative;
-        overflow: hidden;
         isolation: isolate;
+        overflow: hidden;
         background:
-            radial-gradient(ellipse at 80% 5%, rgb(240 100 69 / 17%), transparent 32%),
-            radial-gradient(ellipse at 5% 100%, rgb(100 120 220 / 13%), transparent 38%),
-            linear-gradient(125deg, #171D50 0%, #202766 55%, #29347B 100%);
-        color: #fff;
+            radial-gradient(ellipse at 75% 0%, rgb(52 69 200 / 55%), transparent 55%),
+            radial-gradient(ellipse at 0% 100%, rgb(240 100 69 / 22%), transparent 45%),
+            linear-gradient(180deg, #0D1243 0%, #070A24 100%);
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 56px), 0 100%);
+        padding-bottom: 56px;
     }
 
-    .home-hero.is-live {
+    .np-hero.is-live {
         background:
-            radial-gradient(ellipse at 82% 8%, rgb(229 48 74 / 24%), transparent 34%),
-            radial-gradient(ellipse at 5% 100%, rgb(100 120 220 / 13%), transparent 38%),
-            linear-gradient(125deg, #131744 0%, #1C2260 55%, #29347B 100%);
+            radial-gradient(ellipse at 75% 0%, rgb(255 59 87 / 38%), transparent 52%),
+            radial-gradient(ellipse at 0% 100%, rgb(52 69 200 / 35%), transparent 45%),
+            linear-gradient(180deg, #120F3E 0%, #070A24 100%);
     }
 
-    /* Perspective floor grid, a cricket-pitch horizon */
-    .home-hero::before {
+    /* Floodlight beams */
+    .np-beam {
         position: absolute;
         z-index: -1;
-        inset: auto -20% -2px;
-        height: 46%;
+        top: -30%;
+        width: 34%;
+        height: 140%;
+        background: linear-gradient(180deg, rgb(255 255 255 / 20%), transparent 70%);
+        filter: blur(30px);
+        opacity: .55;
+        pointer-events: none;
+        transform-origin: top center;
+    }
+
+    .np-beam-a { left: 8%;  transform: rotate(18deg); }
+    .np-beam-b { right: 6%; transform: rotate(-16deg); opacity: .4; }
+
+    /* Pitch floor in perspective */
+    .np-floor {
+        position: absolute;
+        z-index: -1;
+        inset: auto -25% 0;
+        height: 48%;
         background-image:
-            linear-gradient(rgb(255 255 255 / 8%) 1px, transparent 1px),
-            linear-gradient(90deg, rgb(255 255 255 / 8%) 1px, transparent 1px);
-        background-size: 54px 54px;
-        content: "";
-        mask-image: linear-gradient(to top, #000 10%, transparent 90%);
-        -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 90%);
-        transform: perspective(520px) rotateX(62deg);
+            linear-gradient(rgb(255 255 255 / 10%) 1px, transparent 1px),
+            linear-gradient(90deg, rgb(255 255 255 / 10%) 1px, transparent 1px);
+        background-size: 60px 60px;
+        mask-image: linear-gradient(to top, #000 5%, transparent 85%);
+        -webkit-mask-image: linear-gradient(to top, #000 5%, transparent 85%);
+        transform: perspective(540px) rotateX(64deg);
         transform-origin: bottom;
         pointer-events: none;
     }
 
-    .home-hero-rings {
+    /* Giant background word that drifts with the pointer */
+    .np-ghost {
         position: absolute;
         z-index: -1;
-        top: 10%;
-        right: -130px;
-        width: 410px;
-        height: 410px;
-        border: 1px solid rgb(255 255 255 / 8%);
-        border-radius: 50%;
-        box-shadow: 0 0 0 45px rgb(255 255 255 / 2%), 0 0 0 90px rgb(255 255 255 / 2%);
+        right: -2%;
+        bottom: 8%;
+        font-size: clamp(160px, 28vw, 420px);
+        color: transparent;
+        -webkit-text-stroke: 2px rgb(255 255 255 / 7%);
         pointer-events: none;
-        transform: translate3d(calc(var(--mx, 0) * -18px), calc(var(--my, 0) * -18px), 0);
-        transition: transform .4s var(--ease);
+        transform: translate3d(calc(var(--mx, 0) * -30px), calc(var(--my, 0) * -20px), 0);
+        transition: transform .5s var(--ease);
+        user-select: none;
     }
 
-    .home-hero-layout {
-        display: grid;
-        align-items: center;
-        gap: 38px;
-        padding-block: 56px 72px;
+    .np-hero-grid { display: grid; align-items: center; gap: 40px; padding-block: 52px 36px; }
+
+    .np-season { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-family: var(--display); font-size: 18px; font-style: italic; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .np-season::before { width: 38px; height: 3px; background: var(--gold); content: ""; }
+
+    .np-hero-title { margin-top: 16px; font-size: clamp(62px, 11vw, 148px); }
+    .np-hero-title .line { display: block; animation: np-in .8s var(--ease) both; }
+    .np-hero-title .line:nth-child(2) { animation-delay: .08s; }
+    .np-hero-title .line:nth-child(3) { animation-delay: .16s; }
+
+    .np-outline { color: transparent; -webkit-text-stroke: 2px #fff; }
+    .np-hot { color: var(--orange); }
+    .np-hero.is-live .np-hot { color: var(--live); }
+
+    @keyframes np-in {
+        from { opacity: 0; transform: translateX(-46px) skewX(-8deg); }
+        to   { opacity: 1; transform: none; }
     }
 
-    .home-hero-title {
-        max-width: 700px;
-        color: #fff;
-        font-size: clamp(38px, 5.3vw, 66px);
-        font-weight: 900;
-        letter-spacing: -2.5px;
-        line-height: 1.08;
-    }
+    .np-hero-text { max-width: 500px; margin-top: 22px; color: var(--soft); font-size: 17px; font-weight: 500; line-height: 1.75; }
+    .np-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 
-    .home-hero-title .accent { color: var(--orange); }
-    .home-hero.is-live .home-hero-title .accent { color: #FF6F83; }
+    /* Floating cricket ball */
+    .np-stage { position: relative; }
 
-    .home-hero-description {
-        max-width: 530px;
-        margin-top: 22px;
-        color: rgb(255 255 255 / 74%);
-        font-size: 15px;
-        line-height: 1.95;
-    }
-
-    .home-season-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        border: 1px solid rgb(255 255 255 / 16%);
-        border-radius: 100px;
-        background: rgb(255 255 255 / 7%);
-        padding: 9px 13px;
-        color: rgb(255 255 255 / 92%);
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .8px;
-        text-transform: uppercase;
-        backdrop-filter: blur(6px);
-    }
-
-    .home-hero-checks {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px 22px;
-        margin-top: 27px;
-    }
-
-    .home-hero-check {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        color: rgb(255 255 255 / 75%);
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .home-check-icon {
-        display: inline-flex;
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-        align-items: center;
-        justify-content: center;
-        border-radius: 8px;
-        background: rgb(255 255 255 / 10%);
-        color: #FF947C;
-    }
-
-    /* The memorable object: a 3D cricket ball floating beside the panel */
-    .hero-stage { position: relative; }
-
-    .cricket-ball {
+    .np-ball {
         position: absolute;
-        z-index: 6;
-        top: -34px;
-        left: -38px;
-        width: 92px;
-        height: 92px;
+        z-index: 8;
+        top: -46px;
+        left: -44px;
+        width: 108px;
+        height: 108px;
         border-radius: 50%;
-        background:
-            radial-gradient(circle at 32% 26%, #FFB09E 0, #E2452B 38%, #8E1A0A 78%, #5A0E05 100%);
-        box-shadow:
-            inset -10px -12px 22px rgb(0 0 0 / 38%),
-            0 30px 38px rgb(0 0 0 / 35%);
-        transform: translateZ(90px) translate3d(calc(var(--mx, 0) * 14px), calc(var(--my, 0) * 14px), 0);
-        animation: ball-float 6s ease-in-out infinite;
+        background: radial-gradient(circle at 32% 26%, #FFB09E 0, #E2452B 38%, #8E1A0A 78%, #4F0B04 100%);
+        box-shadow: inset -12px -14px 26px rgb(0 0 0 / 40%), 0 34px 40px rgb(0 0 0 / 45%);
+        transform: translateZ(110px) translate3d(calc(var(--mx, 0) * 22px), calc(var(--my, 0) * 22px), 0);
+        animation: np-float 6s ease-in-out infinite;
         pointer-events: none;
     }
 
-    .cricket-ball::before,
-    .cricket-ball::after {
-        position: absolute;
-        top: 6%;
-        bottom: 6%;
-        width: 22%;
-        border: 0 dashed rgb(255 255 255 / 78%);
+    .np-ball::before, .np-ball::after {
+        position: absolute; top: 6%; bottom: 6%; width: 22%;
+        border: 0 dashed rgb(255 255 255 / 80%);
         content: "";
     }
 
-    .cricket-ball::before { left: 33%; border-left-width: 2px; border-radius: 50%; }
-    .cricket-ball::after  { right: 33%; border-right-width: 2px; border-radius: 50%; }
+    .np-ball::before { left: 33%;  border-left-width: 2px;  border-radius: 50%; }
+    .np-ball::after  { right: 33%; border-right-width: 2px; border-radius: 50%; }
 
-    .cricket-ball .ball-spin {
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        animation: ball-spin 9s linear infinite;
-    }
+    @keyframes np-float { 0%, 100% { margin-top: 0; } 50% { margin-top: -14px; } }
 
-    @keyframes ball-float {
-        0%, 100% { margin-top: 0; }
-        50%      { margin-top: -12px; }
-    }
+    /* Hero panel */
+    .np-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px 8px; }
+    .np-panel-kicker { color: var(--soft); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .np-panel-title { margin-top: 4px; font-size: 30px; }
 
-    @keyframes ball-spin {
-        to { transform: rotate(360deg); }
-    }
+    .np-live-rows { margin: 8px 16px 0; }
 
-    /* =========================================================
-       Hero panel (shared by live + upcoming)
-       ========================================================= */
-    .home-panel {
-        overflow: hidden;
-        border: 1px solid rgb(255 255 255 / 20%);
-        border-radius: 22px;
-        background: #fff;
-        color: #1E293B;
-        box-shadow:
-            0 2px 0 rgb(255 255 255 / 60%) inset,
-            0 40px 80px rgb(0 0 0 / 30%),
-            0 12px 0 -4px rgb(8 12 45 / 45%);
-    }
-
-    .home-panel-top {
-        display: flex;
+    .np-live-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        justify-content: space-between;
         gap: 14px;
-        border-bottom: 1px solid #EDF0F6;
-        padding: 20px 22px;
+        padding: 14px 14px;
+        background: rgb(255 255 255 / 4%);
+        clip-path: var(--cut-sm);
     }
 
-    .home-panel.is-live .home-panel-top {
-        background: linear-gradient(90deg, #FFF3F5, #fff 70%);
-    }
+    .np-live-row + .np-live-row { margin-top: 8px; }
+    .np-live-row.is-bat { background: linear-gradient(90deg, rgb(255 59 87 / 22%), rgb(255 255 255 / 5%)); box-shadow: inset 4px 0 0 var(--live); }
+    .np-live-team { display: flex; min-width: 0; align-items: center; gap: 14px; }
+    .np-live-name { overflow-wrap: anywhere; font-size: 17px; font-weight: 700; line-height: 1.25; }
+    .np-bat-tag { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; color: #FF8CA0; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .np-big-score { font-size: clamp(38px, 5vw, 56px); text-align: right; white-space: nowrap; }
+    .np-overs { margin-top: 2px; color: var(--soft); font-size: 12px; font-weight: 600; text-align: right; }
 
-    .home-panel-label {
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-    }
-
-    .home-panel-heading {
-        margin-top: 5px;
-        color: var(--navy);
-        font-size: 20px;
-        font-weight: 900;
-    }
-
-    .home-status {
-        display: inline-flex;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 7px;
-        border-radius: 100px;
-        padding: 7px 10px;
-        font-size: 9px;
-        font-weight: 800;
-        letter-spacing: .5px;
-        text-transform: uppercase;
-    }
-
-    .home-status-upcoming { background: #FFF0EB; color: #D94D31; }
-
-    .home-status-live {
-        background: var(--live);
-        color: #fff;
-        box-shadow: 0 0 0 0 rgb(229 48 74 / 50%);
-        animation: live-ring 1.8s ease-out infinite;
-    }
-
-    .home-status-live .home-dot { background: #fff; animation: live-blink 1.1s ease-in-out infinite; }
-
-    @keyframes live-ring {
-        0%   { box-shadow: 0 0 0 0 rgb(229 48 74 / 50%); }
-        80%, 100% { box-shadow: 0 0 0 12px rgb(229 48 74 / 0%); }
-    }
-
-    @keyframes live-blink {
-        50% { opacity: .25; }
-    }
-
-    .home-match-feature {
-        margin: 18px;
-        border: 1px solid #E8ECF4;
-        border-radius: 16px;
-        background: #F8FAFD;
-        padding: 21px 17px;
-    }
-
-    .home-match-feature.is-live {
-        border-color: #F8D2D8;
-        background: linear-gradient(180deg, #FFF7F8, #F8FAFD);
-    }
-
-    .home-team-logo {
-        width: 54px;
-        height: 54px;
-        flex-shrink: 0;
-        object-fit: contain;
-        filter: drop-shadow(0 8px 8px rgb(15 23 42 / 18%));
-    }
-
-    .home-team-fallback {
-        display: flex;
-        width: 54px;
-        height: 54px;
-        flex-shrink: 0;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #E8ECF4;
-        border-radius: 15px;
-        background: #fff;
-        color: var(--navy);
-        font-size: 21px;
-        font-weight: 900;
-        box-shadow: 0 6px 0 #E8ECF4;
-    }
-
-    .home-feature-team { min-width: 0; text-align: center; }
-
-    .home-feature-team-name {
-        margin-top: 11px;
-        overflow-wrap: anywhere;
-        color: var(--navy);
-        font-size: 12px;
-        font-weight: 900;
-        line-height: 1.5;
-    }
-
-    .home-feature-team-caption {
-        margin-top: 3px;
-        color: #94A3B8;
-        font-size: 9px;
+    .np-chase {
+        margin: 14px 16px 0;
+        padding: 12px 14px;
+        background: rgb(255 197 61 / 12%);
+        color: var(--gold);
+        font-size: 14px;
         font-weight: 700;
-        letter-spacing: .7px;
-        text-transform: uppercase;
-    }
-
-    .home-match-date {
-        border-top: 1px solid #E5E9F2;
-        margin-top: 20px;
-        padding-top: 16px;
         text-align: center;
+        clip-path: var(--cut-sm);
     }
 
-    /* Live scoreboard inside the hero */
-    .live-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 12px;
-        border-radius: 12px;
-        padding: 12px 10px;
-    }
+    .np-panel-foot { padding: 16px 16px 22px; }
 
-    .live-row + .live-row { margin-top: 6px; }
+    .np-also { display: grid; gap: 6px; margin: 0 16px 18px; }
+    .np-also a { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--glass); font-size: 13px; font-weight: 700; clip-path: var(--cut-sm); transition: background .2s ease; }
+    .np-also a:hover { background: rgb(255 255 255 / 14%); }
 
-    .live-row.is-batting {
-        background: #fff;
-        box-shadow: 0 1px 0 #F1D5DA, 0 10px 22px rgb(229 48 74 / 10%);
-    }
-
-    .live-team {
-        display: flex;
-        min-width: 0;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .live-team-name {
-        overflow-wrap: anywhere;
-        color: var(--navy);
-        font-size: 13px;
-        font-weight: 900;
-        line-height: 1.4;
-    }
-
-    .live-bat-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        margin-top: 3px;
-        color: var(--live);
-        font-size: 9px;
-        font-weight: 800;
-        letter-spacing: .8px;
-        text-transform: uppercase;
-    }
-
-    .live-score {
-        color: var(--navy);
-        font-size: clamp(22px, 3vw, 30px);
-        font-weight: 900;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -1px;
-        line-height: 1.1;
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    .live-overs {
-        margin-top: 3px;
-        color: #94A3B8;
-        font-size: 10px;
-        font-weight: 700;
-        text-align: right;
-    }
-
-    .live-chase {
-        margin-top: 14px;
-        border-top: 1px dashed #F0C9D0;
-        padding-top: 14px;
-        color: #B01E36;
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1.6;
-        text-align: center;
-    }
-
-    .live-more {
-        display: grid;
-        gap: 8px;
-        border-top: 1px solid #EDF0F6;
-        padding: 14px 18px 4px;
-    }
-
-    .live-more-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        border: 1px solid #EDF0F6;
-        border-radius: 10px;
-        padding: 9px 12px;
-        color: var(--navy);
-        font-size: 11px;
-        font-weight: 800;
-        transition: border-color .2s ease, color .2s ease;
-    }
-
-    .live-more-item:hover { border-color: var(--live); color: var(--live); }
+    /* Upcoming layout */
+    .np-vs-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 18px 18px 0; }
+    .np-vs-team { min-width: 0; text-align: center; }
+    .np-vs-team .np-logo, .np-vs-team .np-logo-fb { margin-inline: auto; }
+    .np-vs-name { margin-top: 12px; overflow-wrap: anywhere; font-size: 15px; font-weight: 700; line-height: 1.3; }
+    .np-vs-cap { margin-top: 3px; color: var(--soft); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+    .np-vs { font-size: 44px; color: var(--orange); }
+    .np-when { margin: 20px 18px 0; padding: 14px; background: var(--glass); text-align: center; clip-path: var(--cut-sm); }
+    .np-when strong { display: block; font-size: 17px; font-weight: 700; }
+    .np-when span { display: block; margin-top: 4px; color: var(--soft); font-size: 13px; font-weight: 600; }
+    .np-count { margin-top: 8px; color: var(--gold); font-family: var(--display); font-size: 22px; font-style: italic; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 
     /* =========================================================
-       Results scoreboard
+       Moving band
        ========================================================= */
-    .scoreboard-card { position: relative; overflow: hidden; }
-
-    .scoreboard-card::before {
-        position: absolute;
-        z-index: 1;
-        inset: 0 0 auto;
-        height: 3px;
-        background: linear-gradient(90deg, var(--navy), var(--orange));
-        content: "";
+    .np-band {
+        position: relative;
+        z-index: 3;
+        overflow: hidden;
+        margin-block: -22px 6px;
+        padding: 12px 0;
+        background: var(--orange);
+        transform: rotate(-1.6deg);
+        box-shadow: 0 14px 30px rgb(0 0 0 / 35%);
     }
 
-    .scoreboard-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 20px 20px 15px;
-    }
+    .np-band-track { display: flex; width: max-content; animation: np-marquee 28s linear infinite; }
 
-    .scoreboard-status {
-        display: inline-flex;
+    .np-band-track span {
         flex-shrink: 0;
-        align-items: center;
-        gap: 6px;
-        border-radius: 100px;
-        background: #EAF8F1;
-        padding: 6px 9px;
-        color: var(--win);
-        font-size: 9px;
+        padding-inline: 22px;
+        font-family: var(--display);
+        font-size: 26px;
+        font-style: italic;
         font-weight: 800;
+        letter-spacing: .06em;
         text-transform: uppercase;
-    }
-
-    .scoreboard-teams {
-        margin-inline: 18px;
-        border: 1px solid #E9EDF4;
-        border-radius: 14px;
-        background: #F8FAFD;
-        padding: 16px;
-    }
-
-    .scoreboard-team {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .scoreboard-team + .scoreboard-team {
-        border-top: 1px dashed #DDE3EE;
-        margin-top: 14px;
-        padding-top: 14px;
-    }
-
-    .scoreboard-team-info { display: flex; min-width: 0; align-items: center; gap: 10px; }
-
-    .scoreboard-logo {
-        width: 39px;
-        height: 39px;
-        flex-shrink: 0;
-        object-fit: contain;
-        filter: drop-shadow(0 5px 5px rgb(15 23 42 / 16%));
-    }
-
-    .scoreboard-fallback {
-        width: 39px;
-        height: 39px;
-        border-radius: 12px;
-        font-size: 14px;
-    }
-
-    .scoreboard-team-name {
-        overflow-wrap: anywhere;
-        color: var(--navy);
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1.5;
-    }
-
-    .scoreboard-number {
-        color: var(--navy);
-        font-size: clamp(19px, 2.5vw, 25px);
-        font-weight: 900;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -.8px;
-        line-height: 1.15;
-        text-align: right;
         white-space: nowrap;
     }
 
-    .scoreboard-overs {
-        margin-top: 4px;
-        color: #94A3B8;
-        font-size: 10px;
-        font-weight: 700;
-        text-align: right;
-    }
+    .np-band-track span:nth-child(even) { color: #1A0F0B; }
 
-    .scoreboard-result {
-        margin: 15px 18px 0;
-        border: 1px solid #D8EFE4;
-        border-radius: 12px;
-        background: #F0FAF5;
-        padding: 12px 14px;
-    }
+    @keyframes np-marquee { to { transform: translateX(-50%); } }
 
-    .scoreboard-result-label {
-        color: var(--win);
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-    }
+    /* =========================================================
+       Result cards
+       ========================================================= */
+    .np-res-grid { display: grid; gap: 22px; }
 
-    .scoreboard-result-text {
-        margin-top: 5px;
-        color: #155D43;
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1.7;
-    }
+    .np-res-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 22px 22px 12px; }
+    .np-res-meta strong { display: block; font-size: 15px; font-weight: 700; }
+    .np-res-meta span { display: block; margin-top: 2px; color: var(--soft); font-size: 12px; font-weight: 600; }
 
-    .scoreboard-footer { padding: 17px 18px 19px; }
+    .np-res-rows { margin: 0 14px; }
 
-    .scoreboard-note {
-        margin: 15px 18px 0;
-        border: 1px dashed #D9DFEB;
-        border-radius: 12px;
-        background: #FAFBFE;
-        padding: 15px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.8;
-    }
+    .np-res-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 13px 12px; clip-path: var(--cut-sm); background: rgb(255 255 255 / 4%); }
+    .np-res-row + .np-res-row { margin-top: 7px; }
+    .np-res-row.is-win { background: linear-gradient(90deg, rgb(43 217 160 / 20%), rgb(255 255 255 / 4%)); box-shadow: inset 4px 0 0 var(--win); }
+    .np-res-team { display: flex; min-width: 0; align-items: center; gap: 12px; font-size: 15px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+    .np-win-tag { display: block; margin-top: 3px; color: var(--win); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .np-res-score { font-size: 32px; text-align: right; white-space: nowrap; }
+    .np-res-score.is-empty { color: rgb(255 255 255 / 30%); font-size: 24px; }
+
+    .np-res-result { margin: 14px 14px 0; padding: 11px 14px; background: var(--win); color: #04281C; font-family: var(--display); font-size: 20px; font-style: italic; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; clip-path: var(--cut-sm); }
+    .np-res-note { margin: 14px 14px 0; padding: 11px 14px; background: var(--glass); color: var(--soft); font-size: 13px; line-height: 1.6; clip-path: var(--cut-sm); }
+    .np-res-foot { padding: 16px 14px 20px; }
 
     /* =========================================================
        Teams
        ========================================================= */
-    .home-team-card { padding: 24px 14px 20px; text-align: center; }
+    .np-team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 
-    .home-team-card .home-team-logo,
-    .home-team-card .home-team-fallback {
-        width: 62px;
-        height: 62px;
-        margin-inline: auto;
+    .np-team { display: block; min-height: 270px; }
+
+    .np-team .np-shape { background: linear-gradient(170deg, #20297A 0%, #121A57 60%, #0B1034 100%); }
+
+    .np-team-letter {
+        position: absolute;
+        right: -6px;
+        bottom: -22px;
+        font-size: 170px;
+        color: transparent;
+        -webkit-text-stroke: 2px rgb(255 255 255 / 10%);
+        line-height: 1;
+        pointer-events: none;
     }
 
-    .home-team-card-name {
-        margin-top: 17px;
-        overflow-wrap: anywhere;
-        color: var(--navy);
-        font-size: 13px;
-        font-weight: 900;
-        line-height: 1.55;
-    }
-
-    .home-team-card-short { margin-top: 5px; color: #94A3B8; font-size: 11px; font-weight: 700; }
-
-    /* =========================================================
-       Empty states
-       ========================================================= */
-    .home-empty {
-        border: 1px dashed #D9DFEB;
-        border-radius: 18px;
-        background: #fff;
-        padding: 42px 22px;
-        text-align: center;
-    }
-
-    .home-empty-icon {
-        display: flex;
-        width: 54px;
-        height: 54px;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        border: 1px solid #F9D8CE;
-        border-radius: 17px;
-        background: #FFF0EB;
-        color: var(--orange);
-        font-size: 22px;
-    }
-
-    .home-empty-title { margin-top: 17px; color: var(--navy); font-size: 17px; font-weight: 900; }
-
-    .home-empty-text {
-        max-width: 440px;
-        margin: 9px auto 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.8;
-    }
+    .np-team-body { display: flex; min-height: 270px; flex-direction: column; justify-content: space-between; padding: 22px 20px 20px; }
+    .np-team-name { margin-top: 18px; font-size: 28px; line-height: 1; }
+    .np-team-short { margin-top: 6px; color: var(--gold); font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .np-team-link { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); font-family: var(--display); font-size: 17px; font-style: italic; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; transition: color .2s ease, gap .2s var(--ease); }
+    .np-team:hover .np-team-link { gap: 14px; color: #fff; }
 
     /* =========================================================
        News
        ========================================================= */
-    .home-news-card { overflow: hidden; }
+    .np-news-grid { display: grid; gap: 18px; }
 
-    .home-news-image,
-    .home-news-placeholder {
-        display: block;
-        width: 100%;
-        height: 200px;
-        object-fit: cover;
-        background: #EDF1F7;
-    }
+    .np-feature { position: relative; display: block; min-height: 420px; overflow: hidden; clip-path: var(--cut); background: var(--navy); }
 
-    .home-news-placeholder {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background:
-            radial-gradient(circle at 80% 10%, rgb(240 100 69 / 20%), transparent 35%),
-            linear-gradient(135deg, #171D50, #303C83);
-        color: #fff;
-    }
+    .np-feature img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .8s var(--ease); }
+    .np-feature:hover img { transform: scale(1.06); }
 
-    .home-news-title {
-        display: -webkit-box;
-        overflow: hidden;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        color: var(--navy);
-        font-size: 16px;
-        font-weight: 900;
-        line-height: 1.55;
-    }
+    .np-feature-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 80% 10%, rgb(240 100 69 / 35%), transparent 40%), linear-gradient(135deg, #131A52, #303C9A); font-size: 150px; color: rgb(255 255 255 / 12%); }
 
-    .home-news-excerpt {
-        display: -webkit-box;
-        overflow: hidden;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.9;
-    }
+    .np-feature-shade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 25%, rgb(5 7 26 / 92%) 100%); }
+    .np-feature-copy { position: absolute; inset: auto 0 0; padding: 26px 26px 28px; }
+    .np-feature-title { margin-top: 12px; font-size: clamp(32px, 4vw, 50px); }
+    .np-feature-text { display: -webkit-box; max-width: 60ch; margin-top: 12px; overflow: hidden; color: rgb(255 255 255 / 75%); font-size: 15px; line-height: 1.7; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
+    .np-news-list { display: grid; gap: 12px; align-content: start; }
+
+    .np-news-item { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; padding: 12px; background: linear-gradient(160deg, #161E5E, #0E1443); box-shadow: inset 0 0 0 1px var(--line); clip-path: var(--cut-sm); transition: background .25s ease, transform .25s var(--ease); }
+    .np-news-item:hover { background: linear-gradient(160deg, #1D2776, #121A55); transform: translateX(4px); }
+    .np-news-thumb { position: relative; height: 96px; overflow: hidden; background: linear-gradient(135deg, #131A52, #303C9A); clip-path: var(--cut-sm); }
+    .np-news-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .np-news-thumb span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 34px; color: rgb(255 255 255 / 25%); }
+    .np-news-item h3 { display: -webkit-box; overflow: hidden; font-size: 24px; line-height: 1.02; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .np-date { color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+    /* =========================================================
+       Empty states
+       ========================================================= */
+    .np-empty { padding: 56px 24px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--line); clip-path: var(--cut); text-align: center; }
+    .np-empty h3 { font-size: 36px; }
+    .np-empty p { max-width: 440px; margin: 12px auto 0; color: var(--soft); font-size: 15px; line-height: 1.7; }
+    .np-empty .np-btn { margin-top: 22px; }
 
     /* =========================================================
        CTA
        ========================================================= */
-    .home-cta {
+    .np-cta {
         position: relative;
         overflow: hidden;
+        margin-top: 30px;
+        padding-block: 96px 70px;
         background:
-            radial-gradient(ellipse at 90% 15%, rgb(240 100 69 / 18%), transparent 30%),
-            linear-gradient(120deg, #171D50, #202766);
-        color: #fff;
+            radial-gradient(ellipse at 90% 0%, rgb(240 100 69 / 35%), transparent 45%),
+            linear-gradient(120deg, #1A2266, #0D1243);
+        clip-path: polygon(0 56px, 100% 0, 100% 100%, 0 100%);
     }
 
-    .home-cta-inner {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: start;
-        justify-content: space-between;
-        gap: 25px;
-        padding-block: 42px;
-    }
+    .np-cta-in { display: flex; flex-direction: column; align-items: start; justify-content: space-between; gap: 26px; }
+    .np-cta h2 { font-size: clamp(52px, 8vw, 104px); }
 
     /* =========================================================
        Responsive
        ========================================================= */
     @media (min-width: 640px) {
-        .home-container { padding-inline: 28px; }
-        .home-hero-layout { padding-block: 75px 88px; }
+        .np-wrap { padding-inline: 28px; }
+        .np-team-grid { grid-template-columns: repeat(3, 1fr); }
+        .np-ticker-btn { display: flex; }
     }
 
     @media (min-width: 768px) {
-        .home-hero-layout {
-            grid-template-columns: minmax(0, 1.05fr) minmax(350px, .85fr);
-            gap: 32px;
-        }
-
-        .home-cta-inner { flex-direction: row; align-items: center; }
+        .np-ticker-label { display: flex; }
+        .np-res-grid { grid-template-columns: repeat(2, 1fr); }
+        .np-hero-grid { grid-template-columns: minmax(0, 1.1fr) minmax(380px, .9fr); gap: 36px; }
+        .np-cta-in { flex-direction: row; align-items: center; }
     }
 
     @media (min-width: 1024px) {
-        .home-container { padding-inline: 32px; }
-        .home-hero-layout { gap: 55px; padding-block: 88px 104px; }
-        .home-section { padding-block: 76px; }
+        .np-wrap { padding-inline: 36px; }
+        .np-hero-grid { padding-block: 84px 56px; gap: 64px; }
+        .np-team-grid { grid-template-columns: repeat(4, 1fr); }
+        .np-news-grid { grid-template-columns: 1.55fr 1fr; }
+    }
+
+    @media (min-width: 1200px) {
+        .np-res-grid { grid-template-columns: repeat(3, 1fr); }
     }
 
     @media (max-width: 639px) {
-        .home-hero-layout { gap: 32px; padding-block: 43px 56px; }
-        .home-hero-title { letter-spacing: -1.6px; }
-        .home-hero-description { font-size: 14px; }
-        .home-section { padding-block: 45px; }
-        .home-section-head { align-items: start; }
-        .home-match-feature { margin: 12px; padding: 19px 12px; }
-        .home-panel-top { padding: 17px; }
-        .cricket-ball { top: -26px; left: -14px; width: 64px; height: 64px; }
+        .np-section { padding-block: 54px; }
+        .np-head { align-items: start; flex-direction: column; gap: 12px; }
+        .np-ball { top: -34px; left: -10px; width: 72px; height: 72px; }
+        .np-feature { min-height: 340px; }
+        .np-news-item { grid-template-columns: 92px minmax(0, 1fr); }
+        .np-band-track span { font-size: 21px; }
     }
 
-    @media (max-width: 400px) {
-        .home-container { padding-inline: 15px; }
-        .home-section-head { flex-direction: column; align-items: start; }
-        .home-hero-title { font-size: 37px; }
-        .home-hero-checks { flex-direction: column; }
-    }
-
-    /* Touch devices and reduced-motion users get a flat, calm UI */
     @media (hover: none), (prefers-reduced-motion: reduce) {
         [data-tilt] { transform: none !important; }
         [data-tilt]::after { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .home-page *,
-        .home-page *::before,
-        .home-page *::after {
+        .np *, .np *::before, .np *::after {
             animation-duration: .01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: .01ms !important;
@@ -1129,333 +882,278 @@
     }
 </style>
 
-<div class="home-page">
+<div class="np">
 
     {{-- =====================================================
-         HERO
-         Live match  -> Live panel
-         No live     -> Upcoming panel
-         Live ended  -> Upcoming panel (the live list is filtered)
+         MATCH TICKER (live -> next -> recent results)
          ===================================================== --}}
-    <section class="home-hero {{ $hasLive ? 'is-live' : '' }}" id="hero">
-        <div class="home-hero-rings" aria-hidden="true"></div>
+    @if($ticker->isNotEmpty())
+        <div class="np-ticker" aria-label="Match ticker">
+            <div class="np-wrap">
+                <div class="np-ticker-in">
+                    <div class="np-ticker-label">Match<br>Centre</div>
 
-        <div class="home-container">
-            <div class="home-hero-layout">
+                    <button type="button" class="np-ticker-btn" data-ticker="-1" aria-label="Scroll matches left">&#8249;</button>
 
-                {{-- Copy --}}
-                <div>
-                    <div class="home-season-pill">
-                        <span class="home-dot" @if($hasLive) style="background:var(--live)" @endif></span>
-                        Nepal Premier League
+                    <div class="np-ticker-track" id="np-ticker-track">
+                        @foreach($ticker as $item)
+                            @php
+                                $f  = $item['f'];
+                                $t  = $item['type'];
+                                $ts = $t === 'up' ? null : $scoreFor($f);
+                                $hn = $shortName(data_get($f, 'homeTeam'), 'Home');
+                                $an = $shortName(data_get($f, 'awayTeam'), 'Away');
+                                $when = $fmtDate(data_get($f, 'scheduled_at'), 'D, d M · h:i A');
+                            @endphp
 
-                        @if(isset($season) && $season)
-                            <span class="text-white/40">/</span>
-                            <span>{{ $season->name }}</span>
-                        @endif
-                    </div>
+                            <a href="{{ route('fixtures.show', $f) }}" class="np-tk is-{{ $t }}">
+                                <div class="np-tk-meta">
+                                    @if($t === 'live')
+                                        <span class="np-tag np-tag-live"><span class="np-pulse"></span>Live</span>
+                                    @elseif($t === 'up')
+                                        <span class="np-tag np-tag-up">Up next</span>
+                                    @else
+                                        <span class="np-tag np-tag-done">Result</span>
+                                    @endif
 
-                    @if($hasLive)
-                        <h1 class="home-hero-title mt-7">
-                            It&rsquo;s matchday.
-                            <span class="accent block">Watch it unfold live.</span>
-                        </h1>
-
-                        <p class="home-hero-description">
-                            {{ data_get($liveMatch, 'homeTeam.name', 'Home') }} are playing
-                            {{ data_get($liveMatch, 'awayTeam.name', 'Away') }} right now.
-                            The scoreboard updates as the scorer records each ball.
-                        </p>
-
-                        <div class="mt-7 flex flex-wrap gap-3">
-                            <a href="{{ route('fixtures.show', $liveMatch) }}"
-                               class="home-button home-button-live">
-                                <span class="home-dot" style="background:#fff"></span>
-                                Open live scorecard
-                            </a>
-
-                            <a href="{{ route('fixtures.index') }}"
-                               class="home-button border border-white/25 bg-white/5 text-white hover:bg-white/10">
-                                All fixtures
-                            </a>
-                        </div>
-                    @else
-                        <h1 class="home-hero-title mt-7">
-                            Every match.
-                            <span class="accent block">Every moment.</span>
-                            All in one place.
-                        </h1>
-
-                        <p class="home-hero-description">
-                            Your home for Nepal cricket. Explore fixtures, check
-                            manually updated scoreboards, discover teams and
-                            catch up on the latest NPL stories.
-                        </p>
-
-                        <div class="mt-7 flex flex-wrap gap-3">
-                            <a href="{{ route('fixtures.index') }}"
-                               class="home-button home-button-primary">
-                                Explore fixtures <span aria-hidden="true">&rarr;</span>
-                            </a>
-
-                            <a href="#recent-matches"
-                               class="home-button border border-white/25 bg-white/5 text-white hover:bg-white/10">
-                                Recent scoreboards <span aria-hidden="true">&darr;</span>
-                            </a>
-                        </div>
-                    @endif
-
-                    <div class="home-hero-checks">
-                        <div class="home-hero-check">
-                            <span class="home-check-icon" aria-hidden="true">&#10003;</span>
-                            Match information
-                        </div>
-                        <div class="home-hero-check">
-                            <span class="home-check-icon" aria-hidden="true">&#10003;</span>
-                            Match results
-                        </div>
-                        <div class="home-hero-check">
-                            <span class="home-check-icon" aria-hidden="true">&#10003;</span>
-                            League updates
-                        </div>
-                    </div>
-                </div>
-
-                {{-- 3D panel --}}
-                <div class="hero-stage scene3d">
-                    <div class="cricket-ball" aria-hidden="true"><span class="ball-spin"></span></div>
-
-                    @if($hasLive)
-                        {{-- ================= LIVE PANEL ================= --}}
-                        @php
-                            $ls       = $scoreFor($liveMatch);
-                            $homeLogo = $imageUrl(data_get($liveMatch, 'homeTeam.logo'));
-                            $awayLogo = $imageUrl(data_get($liveMatch, 'awayTeam.logo'));
-                        @endphp
-
-                        <div class="home-panel is-live" data-tilt data-tilt-max="9" aria-live="polite">
-                            <div class="home-panel-top">
-                                <div class="z-1">
-                                    <p class="home-panel-label">Happening now</p>
-                                    <h2 class="home-panel-heading">Live Match Centre</h2>
+                                    <span>{{ data_get($f, 'match_number') ? 'Match ' . data_get($f, 'match_number') : $matchDate($f) }}</span>
                                 </div>
 
-                                <span class="home-status home-status-live z-2">
-                                    <span class="home-dot"></span>
-                                    Live
-                                </span>
-                            </div>
-
-                            <div class="home-match-feature is-live">
-                                <div class="text-center z-1">
-                                    <p class="text-[10px] font-extrabold uppercase tracking-[1.5px] text-slate-500">
-                                        {{ data_get($liveMatch, 'season.name', 'Nepal Premier League') }}
-                                    </p>
-
-                                    @if(data_get($liveMatch, 'match_number'))
-                                        <p class="mt-2 text-xs font-bold text-slate-500">
-                                            Match {{ data_get($liveMatch, 'match_number') }}
-                                        </p>
+                                <div class="np-tk-row">
+                                    <span class="np-tk-team">{{ $logo(data_get($f, 'homeTeam'), 26) }}{{ $hn }}</span>
+                                    @if($ts && $ts['homeScore'] !== null)
+                                        <span class="np-tk-score np-num">{{ $ts['homeScore'] }}@if($ts['homeOvers'] !== null)<small>({{ $ts['homeOvers'] }})</small>@endif</span>
                                     @endif
                                 </div>
 
-                                <div class="mt-4 z-2">
-                                    {{-- Home --}}
-                                    <div class="live-row {{ $ls['homeBats'] ? 'is-batting' : '' }}">
-                                        <div class="live-team">
-                                            @if($homeLogo)
-                                                <img src="{{ $homeLogo }}" alt="{{ $ls['homeName'] }} logo"
-                                                     class="home-team-logo !h-[44px] !w-[44px]" loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback !h-[44px] !w-[44px] !text-base">{{ $initial($ls['homeName']) }}</div>
-                                            @endif
+                                <div class="np-tk-row">
+                                    <span class="np-tk-team">{{ $logo(data_get($f, 'awayTeam'), 26) }}{{ $an }}</span>
+                                    @if($ts && $ts['awayScore'] !== null)
+                                        <span class="np-tk-score np-num">{{ $ts['awayScore'] }}@if($ts['awayOvers'] !== null)<small>({{ $ts['awayOvers'] }})</small>@endif</span>
+                                    @endif
+                                </div>
 
+                                <div class="np-tk-foot">
+                                    @if($t === 'live')
+                                        {{ $ts['chase'] ?? 'Match in progress' }}
+                                    @elseif($t === 'up')
+                                        {{ $when ?? 'Schedule to be announced' }}
+                                    @else
+                                        {{ $ts['winnerName'] ? $ts['winnerName'] . ' won' : 'Final score recorded' }}
+                                    @endif
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+
+                    <button type="button" class="np-ticker-btn" data-ticker="1" aria-label="Scroll matches right">&#8250;</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- =====================================================
+         HERO
+         Live -> live panel. Not live / finished -> upcoming.
+         ===================================================== --}}
+    <section class="np-hero {{ $hasLive ? 'is-live' : '' }}" id="hero">
+        <span class="np-beam np-beam-a" aria-hidden="true"></span>
+        <span class="np-beam np-beam-b" aria-hidden="true"></span>
+        <span class="np-floor" aria-hidden="true"></span>
+        <span class="np-ghost np-display" aria-hidden="true">{{ $hasLive ? 'Live' : 'NPL' }}</span>
+
+        <div class="np-wrap">
+            <div class="np-hero-grid">
+
+                {{-- Copy --}}
+                <div>
+                    <p class="np-season">
+                        Nepal Premier League
+                        @if(isset($season) && $season) &nbsp;&bull;&nbsp; {{ $season->name }} @endif
+                    </p>
+
+                    @if($hasLive)
+                        <h1 class="np-display np-hero-title">
+                            <span class="line">Match</span>
+                            <span class="line np-hot">Live</span>
+                            <span class="line np-outline">Now</span>
+                        </h1>
+
+                        <p class="np-hero-text">
+                            {{ data_get($liveMatch, 'homeTeam.name', 'Home') }} are playing
+                            {{ data_get($liveMatch, 'awayTeam.name', 'Away') }} right now.
+                            The score updates as the scorer records each ball.
+                        </p>
+
+                        <div class="np-hero-actions">
+                            <a href="{{ route('fixtures.show', $liveMatch) }}" class="np-btn np-btn-live">
+                                <span class="np-pulse"></span> Open live scorecard
+                            </a>
+                            <a href="{{ route('fixtures.index') }}" class="np-btn np-btn-ghost">All fixtures</a>
+                        </div>
+                    @else
+                        <h1 class="np-display np-hero-title">
+                            <span class="line">Nepal</span>
+                            <span class="line np-hot">Premier</span>
+                            <span class="line np-outline">League</span>
+                        </h1>
+
+                        <p class="np-hero-text">
+                            Every fixture, every scoreboard and every team in one place.
+                            Check what is next, then catch up on the results.
+                        </p>
+
+                        <div class="np-hero-actions">
+                            <a href="{{ route('fixtures.index') }}" class="np-btn np-btn-orange">Explore fixtures &rarr;</a>
+                            <a href="#recent-matches" class="np-btn np-btn-ghost">Recent scoreboards</a>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- 3D panel --}}
+                <div class="np-stage scene">
+                    <div class="np-ball" aria-hidden="true"></div>
+
+                    @if($hasLive)
+                        @php $ls = $scoreFor($liveMatch); @endphp
+
+                        <div class="np-tcard" data-tilt data-tilt-max="8" aria-live="polite">
+                            <div class="np-shape"></div>
+
+                            <div class="np-body">
+                                <div class="np-panel-top">
+                                    <div class="d1">
+                                        <p class="np-panel-kicker">
+                                            {{ data_get($liveMatch, 'season.name', 'Nepal Premier League') }}
+                                            @if(data_get($liveMatch, 'match_number')) &bull; Match {{ data_get($liveMatch, 'match_number') }} @endif
+                                        </p>
+                                        <h2 class="np-display np-panel-title">Live scorecard</h2>
+                                    </div>
+
+                                    <span class="np-tag np-tag-live d3"><span class="np-pulse"></span>Live</span>
+                                </div>
+
+                                <div class="np-live-rows d2">
+                                    <div class="np-live-row {{ $ls['homeBats'] ? 'is-bat' : '' }}">
+                                        <div class="np-live-team">
+                                            {{ $logo(data_get($liveMatch, 'homeTeam'), 52) }}
                                             <div class="min-w-0">
-                                                <p class="live-team-name">{{ $ls['homeName'] }}</p>
-                                                @if($ls['homeBats'])
-                                                    <span class="live-bat-tag"><span class="home-dot" style="background:var(--live)"></span>Batting</span>
-                                                @endif
+                                                <p class="np-live-name">{{ $ls['homeName'] }}</p>
+                                                @if($ls['homeBats'])<span class="np-bat-tag"><span class="np-pulse"></span>Batting</span>@endif
                                             </div>
                                         </div>
 
                                         <div>
                                             @if($ls['homeScore'] !== null)
-                                                <p class="live-score">{{ $ls['homeScore'] }}</p>
-                                                <p class="live-overs">{{ $ls['homeOvers'] !== null ? $ls['homeOvers'] . ' overs' : 'Score recorded' }}</p>
+                                                <p class="np-display np-big-score np-num">{{ $ls['homeScore'] }}</p>
+                                                <p class="np-overs">{{ $ls['homeOvers'] !== null ? $ls['homeOvers'] . ' overs' : 'Score recorded' }}</p>
                                             @else
-                                                <p class="live-score text-slate-300">&mdash;</p>
-                                                <p class="live-overs">Yet to bat</p>
+                                                <p class="np-display np-big-score" style="color:rgb(255 255 255 / 25%)">&mdash;</p>
+                                                <p class="np-overs">Yet to bat</p>
                                             @endif
                                         </div>
                                     </div>
 
-                                    {{-- Away --}}
-                                    <div class="live-row {{ $ls['awayBats'] ? 'is-batting' : '' }}">
-                                        <div class="live-team">
-                                            @if($awayLogo)
-                                                <img src="{{ $awayLogo }}" alt="{{ $ls['awayName'] }} logo"
-                                                     class="home-team-logo !h-[44px] !w-[44px]" loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback !h-[44px] !w-[44px] !text-base">{{ $initial($ls['awayName']) }}</div>
-                                            @endif
-
+                                    <div class="np-live-row {{ $ls['awayBats'] ? 'is-bat' : '' }}">
+                                        <div class="np-live-team">
+                                            {{ $logo(data_get($liveMatch, 'awayTeam'), 52) }}
                                             <div class="min-w-0">
-                                                <p class="live-team-name">{{ $ls['awayName'] }}</p>
-                                                @if($ls['awayBats'])
-                                                    <span class="live-bat-tag"><span class="home-dot" style="background:var(--live)"></span>Batting</span>
-                                                @endif
+                                                <p class="np-live-name">{{ $ls['awayName'] }}</p>
+                                                @if($ls['awayBats'])<span class="np-bat-tag"><span class="np-pulse"></span>Batting</span>@endif
                                             </div>
                                         </div>
 
                                         <div>
                                             @if($ls['awayScore'] !== null)
-                                                <p class="live-score">{{ $ls['awayScore'] }}</p>
-                                                <p class="live-overs">{{ $ls['awayOvers'] !== null ? $ls['awayOvers'] . ' overs' : 'Score recorded' }}</p>
+                                                <p class="np-display np-big-score np-num">{{ $ls['awayScore'] }}</p>
+                                                <p class="np-overs">{{ $ls['awayOvers'] !== null ? $ls['awayOvers'] . ' overs' : 'Score recorded' }}</p>
                                             @else
-                                                <p class="live-score text-slate-300">&mdash;</p>
-                                                <p class="live-overs">Yet to bat</p>
+                                                <p class="np-display np-big-score" style="color:rgb(255 255 255 / 25%)">&mdash;</p>
+                                                <p class="np-overs">Yet to bat</p>
                                             @endif
                                         </div>
                                     </div>
                                 </div>
 
-                                <p class="live-chase z-1">
-                                    {{ $ls['chase'] ?? 'The scorer has not recorded a ball yet.' }}
-                                </p>
-                            </div>
+                                <p class="np-chase d1">{{ $ls['chase'] ?? 'The scorer has not recorded a ball yet.' }}</p>
 
-                            <div class="px-[18px] pb-5 z-2">
-                                <a href="{{ route('fixtures.show', $liveMatch) }}"
-                                   class="home-button home-button-live w-full">
-                                    Open live scorecard <span aria-hidden="true">&rarr;</span>
-                                </a>
-                            </div>
-
-                            @if($otherLive->isNotEmpty())
-                                <div class="live-more pb-5">
-                                    <p class="home-panel-label">Also live</p>
-
-                                    @foreach($otherLive as $other)
-                                        <a href="{{ route('fixtures.show', $other) }}" class="live-more-item">
-                                            <span>
-                                                {{ data_get($other, 'homeTeam.name', 'Home') }}
-                                                vs
-                                                {{ data_get($other, 'awayTeam.name', 'Away') }}
-                                            </span>
-                                            <span aria-hidden="true">&rarr;</span>
-                                        </a>
-                                    @endforeach
+                                <div class="np-panel-foot d2">
+                                    <a href="{{ route('fixtures.show', $liveMatch) }}" class="np-btn np-btn-live np-btn-block">Open live scorecard &rarr;</a>
                                 </div>
-                            @endif
+
+                                @if($otherLive->isNotEmpty())
+                                    <div class="np-also d1">
+                                        <p class="np-panel-kicker">Also live</p>
+                                        @foreach($otherLive as $other)
+                                            <a href="{{ route('fixtures.show', $other) }}">
+                                                <span>{{ data_get($other, 'homeTeam.name', 'Home') }} vs {{ data_get($other, 'awayTeam.name', 'Away') }}</span>
+                                                <span aria-hidden="true">&rarr;</span>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
                         </div>
 
                     @else
-                        {{-- ================= UPCOMING PANEL ================= --}}
-                        <div class="home-panel" data-tilt data-tilt-max="9">
-                            <div class="home-panel-top">
-                                <div class="z-1">
-                                    <p class="home-panel-label">Coming up next</p>
-                                    <h2 class="home-panel-heading">Match Centre</h2>
-                                </div>
+                        <div class="np-tcard" data-tilt data-tilt-max="8">
+                            <div class="np-shape"></div>
 
-                                <span class="home-status home-status-upcoming z-2">
-                                    <span class="home-dot"></span>
-                                    Upcoming
-                                </span>
-                            </div>
-
-                            @if($nextMatch)
-                                <div class="home-match-feature">
-                                    <div class="text-center z-1">
-                                        <p class="text-[10px] font-extrabold uppercase tracking-[1.5px] text-slate-500">
-                                            {{ $nextMatch->season->name ?? 'Nepal Premier League' }}
-                                        </p>
-
-                                        @if($nextMatch->match_number)
-                                            <p class="mt-2 text-xs font-bold text-slate-500">
-                                                Match {{ $nextMatch->match_number }}
-                                            </p>
-                                        @endif
+                            <div class="np-body">
+                                <div class="np-panel-top">
+                                    <div class="d1">
+                                        <p class="np-panel-kicker">Coming up next</p>
+                                        <h2 class="np-display np-panel-title">Match centre</h2>
                                     </div>
 
-                                    <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 z-3">
-                                        <div class="home-feature-team">
-                                            @if($imageUrl($nextMatch->homeTeam?->logo))
-                                                <img src="{{ $imageUrl($nextMatch->homeTeam->logo) }}"
-                                                     alt="{{ $nextMatch->homeTeam->name }} logo"
-                                                     class="home-team-logo mx-auto" loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback mx-auto">
-                                                    {{ $initial($nextMatch->homeTeam->name ?? 'H') }}
-                                                </div>
-                                            @endif
-
-                                            <p class="home-feature-team-name">{{ $nextMatch->homeTeam->name ?? 'Home Team' }}</p>
-                                            <p class="home-feature-team-caption">Home</p>
-                                        </div>
-
-                                        <div class="text-center">
-                                            <span class="text-base font-black text-[#F06445]">VS</span>
-                                            <div class="mt-1 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">NPL</div>
-                                        </div>
-
-                                        <div class="home-feature-team">
-                                            @if($imageUrl($nextMatch->awayTeam?->logo))
-                                                <img src="{{ $imageUrl($nextMatch->awayTeam->logo) }}"
-                                                     alt="{{ $nextMatch->awayTeam->name }} logo"
-                                                     class="home-team-logo mx-auto" loading="lazy">
-                                            @else
-                                                <div class="home-team-fallback mx-auto">
-                                                    {{ $initial($nextMatch->awayTeam->name ?? 'A') }}
-                                                </div>
-                                            @endif
-
-                                            <p class="home-feature-team-name">{{ $nextMatch->awayTeam->name ?? 'Away Team' }}</p>
-                                            <p class="home-feature-team-caption">Away</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="home-match-date z-1">
-                                        @if($nextMatch->scheduled_at)
-                                            <p class="text-sm font-extrabold text-[#202766]">
-                                                {{ \Illuminate\Support\Carbon::parse($nextMatch->scheduled_at)->format('D, d M Y') }}
-                                            </p>
-                                            <p class="mt-1.5 text-xs font-semibold text-slate-500">
-                                                {{ \Illuminate\Support\Carbon::parse($nextMatch->scheduled_at)->format('h:i A') }}
-                                            </p>
-                                            <p class="mt-2 text-[11px] font-extrabold text-[#F06445]"
-                                               data-countdown="{{ \Illuminate\Support\Carbon::parse($nextMatch->scheduled_at)->toIso8601String() }}"></p>
-                                        @else
-                                            <p class="text-sm font-bold text-slate-500">Schedule to be announced</p>
-                                        @endif
-                                    </div>
+                                    <span class="np-tag np-tag-up d3">Upcoming</span>
                                 </div>
 
-                                <div class="px-[18px] pb-5 z-2">
-                                    <a href="{{ route('fixtures.show', $nextMatch) }}"
-                                       class="home-button home-button-dark w-full">
-                                        View match details <span aria-hidden="true">&rarr;</span>
-                                    </a>
-                                </div>
-                            @else
-                                <div class="px-5 py-10 text-center sm:px-7">
-                                    <div class="home-empty-icon">&#128197;</div>
-
-                                    <h3 class="mt-4 text-base font-extrabold text-[#202766]">
-                                        No upcoming match scheduled
-                                    </h3>
-
-                                    <p class="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
-                                        No upcoming fixture is available right now.
-                                        Open the fixtures page to see the full schedule.
+                                @if($nextMatch)
+                                    <p class="np-panel-kicker d1" style="padding:6px 24px 0">
+                                        {{ $nextMatch->season->name ?? 'Nepal Premier League' }}
+                                        @if($nextMatch->match_number) &bull; Match {{ $nextMatch->match_number }} @endif
                                     </p>
 
-                                    <a href="{{ route('fixtures.index') }}"
-                                       class="home-button home-button-primary mt-5">
-                                        Browse fixtures &rarr;
-                                    </a>
-                                </div>
-                            @endif
+                                    <div class="np-vs-row d3">
+                                        <div class="np-vs-team">
+                                            {{ $logo($nextMatch->homeTeam, 84) }}
+                                            <p class="np-vs-name">{{ $nextMatch->homeTeam->name ?? 'Home Team' }}</p>
+                                            <p class="np-vs-cap">Home</p>
+                                        </div>
+
+                                        <span class="np-display np-vs">VS</span>
+
+                                        <div class="np-vs-team">
+                                            {{ $logo($nextMatch->awayTeam, 84) }}
+                                            <p class="np-vs-name">{{ $nextMatch->awayTeam->name ?? 'Away Team' }}</p>
+                                            <p class="np-vs-cap">Away</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="np-when d2">
+                                        @if($nextMatch->scheduled_at)
+                                            <strong>{{ $fmtDate($nextMatch->scheduled_at, 'D, d M Y') }}</strong>
+                                            <span>{{ $fmtDate($nextMatch->scheduled_at, 'h:i A') }}</span>
+                                            <p class="np-count" data-countdown="{{ \Illuminate\Support\Carbon::parse($nextMatch->scheduled_at)->toIso8601String() }}"></p>
+                                        @else
+                                            <strong>Schedule to be announced</strong>
+                                        @endif
+                                    </div>
+
+                                    <div class="np-panel-foot d2">
+                                        <a href="{{ route('fixtures.show', $nextMatch) }}" class="np-btn np-btn-orange np-btn-block">View match details &rarr;</a>
+                                    </div>
+                                @else
+                                    <div style="padding:34px 24px 30px;text-align:center">
+                                        <h3 class="np-display" style="font-size:34px">No upcoming match</h3>
+                                        <p style="margin:10px auto 0;max-width:320px;color:var(--soft);font-size:14px;line-height:1.7">
+                                            No fixture is scheduled right now. Open the fixtures page to see the full schedule.
+                                        </p>
+                                        <a href="{{ route('fixtures.index') }}" class="np-btn np-btn-orange" style="margin-top:20px">Browse fixtures &rarr;</a>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     @endif
                 </div>
@@ -1464,376 +1162,253 @@
         </div>
     </section>
 
-    {{-- =====================================================
-         UP NEXT STRIP
-         Only while a match is live, so the next fixture is
-         still visible without fighting the live panel.
-         ===================================================== --}}
-    @if($hasLive && $nextMatch)
-        <section class="border-b border-[#E9EDF4] bg-white">
-            <div class="home-container">
-                <div class="flex flex-wrap items-center justify-between gap-4 py-5">
-                    <div class="flex items-center gap-3">
-                        <span class="home-status home-status-upcoming"><span class="home-dot"></span>Up next</span>
-
-                        <p class="text-sm font-extrabold text-[#202766]">
-                            {{ $nextMatch->homeTeam->name ?? 'Home Team' }}
-                            <span class="px-1 text-[#F06445]">vs</span>
-                            {{ $nextMatch->awayTeam->name ?? 'Away Team' }}
-                        </p>
-
-                        @if($nextMatch->scheduled_at)
-                            <p class="hidden text-xs font-semibold text-slate-500 sm:block">
-                                {{ \Illuminate\Support\Carbon::parse($nextMatch->scheduled_at)->format('D, d M &middot; h:i A') }}
-                            </p>
-                        @endif
-                    </div>
-
-                    <a href="{{ route('fixtures.show', $nextMatch) }}" class="home-text-link">
-                        Match details <span aria-hidden="true">&rarr;</span>
-                    </a>
-                </div>
-            </div>
-        </section>
-    @endif
+    {{-- MOVING BAND --}}
+    <div class="np-band" aria-hidden="true">
+        <div class="np-band-track">
+            @for($i = 0; $i < 2; $i++)
+                @foreach(['Every match', '&#9670;', 'Every moment', '&#9670;', 'Nepal Premier League', '&#9670;', 'Live scores', '&#9670;', 'Fixtures', '&#9670;', 'Results', '&#9670;'] as $word)
+                    <span>{!! $word !!}</span>
+                @endforeach
+            @endfor
+        </div>
+    </div>
 
     {{-- =====================================================
          RECENT MATCHES
          ===================================================== --}}
-    <section id="recent-matches" class="home-section scroll-mt-24">
-        <div class="home-container">
-
-            <div class="home-section-head">
+    <section id="recent-matches" class="np-section" style="scroll-margin-top:90px">
+        <div class="np-wrap">
+            <div class="np-head">
                 <div>
-                    <div class="home-eyebrow"><span class="home-dot"></span>Match results</div>
-                    <h2 class="home-section-title mt-3">Recent Matches</h2>
-                    <p class="home-section-description">
-                        Final scores and results from the manual scorecard.
-                    </p>
+                    <h2 class="np-display np-title">Recent results</h2>
+                    <p class="np-sub">Final scores from the manual scorecard.</p>
                 </div>
 
-                <a href="{{ route('fixtures.index') }}" class="home-text-link">
-                    All fixtures <span aria-hidden="true">&rarr;</span>
-                </a>
+                <a href="{{ route('fixtures.index') }}" class="np-more">All fixtures <span aria-hidden="true">&rarr;</span></a>
             </div>
 
             @if($recentResults->isNotEmpty())
-                <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3 scene3d">
-
+                <div class="np-res-grid scene">
                     @foreach($recentResults as $result)
                         @php
-                            $rs        = $scoreFor($result);
-                            $hasScore  = $rs['homeScore'] !== null || $rs['awayScore'] !== null;
-                            $homeLogo  = $imageUrl(data_get($result, 'homeTeam.logo'));
-                            $awayLogo  = $imageUrl(data_get($result, 'awayTeam.logo'));
+                            $rs       = $scoreFor($result);
+                            $hasScore = $rs['homeScore'] !== null || $rs['awayScore'] !== null;
+                            $homeWon  = $rs['winnerName'] && $rs['winnerName'] === $rs['homeName'];
+                            $awayWon  = $rs['winnerName'] && $rs['winnerName'] === $rs['awayName'];
                         @endphp
 
-                        <article class="home-card scoreboard-card" data-tilt data-tilt-max="5">
+                        <article class="np-tcard" data-tilt data-tilt-max="6">
+                            <div class="np-shape"></div>
 
-                            <div class="scoreboard-header">
-                                <div class="min-w-0 z-1">
-                                    <p class="text-[10px] font-extrabold uppercase tracking-[1.3px] text-slate-400">
-                                        {{ $result->season->name ?? 'Nepal Premier League' }}
-                                    </p>
-
-                                    <p class="mt-1.5 text-xs font-extrabold text-[#202766]">
-                                        {{ $result->match_number ? 'Match ' . $result->match_number : 'Match scorecard' }}
-                                    </p>
-
-                                    <p class="mt-1 text-[10px] font-medium text-slate-400">
-                                        {{ $matchDate($result) }}
-                                    </p>
-                                </div>
-
-                                <span class="scoreboard-status z-2">
-                                    <span class="home-dot" style="background:var(--win)"></span>
-                                    Completed
-                                </span>
-                            </div>
-
-                            <div class="scoreboard-teams z-1">
-                                {{-- Home --}}
-                                <div class="scoreboard-team">
-                                    <div class="scoreboard-team-info">
-                                        @if($homeLogo)
-                                            <img src="{{ $homeLogo }}" alt="{{ $rs['homeName'] }} logo"
-                                                 class="scoreboard-logo" loading="lazy">
-                                        @else
-                                            <div class="home-team-fallback scoreboard-fallback">{{ $initial($rs['homeName']) }}</div>
-                                        @endif
-
-                                        <div class="min-w-0">
-                                            <p class="scoreboard-team-name">{{ $rs['homeName'] }}</p>
-
-                                            @if($rs['winnerName'] && $rs['winnerName'] === $rs['homeName'])
-                                                <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">Winner</span>
-                                            @endif
-                                        </div>
+                            <div class="np-body">
+                                <div class="np-res-head">
+                                    <div class="np-res-meta d1">
+                                        <strong>{{ $result->match_number ? 'Match ' . $result->match_number : 'Match scorecard' }}</strong>
+                                        <span>{{ $result->season->name ?? 'Nepal Premier League' }} &bull; {{ $matchDate($result) }}</span>
                                     </div>
 
-                                    <div>
+                                    <span class="np-tag np-tag-done d2">Final</span>
+                                </div>
+
+                                <div class="np-res-rows d2">
+                                    <div class="np-res-row {{ $homeWon ? 'is-win' : '' }}">
+                                        <div class="np-res-team">
+                                            {{ $logo(data_get($result, 'homeTeam'), 40) }}
+                                            <div class="min-w-0">
+                                                {{ $rs['homeName'] }}
+                                                @if($homeWon)<span class="np-win-tag">Winner</span>@endif
+                                            </div>
+                                        </div>
+
                                         @if($rs['homeScore'] !== null)
-                                            <p class="scoreboard-number">{{ $rs['homeScore'] }}</p>
-                                            <p class="scoreboard-overs">{{ $rs['homeOvers'] !== null ? $rs['homeOvers'] . ' overs' : 'Score recorded' }}</p>
+                                            <div>
+                                                <p class="np-display np-res-score np-num">{{ $rs['homeScore'] }}</p>
+                                                <p class="np-overs">{{ $rs['homeOvers'] !== null ? $rs['homeOvers'] . ' ov' : 'Recorded' }}</p>
+                                            </div>
                                         @else
-                                            <p class="text-xs font-bold text-slate-400">&mdash;</p>
-                                            <p class="scoreboard-overs">No score</p>
+                                            <p class="np-display np-res-score is-empty">&mdash;</p>
                                         @endif
                                     </div>
-                                </div>
 
-                                {{-- Away --}}
-                                <div class="scoreboard-team">
-                                    <div class="scoreboard-team-info">
-                                        @if($awayLogo)
-                                            <img src="{{ $awayLogo }}" alt="{{ $rs['awayName'] }} logo"
-                                                 class="scoreboard-logo" loading="lazy">
-                                        @else
-                                            <div class="home-team-fallback scoreboard-fallback">{{ $initial($rs['awayName']) }}</div>
-                                        @endif
-
-                                        <div class="min-w-0">
-                                            <p class="scoreboard-team-name">{{ $rs['awayName'] }}</p>
-
-                                            @if($rs['winnerName'] && $rs['winnerName'] === $rs['awayName'])
-                                                <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">Winner</span>
-                                            @endif
+                                    <div class="np-res-row {{ $awayWon ? 'is-win' : '' }}">
+                                        <div class="np-res-team">
+                                            {{ $logo(data_get($result, 'awayTeam'), 40) }}
+                                            <div class="min-w-0">
+                                                {{ $rs['awayName'] }}
+                                                @if($awayWon)<span class="np-win-tag">Winner</span>@endif
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div>
                                         @if($rs['awayScore'] !== null)
-                                            <p class="scoreboard-number">{{ $rs['awayScore'] }}</p>
-                                            <p class="scoreboard-overs">{{ $rs['awayOvers'] !== null ? $rs['awayOvers'] . ' overs' : 'Score recorded' }}</p>
+                                            <div>
+                                                <p class="np-display np-res-score np-num">{{ $rs['awayScore'] }}</p>
+                                                <p class="np-overs">{{ $rs['awayOvers'] !== null ? $rs['awayOvers'] . ' ov' : 'Recorded' }}</p>
+                                            </div>
                                         @else
-                                            <p class="text-xs font-bold text-slate-400">&mdash;</p>
-                                            <p class="scoreboard-overs">No score</p>
+                                            <p class="np-display np-res-score is-empty">&mdash;</p>
                                         @endif
                                     </div>
                                 </div>
-                            </div>
 
-                            @if($rs['winnerName'])
-                                <div class="scoreboard-result z-1">
-                                    <p class="scoreboard-result-label">Match winner</p>
-                                    <p class="scoreboard-result-text">{{ $rs['winnerName'] }}</p>
-                                </div>
-                            @elseif(!$hasScore)
-                                <div class="scoreboard-note z-1">
-                                    The result is in, but the detailed scorecard has not been recorded yet.
-                                </div>
-                            @else
-                                <div class="scoreboard-note z-1" style="border-style:solid;border-color:#E9EDF4">
-                                    Final score recorded. Open the match page for the full result.
-                                </div>
-                            @endif
+                                @if($rs['winnerName'])
+                                    <p class="np-res-result d1">{{ $rs['winnerName'] }} won</p>
+                                @elseif(!$hasScore)
+                                    <p class="np-res-note d1">The result is in, but the detailed scorecard has not been recorded yet.</p>
+                                @else
+                                    <p class="np-res-note d1">Final score recorded. Open the match page for the full result.</p>
+                                @endif
 
-                            <div class="scoreboard-footer z-2">
-                                <a href="{{ route('fixtures.show', $result) }}"
-                                   class="home-button home-button-outline w-full">
-                                    View full scorecard <span aria-hidden="true">&rarr;</span>
-                                </a>
+                                <div class="np-res-foot d2">
+                                    <a href="{{ route('fixtures.show', $result) }}" class="np-btn np-btn-ghost np-btn-block">Full scorecard &rarr;</a>
+                                </div>
                             </div>
                         </article>
                     @endforeach
-
                 </div>
             @else
-                <div class="home-empty">
-                    <div class="home-empty-icon">&#127951;</div>
-                    <h3 class="home-empty-title">No recent matches yet</h3>
-                    <p class="home-empty-text">
-                        Completed matches appear here after the result and scorecard are entered.
-                    </p>
-                    <a href="{{ route('fixtures.index') }}" class="home-button home-button-dark mt-5">
-                        Browse fixtures <span aria-hidden="true">&rarr;</span>
-                    </a>
+                <div class="np-empty">
+                    <h3 class="np-display">No results yet</h3>
+                    <p>Completed matches appear here after the result and scorecard are entered.</p>
+                    <a href="{{ route('fixtures.index') }}" class="np-btn np-btn-orange">Browse fixtures &rarr;</a>
                 </div>
             @endif
-
         </div>
     </section>
 
     {{-- =====================================================
          TEAMS
          ===================================================== --}}
-    <section id="teams" class="home-section home-section-white scroll-mt-24">
-        <div class="home-container">
-
-            <div class="home-section-head">
+    <section id="teams" class="np-section np-section-alt" style="scroll-margin-top:90px">
+        <div class="np-wrap">
+            <div class="np-head">
                 <div>
-                    <div class="home-eyebrow">The competition</div>
-                    <h2 class="home-section-title mt-3">Meet the Teams</h2>
-                    <p class="home-section-description">
-                        Discover the teams competing in the Nepal Premier League.
-                    </p>
+                    <h2 class="np-display np-title">The teams</h2>
+                    <p class="np-sub">Every side competing in the Nepal Premier League.</p>
                 </div>
 
-                <a href="{{ route('teams.index') }}" class="home-text-link">
-                    Explore teams <span aria-hidden="true">&rarr;</span>
-                </a>
+                <a href="{{ route('teams.index') }}" class="np-more">All teams <span aria-hidden="true">&rarr;</span></a>
             </div>
 
             @if($teams->isNotEmpty())
-                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 scene3d">
+                <div class="np-team-grid scene">
                     @foreach($teams as $team)
-                        <a href="{{ route('teams.show', $team) }}"
-                           class="home-card home-team-card group" data-tilt data-tilt-max="10">
+                        <a href="{{ route('teams.show', $team) }}" class="np-tcard np-team" data-tilt data-tilt-max="10">
+                            <div class="np-shape"></div>
+                            <span class="np-team-letter np-display" aria-hidden="true">{{ $initial($team->name) }}</span>
 
-                            <div class="z-3">
-                                @if($imageUrl($team->logo))
-                                    <img src="{{ $imageUrl($team->logo) }}"
-                                         alt="{{ $team->name }} logo"
-                                         class="home-team-logo" loading="lazy">
-                                @else
-                                    <div class="home-team-fallback transition group-hover:border-orange-200 group-hover:bg-orange-50 group-hover:text-[#F06445]">
-                                        {{ $initial($team->name) }}
-                                    </div>
-                                @endif
+                            <div class="np-body np-team-body">
+                                <div class="d3">{{ $logo($team, 76) }}</div>
+
+                                <div class="d2">
+                                    <h3 class="np-display np-team-name">{{ $team->name }}</h3>
+                                    @if(!empty($team->short_name))
+                                        <p class="np-team-short">{{ $team->short_name }}</p>
+                                    @endif
+                                </div>
+
+                                <span class="np-team-link d1">Team profile <span aria-hidden="true">&rarr;</span></span>
                             </div>
-
-                            <h3 class="home-team-card-name z-2">{{ $team->name }}</h3>
-
-                            @if(!empty($team->short_name))
-                                <p class="home-team-card-short z-1">{{ $team->short_name }}</p>
-                            @endif
-
-                            <span class="z-1 mt-4 inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-wider text-[#F06445]">
-                                Team profile <span aria-hidden="true">&rarr;</span>
-                            </span>
                         </a>
                     @endforeach
                 </div>
             @else
-                <div class="home-empty">
-                    <div class="home-empty-icon">&#127942;</div>
-                    <h3 class="home-empty-title">Teams coming soon</h3>
-                    <p class="home-empty-text">
-                        Teams appear here once they are added to the league.
-                    </p>
+                <div class="np-empty">
+                    <h3 class="np-display">Teams coming soon</h3>
+                    <p>Teams appear here once they are added to the league.</p>
                 </div>
             @endif
-
         </div>
     </section>
 
     {{-- =====================================================
-         LATEST NEWS
+         NEWS
          ===================================================== --}}
-    <section id="news" class="home-section scroll-mt-24">
-        <div class="home-container">
-
-            <div class="home-section-head">
+    <section id="news" class="np-section" style="scroll-margin-top:90px">
+        <div class="np-wrap">
+            <div class="np-head">
                 <div>
-                    <div class="home-eyebrow">Around the league</div>
-                    <h2 class="home-section-title mt-3">Latest Cricket News</h2>
-                    <p class="home-section-description">
-                        Stories, match reports and updates from the NPL.
-                    </p>
+                    <h2 class="np-display np-title">Latest news</h2>
+                    <p class="np-sub">Stories, match reports and updates from the NPL.</p>
                 </div>
 
-                <a href="{{ route('news.index') }}" class="home-text-link">
-                    All news <span aria-hidden="true">&rarr;</span>
-                </a>
+                <a href="{{ route('news.index') }}" class="np-more">All news <span aria-hidden="true">&rarr;</span></a>
             </div>
 
             @if($latestNews->isNotEmpty())
-                <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3 scene3d">
-                    @foreach($latestNews as $article)
-                        @php
-                            $articleImage = $article->image ?? $article->featured_image ?? null;
-                            $articleDate  = $article->published_at ?? $article->created_at ?? null;
-                        @endphp
+                @php
+                    $featured = $latestNews->first();
+                    $rest     = $latestNews->slice(1, 4)->values();
+                    $fImage   = $imageUrl($featured->image ?? $featured->featured_image ?? null);
+                    $fDate    = $fmtDate($featured->published_at ?? $featured->created_at ?? null);
+                    $fText    = $featured->excerpt ?? $featured->summary
+                                ?? \Illuminate\Support\Str::limit(strip_tags((string) ($featured->content ?? '')), 160);
+                @endphp
 
-                        <article class="home-card home-news-card group" data-tilt data-tilt-max="5">
-                            <a href="{{ route('news.show', $article->slug) }}"
-                               class="block overflow-hidden"
-                               aria-label="Read {{ $article->title }}">
+                <div class="np-news-grid" @if($rest->isEmpty()) style="grid-template-columns:1fr" @endif>
+                    <a href="{{ route('news.show', $featured->slug) }}" class="np-feature">
+                        @if($fImage)
+                            <img src="{{ $fImage }}" alt="{{ $featured->title }}" loading="lazy">
+                        @else
+                            <span class="np-feature-ph np-display" aria-hidden="true">NPL</span>
+                        @endif
 
-                                @if($imageUrl($articleImage))
-                                    <img src="{{ $imageUrl($articleImage) }}"
-                                         alt="{{ $article->title }}"
-                                         class="home-news-image transition duration-500 group-hover:scale-[1.05]"
-                                         loading="lazy">
-                                @else
-                                    <div class="home-news-placeholder">
-                                        <span class="text-3xl font-black tracking-tight">NPL</span>
-                                        <span class="mt-2 text-[9px] font-extrabold uppercase tracking-[2px] text-white/70">Cricket Hub</span>
-                                    </div>
-                                @endif
-                            </a>
+                        <span class="np-feature-shade"></span>
 
-                            <div class="p-5 z-1">
-                                <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-400">
-                                    @if($articleDate)
-                                        <time datetime="{{ \Illuminate\Support\Carbon::parse($articleDate)->toIso8601String() }}">
-                                            {{ \Illuminate\Support\Carbon::parse($articleDate)->format('d M Y') }}
-                                        </time>
-                                        <span aria-hidden="true">/</span>
-                                    @endif
+                        <span class="np-feature-copy">
+                            <span class="np-tag np-tag-up">Top story</span>
+                            <h3 class="np-display np-feature-title">{{ $featured->title }}</h3>
+                            @if($fText)<span class="np-feature-text">{{ $fText }}</span>@endif
+                            @if($fDate)<span class="np-date" style="display:block;margin-top:12px">{{ $fDate }}</span>@endif
+                        </span>
+                    </a>
 
-                                    <span class="font-extrabold uppercase tracking-wider text-[#F06445]">NPL News</span>
-                                </div>
+                    @if($rest->isNotEmpty())
+                        <div class="np-news-list">
+                            @foreach($rest as $article)
+                                @php
+                                    $aImage = $imageUrl($article->image ?? $article->featured_image ?? null);
+                                    $aDate  = $fmtDate($article->published_at ?? $article->created_at ?? null);
+                                @endphp
 
-                                <a href="{{ route('news.show', $article->slug) }}" class="mt-3 block">
-                                    <h3 class="home-news-title transition group-hover:text-[#F06445]">
-                                        {{ $article->title }}
-                                    </h3>
+                                <a href="{{ route('news.show', $article->slug) }}" class="np-news-item">
+                                    <span class="np-news-thumb">
+                                        @if($aImage)
+                                            <img src="{{ $aImage }}" alt="" loading="lazy">
+                                        @else
+                                            <span class="np-display" aria-hidden="true">NPL</span>
+                                        @endif
+                                    </span>
+
+                                    <span>
+                                        @if($aDate)<span class="np-date">{{ $aDate }}</span>@endif
+                                        <h3 class="np-display" style="margin-top:6px">{{ $article->title }}</h3>
+                                    </span>
                                 </a>
-
-                                @if(!empty($article->excerpt))
-                                    <p class="home-news-excerpt mt-3">{{ $article->excerpt }}</p>
-                                @elseif(!empty($article->summary))
-                                    <p class="home-news-excerpt mt-3">{{ $article->summary }}</p>
-                                @elseif(!empty($article->content))
-                                    <p class="home-news-excerpt mt-3">
-                                        {{ \Illuminate\Support\Str::limit(strip_tags($article->content), 150) }}
-                                    </p>
-                                @endif
-
-                                <a href="{{ route('news.show', $article->slug) }}"
-                                   class="mt-5 inline-flex items-center gap-2 text-xs font-extrabold text-[#F06445] transition hover:text-[#202766]">
-                                    Read full story <span aria-hidden="true">&rarr;</span>
-                                </a>
-                            </div>
-                        </article>
-                    @endforeach
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @else
-                <div class="home-empty">
-                    <div class="home-empty-icon">&#128240;</div>
-                    <h3 class="home-empty-title">No published news yet</h3>
-                    <p class="home-empty-text">
-                        Published articles appear here. Check back for league coverage.
-                    </p>
+                <div class="np-empty">
+                    <h3 class="np-display">No news yet</h3>
+                    <p>Published articles appear here. Check back for league coverage.</p>
                 </div>
             @endif
-
         </div>
     </section>
 
-    {{-- =====================================================
-         FINAL CTA
-         ===================================================== --}}
-    <section class="home-cta">
-        <div class="home-container">
-            <div class="home-cta-inner">
-                <div class="max-w-2xl">
-                    <div class="home-eyebrow">Your NPL matchday starts here</div>
+    {{-- FINAL CTA --}}
+    <section class="np-cta">
+        <div class="np-wrap">
+            <div class="np-cta-in">
+                <h2 class="np-display">Never<br><span class="np-outline">miss</span> a ball</h2>
 
-                    <h2 class="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                        Never miss a moment.
-                    </h2>
-
-                    <p class="mt-3 max-w-xl text-sm leading-7 text-white/70">
-                        Check the match schedule, follow your favourite teams
-                        and open recent scoreboards in one place.
+                <div>
+                    <p style="max-width:380px;margin-bottom:22px;color:var(--soft);font-size:16px;line-height:1.7">
+                        Check the schedule, follow your team and open every scoreboard in one place.
                     </p>
+                    <a href="{{ route('fixtures.index') }}" class="np-btn np-btn-orange">Explore all fixtures &rarr;</a>
                 </div>
-
-                <a href="{{ route('fixtures.index') }}" class="home-button home-button-primary shrink-0">
-                    Explore all fixtures <span aria-hidden="true">&rarr;</span>
-                </a>
             </div>
         </div>
     </section>
@@ -1844,13 +1419,13 @@
 (function () {
     'use strict';
 
-    var root = document.querySelector('.home-page');
+    var root = document.querySelector('.np');
     if (!root) return;
 
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var canHover     = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-    /* ---------- 3D tilt ---------- */
+    /* ---------- 3D tilt + hero parallax ---------- */
     if (canHover && !reduceMotion) {
         root.querySelectorAll('[data-tilt]').forEach(function (el) {
             var max = parseFloat(el.getAttribute('data-tilt-max')) || 6;
@@ -1880,7 +1455,6 @@
             });
         });
 
-        /* Hero parallax: the ball and the rings drift with the pointer */
         var hero = document.getElementById('hero');
 
         if (hero) {
@@ -1892,7 +1466,20 @@
         }
     }
 
-    /* ---------- Countdown for the upcoming match ---------- */
+    /* ---------- Ticker arrows ---------- */
+    var track = document.getElementById('np-ticker-track');
+
+    root.querySelectorAll('[data-ticker]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (!track) return;
+            track.scrollBy({
+                left: parseInt(btn.getAttribute('data-ticker'), 10) * 290,
+                behavior: reduceMotion ? 'auto' : 'smooth'
+            });
+        });
+    });
+
+    /* ---------- Countdown to the next match ---------- */
     var countdown = root.querySelector('[data-countdown]');
 
     if (countdown) {
@@ -1910,19 +1497,17 @@
             var h = Math.floor(diff % 86400000 / 3600000);
             var m = Math.floor(diff % 3600000 / 60000);
 
-            countdown.textContent = 'Starts in ' +
-                (d ? d + 'd ' : '') + h + 'h ' + m + 'm';
+            countdown.textContent = 'Starts in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm';
         };
 
         tick();
         setInterval(tick, 30000);
     }
 
-    /* ---------- Live refresh ----------
-       While a match is live, reload every 30s so the scoreboard stays
-       current. Skips hidden tabs. When the match is marked completed,
-       the next load swaps the hero back to the upcoming match. */
     @if($hasLive)
+    /* ---------- Live refresh ----------
+       Reload every 30s while a match is live. When it is marked
+       completed, the next load shows the upcoming match again. */
     setInterval(function () {
         if (!document.hidden) {
             window.location.reload();
