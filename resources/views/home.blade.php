@@ -1,4 +1,3 @@
-
 @extends('layouts.app')
 
 @php
@@ -30,6 +29,10 @@
         return strtoupper(mb_substr(trim((string) $name) ?: 'N', 0, 1));
     };
 
+    /*
+     * Prefer legal_balls when available.
+     * Cricket overs are displayed as 10.3, not 10.5.
+     */
     $scoreOvers = function ($innings) {
         if (!$innings) {
             return null;
@@ -37,29 +40,43 @@
 
         $legalBalls = data_get($innings, 'legal_balls');
 
-        if ($legalBalls !== null) {
+        if ($legalBalls !== null && is_numeric($legalBalls)) {
             $legalBalls = max(0, (int) $legalBalls);
 
             return intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
         }
 
-        return data_get($innings, 'overs');
+        $overs = data_get($innings, 'overs');
+
+        return $overs !== null && $overs !== '' ? $overs : null;
     };
 
+    /*
+     * Support common manual-scoreboard field names.
+     */
     $formatScore = function ($innings) {
         if (!$innings) {
             return null;
         }
 
         $runs = data_get($innings, 'total_runs');
-        $wickets = data_get($innings, 'wickets');
 
         if ($runs === null) {
             $runs = data_get($innings, 'runs');
         }
 
         if ($runs === null) {
+            $runs = data_get($innings, 'total_score');
+        }
+
+        if ($runs === null || $runs === '') {
             return null;
+        }
+
+        $wickets = data_get($innings, 'wickets');
+
+        if ($wickets === null) {
+            $wickets = data_get($innings, 'total_wickets', 0);
         }
 
         return number_format((int) $runs) . '/' . (int) ($wickets ?? 0);
@@ -403,11 +420,6 @@
         color: #D94D31;
     }
 
-    .home-status-completed {
-        background: #EAF8F1;
-        color: #16845B;
-    }
-
     .home-match-feature {
         margin: 18px;
         border: 1px solid #E8ECF4;
@@ -471,8 +483,8 @@
     /* Manual scoreboard */
 
     .scoreboard-card {
-        overflow: hidden;
         position: relative;
+        overflow: hidden;
     }
 
     .scoreboard-card::before {
@@ -491,23 +503,9 @@
         padding: 20px 20px 15px;
     }
 
-    .scoreboard-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        border: 1px solid #E5E9F2;
-        border-radius: 100px;
-        background: #F8FAFD;
-        padding: 6px 9px;
-        color: #64748B;
-        font-size: 9px;
-        font-weight: 800;
-        letter-spacing: .7px;
-        text-transform: uppercase;
-    }
-
     .scoreboard-status {
         display: inline-flex;
+        flex-shrink: 0;
         align-items: center;
         gap: 6px;
         border-radius: 100px;
@@ -735,7 +733,7 @@
         line-height: 1.9;
     }
 
-    /* Final CTA */
+    /* CTA */
 
     .home-cta {
         position: relative;
@@ -1052,7 +1050,7 @@
                     <h2 class="home-section-title mt-3">Recent Matches</h2>
 
                     <p class="home-section-description">
-                        Match scores and results recorded in the scorecard.
+                        Match scores and results recorded in the manual scorecard.
                     </p>
                 </div>
 
@@ -1067,17 +1065,21 @@
                     @foreach($recentResults as $result)
                         @php
                             /*
-                             * Use innings data already supplied to the view,
-                             * or data available through the fixture model.
+                             * The controller should pass ManualScorecard records
+                             * grouped by fixture ID in $liveScoreByFixture.
                              *
-                             * Expected innings fields:
-                             * innings_number, batting_team_id, total_runs,
-                             * wickets, legal_balls (or overs).
+                             * Each record is expected to contain:
+                             * fixture_id, innings_number, batting_team_id,
+                             * total_runs or runs, wickets, legal_balls or overs.
                              */
                             $innings = collect(
                                 $liveScoreByFixture->get($result->id, collect())
                             );
 
+                            /*
+                             * Fallback if the Fixture model has loaded its
+                             * innings or scorecards relationship.
+                             */
                             if ($innings->isEmpty()) {
                                 $innings = collect(
                                     $result->innings
@@ -1093,18 +1095,23 @@
                             $homeTeamId = data_get($result, 'home_team_id');
                             $awayTeamId = data_get($result, 'away_team_id');
 
+                            /*
+                             * Select the latest innings for each batting team.
+                             */
                             $homeInnings = $innings
                                 ->filter(function ($inning) use ($homeTeamId) {
-                                    return (string) data_get($inning, 'batting_team_id')
-                                        === (string) $homeTeamId;
+                                    return $homeTeamId !== null
+                                        && (string) data_get($inning, 'batting_team_id')
+                                            === (string) $homeTeamId;
                                 })
                                 ->sortBy('innings_number')
                                 ->last();
 
                             $awayInnings = $innings
                                 ->filter(function ($inning) use ($awayTeamId) {
-                                    return (string) data_get($inning, 'batting_team_id')
-                                        === (string) $awayTeamId;
+                                    return $awayTeamId !== null
+                                        && (string) data_get($inning, 'batting_team_id')
+                                            === (string) $awayTeamId;
                                 })
                                 ->sortBy('innings_number')
                                 ->last();
@@ -1120,16 +1127,16 @@
 
                             $hasScore = $homeScore !== null || $awayScore !== null;
 
-                            $matchStatus = strtolower(
-                                (string) (
-                                    data_get($result, 'status')
-                                    ?? data_get($result, 'match_status')
-                                    ?? ''
-                                )
-                            );
+                            /*
+                             * If the winner relationship is available but the
+                             * winner name is stored differently, use its name.
+                             */
+                            $homeTeamName = data_get($result, 'homeTeam.name', 'Home Team');
+                            $awayTeamName = data_get($result, 'awayTeam.name', 'Away Team');
                         @endphp
 
                         <article class="home-card scoreboard-card">
+
                             {{-- Scoreboard heading --}}
                             <div class="scoreboard-header">
                                 <div class="min-w-0">
@@ -1154,29 +1161,29 @@
                                 </span>
                             </div>
 
-                            {{-- Teams and manual scores --}}
+                            {{-- Team scores --}}
                             <div class="scoreboard-teams">
 
                                 {{-- Home team --}}
                                 <div class="scoreboard-team">
                                     <div class="scoreboard-team-info">
-                                        @if($imageUrl($result->homeTeam?->logo))
-                                            <img src="{{ $imageUrl($result->homeTeam->logo) }}"
-                                                 alt="{{ $result->homeTeam->name }} logo"
+                                        @if($imageUrl(data_get($result, 'homeTeam.logo')))
+                                            <img src="{{ $imageUrl(data_get($result, 'homeTeam.logo')) }}"
+                                                 alt="{{ $homeTeamName }} logo"
                                                  class="scoreboard-logo"
                                                  loading="lazy">
                                         @else
                                             <div class="home-team-fallback !h-[39px] !w-[39px] !rounded-xl !text-sm">
-                                                {{ $initial($result->homeTeam->name ?? 'H') }}
+                                                {{ $initial($homeTeamName) }}
                                             </div>
                                         @endif
 
                                         <div class="min-w-0">
                                             <p class="scoreboard-team-name">
-                                                {{ $result->homeTeam->name ?? 'Home Team' }}
+                                                {{ $homeTeamName }}
                                             </p>
 
-                                            @if($winnerName && $winnerName === ($result->homeTeam->name ?? null))
+                                            @if($winnerName && $winnerName === $homeTeamName)
                                                 <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">
                                                     Winner
                                                 </span>
@@ -1204,23 +1211,23 @@
                                 {{-- Away team --}}
                                 <div class="scoreboard-team">
                                     <div class="scoreboard-team-info">
-                                        @if($imageUrl($result->awayTeam?->logo))
-                                            <img src="{{ $imageUrl($result->awayTeam->logo) }}"
-                                                 alt="{{ $result->awayTeam->name }} logo"
+                                        @if($imageUrl(data_get($result, 'awayTeam.logo')))
+                                            <img src="{{ $imageUrl(data_get($result, 'awayTeam.logo')) }}"
+                                                 alt="{{ $awayTeamName }} logo"
                                                  class="scoreboard-logo"
                                                  loading="lazy">
                                         @else
                                             <div class="home-team-fallback !h-[39px] !w-[39px] !rounded-xl !text-sm">
-                                                {{ $initial($result->awayTeam->name ?? 'A') }}
+                                                {{ $initial($awayTeamName) }}
                                             </div>
                                         @endif
 
                                         <div class="min-w-0">
                                             <p class="scoreboard-team-name">
-                                                {{ $result->awayTeam->name ?? 'Away Team' }}
+                                                {{ $awayTeamName }}
                                             </p>
 
-                                            @if($winnerName && $winnerName === ($result->awayTeam->name ?? null))
+                                            @if($winnerName && $winnerName === $awayTeamName)
                                                 <span class="mt-1 inline-block text-[9px] font-extrabold uppercase tracking-wider text-emerald-600">
                                                     Winner
                                                 </span>
@@ -1247,7 +1254,7 @@
 
                             </div>
 
-                            {{-- Result or scorecard notice --}}
+                            {{-- Result --}}
                             @if($winnerName)
                                 <div class="scoreboard-result">
                                     <p class="scoreboard-result-label">Match Winner</p>
@@ -1296,6 +1303,7 @@
                     </a>
                 </div>
             @endif
+
         </div>
     </section>
 

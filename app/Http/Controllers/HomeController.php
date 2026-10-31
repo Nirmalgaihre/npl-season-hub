@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Article;
 use App\Models\Fixture;
-use App\Models\LiveInnings;
+use App\Models\ManualScorecard;
 use App\Models\Season;
 use App\Models\Team;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +15,12 @@ class HomeController extends Controller
 {
     public function index(): View
     {
-        // Active season, or latest available season.
+        /*
+        |--------------------------------------------------------------------------
+        | Active season
+        |--------------------------------------------------------------------------
+        */
+
         $activeSeason = Season::query()
             ->where('status', 'active')
             ->orderByDesc('season_number')
@@ -25,7 +30,12 @@ class HomeController extends Controller
             ->orderByDesc('season_number')
             ->first();
 
-        // Real live fixtures only.
+        /*
+        |--------------------------------------------------------------------------
+        | Live fixtures
+        |--------------------------------------------------------------------------
+        */
+
         $liveMatches = Fixture::query()
             ->with(['season', 'homeTeam', 'awayTeam', 'winner'])
             ->where('status', 'live')
@@ -36,16 +46,12 @@ class HomeController extends Controller
             ->orderBy('match_number')
             ->get();
 
-        // Real innings and team information for live fixtures.
-        $liveScoreByFixture = LiveInnings::query()
-            ->with(['battingTeam', 'bowlingTeam'])
-            ->whereIn('fixture_id', $liveMatches->modelKeys())
-            ->orderBy('fixture_id')
-            ->orderBy('innings_number')
-            ->get()
-            ->groupBy('fixture_id');
+        /*
+        |--------------------------------------------------------------------------
+        | Next scheduled match
+        |--------------------------------------------------------------------------
+        */
 
-        // Next scheduled match.
         $nextMatch = null;
 
         if ($season) {
@@ -56,6 +62,7 @@ class HomeController extends Controller
                 ->whereNotNull('scheduled_at')
                 ->where('scheduled_at', '>=', now())
                 ->orderBy('scheduled_at')
+                ->orderBy('match_number')
                 ->first();
 
             if (! $nextMatch) {
@@ -69,20 +76,72 @@ class HomeController extends Controller
             }
         }
 
-        // Verified completed results only.
+        /*
+        |--------------------------------------------------------------------------
+        | Recent completed matches
+        |--------------------------------------------------------------------------
+        |
+        | Only verified completed matches are shown.
+        | Higher match numbers are shown first, followed by the latest date.
+        |
+        */
+
         $recentResults = Fixture::query()
-            ->with(['season', 'homeTeam', 'awayTeam', 'winner'])
+            ->with([
+                'season',
+                'homeTeam',
+                'awayTeam',
+                'winner',
+            ])
             ->where('status', 'completed')
             ->where('is_result_verified', true)
             ->when($season, function (Builder $query) use ($season) {
                 $query->where('season_id', $season->id);
             })
-            ->orderByDesc('scheduled_at')
             ->orderByDesc('match_number')
-            ->take(4)
+            ->orderByDesc('scheduled_at')
+            ->orderByDesc('id')
+            ->take(6)
             ->get();
 
-        // Teams participating in the selected season.
+        /*
+        |--------------------------------------------------------------------------
+        | Manual scoreboard data
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | The homepage scoreboards read ManualScorecard records here.
+        | They no longer depend on LiveInnings for completed-match scores.
+        |
+        | The view already reads:
+        | $liveScoreByFixture->get($result->id, collect())
+        |
+        | We preserve that variable name so the existing homepage Blade
+        | can use the manually entered scores without redesigning the page.
+        |
+        */
+
+        $recentFixtureIds = $recentResults->modelKeys();
+
+        $liveScoreByFixture = collect();
+
+        if (! empty($recentFixtureIds)) {
+            $manualScorecards = ManualScorecard::query()
+                ->whereIn('fixture_id', $recentFixtureIds)
+                ->orderBy('fixture_id')
+                ->orderBy('innings_number')
+                ->get();
+
+            $liveScoreByFixture = $manualScorecards
+                ->groupBy('fixture_id');
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Teams in the selected season
+        |--------------------------------------------------------------------------
+        */
+
         $teams = $season
             ? $season->teams()
                 ->where('teams.is_active', true)
@@ -95,7 +154,12 @@ class HomeController extends Controller
                 ->take(8)
                 ->get();
 
-        // Published articles only.
+        /*
+        |--------------------------------------------------------------------------
+        | Latest published news
+        |--------------------------------------------------------------------------
+        */
+
         $latestNews = collect();
 
         if (Schema::hasTable('articles')) {
@@ -106,7 +170,7 @@ class HomeController extends Controller
             } elseif (Schema::hasColumn('articles', 'is_published')) {
                 $articleQuery->where('is_published', true);
             } else {
-                // Never expose articles if publication status is unknown.
+                // Do not publish articles if their publication status is unknown.
                 $articleQuery->whereRaw('1 = 0');
             }
 
@@ -116,7 +180,8 @@ class HomeController extends Controller
                         $query->whereNull('published_at')
                             ->orWhere('published_at', '<=', now());
                     })
-                    ->orderByDesc('published_at');
+                    ->orderByDesc('published_at')
+                    ->orderByDesc('created_at');
             } else {
                 $articleQuery->orderByDesc('created_at');
             }
@@ -125,6 +190,12 @@ class HomeController extends Controller
                 ->take(3)
                 ->get();
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Homepage
+        |--------------------------------------------------------------------------
+        */
 
         return view('home', compact(
             'season',
