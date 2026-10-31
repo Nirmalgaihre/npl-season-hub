@@ -1,20 +1,50 @@
 
 @php
     use Illuminate\Support\Str;
+    use Illuminate\Support\Facades\Route;
 
-    $battingTeam = (int) $inning->batting_team_id === (int) $fixture->home_team_id
-        ? $fixture->homeTeam
-        : $fixture->awayTeam;
+    /*
+    |--------------------------------------------------------------------------
+    | Teams: use the actual teams assigned to this manual innings
+    |--------------------------------------------------------------------------
+    */
 
-    $opponentTeam = (int) $inning->batting_team_id === (int) $fixture->home_team_id
-        ? $fixture->awayTeam
-        : $fixture->homeTeam;
+    $battingTeam = $inning->battingTeam
+        ?? (
+            (int) $inning->batting_team_id === (int) $fixture->home_team_id
+                ? $fixture->homeTeam
+                : $fixture->awayTeam
+        );
+
+    $opponentTeam = $inning->bowlingTeam
+        ?? (
+            (int) $inning->bowling_team_id === (int) $fixture->home_team_id
+                ? $fixture->homeTeam
+                : $fixture->awayTeam
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Manual scorecard data
+    |--------------------------------------------------------------------------
+    */
 
     $scorecard = $scorecards->get($inning->id, []);
 
     $batters = data_get($scorecard, 'batters', []);
     $bowlers = data_get($scorecard, 'bowlers', []);
-    $extras = data_get($scorecard, 'extras', 0);
+    $extras = data_get($scorecard, 'extras', $inning->extras ?? 0);
+
+    /*
+     * Support arrays and Laravel collections.
+     */
+    if ($batters instanceof \Illuminate\Support\Collection) {
+        $batters = $batters->all();
+    }
+
+    if ($bowlers instanceof \Illuminate\Support\Collection) {
+        $bowlers = $bowlers->all();
+    }
 
     $batters = is_array($batters) || $batters instanceof \Traversable
         ? $batters
@@ -24,29 +54,64 @@
         ? $bowlers
         : [];
 
+    $batters = collect($batters)->filter(
+        fn ($item) => is_array($item) || is_object($item)
+    )->values();
+
+    $bowlers = collect($bowlers)->filter(
+        fn ($item) => is_array($item) || is_object($item)
+    )->values();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Extras
+    |--------------------------------------------------------------------------
+    */
+
+    if (is_string($extras)) {
+        $decodedExtras = json_decode($extras, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $extras = $decodedExtras;
+        }
+    }
+
+    if ($extras instanceof \Illuminate\Support\Collection) {
+        $extras = $extras->toArray();
+    }
+
     $extrasTotal = is_numeric($extras)
         ? (int) $extras
         : (int) data_get($extras, 'total', 0);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Innings totals
+    |--------------------------------------------------------------------------
+    */
+
     $totalRuns = (int) ($inning->total_runs ?? 0);
     $wickets = (int) ($inning->wickets ?? 0);
-    $legalBalls = (int) ($inning->legal_balls ?? 0);
+    $legalBalls = max(0, (int) ($inning->legal_balls ?? 0));
 
     $overs = isset($inning->overs_display)
         ? (string) $inning->overs_display
-        : intdiv(max(0, $legalBalls), 6) . '.' . (max(0, $legalBalls) % 6);
+        : intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
 
     $runRate = $legalBalls > 0
         ? number_format($totalRuns / ($legalBalls / 6), 2)
         : '0.00';
 
     /*
-     * Convert stored local paths and full URLs into usable image URLs.
-     */
+    |--------------------------------------------------------------------------
+    | Image helpers
+    |--------------------------------------------------------------------------
+    */
+
     $imageUrl = static function ($path, $fallback = null) {
         $fallback = $fallback ?: asset('images/player-placeholder.png');
 
-        if (!is_string($path) || trim($path) === '') {
+        if (! is_string($path) || trim($path) === '') {
             return $fallback;
         }
 
@@ -61,7 +126,10 @@
 
     $photoUrl = static function ($player) use ($imageUrl) {
         return $imageUrl(
-            data_get($player, 'photo_url') ?: data_get($player, 'photo_path')
+            data_get($player, 'photo_url')
+                ?: data_get($player, 'photo_path')
+                ?: data_get($player, 'photo')
+                ?: data_get($player, 'image')
         );
     };
 
@@ -73,22 +141,24 @@
     };
 
     /*
-     * Link scorecard entries by player name, even when manual scorecards
-     * do not have a database player ID.
-     */
-    $playerProfileUrl = static function ($entry, $fixture) {
-        $name = data_get($entry, 'name')
-            ?? data_get($entry, 'player.name')
-            ?? data_get($entry, 'player_name')
-            ?? data_get($entry, 'playerName')
-            ?? data_get($entry, 'batsman')
-            ?? data_get($entry, 'bowler');
+    |--------------------------------------------------------------------------
+    | Player profile links
+    |--------------------------------------------------------------------------
+    */
 
-        if (!is_string($name) || trim($name) === '') {
+    $playerProfileUrl = static function ($entry) {
+        $name = data_get($entry, 'name')
+            ?: data_get($entry, 'player.name')
+            ?: data_get($entry, 'player_name')
+            ?: data_get($entry, 'playerName')
+            ?: data_get($entry, 'batsman')
+            ?: data_get($entry, 'bowler');
+
+        if (! is_string($name) || trim($name) === '') {
             return null;
         }
 
-        if (!\Illuminate\Support\Facades\Route::has('players.performance')) {
+        if (! Route::has('players.performance')) {
             return null;
         }
 
@@ -97,8 +167,8 @@
         ]);
     };
 
-    $battingCount = count($batters);
-    $bowlingCount = count($bowlers);
+    $battingCount = $batters->count();
+    $bowlingCount = $bowlers->count();
 @endphp
 
 <section class="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -115,6 +185,7 @@
                         src="{{ $teamLogoUrl($battingTeam) }}"
                         alt="{{ $battingTeam->name }} logo"
                         class="h-14 w-14 shrink-0 rounded-xl bg-white p-1.5 object-contain sm:h-16 sm:w-16"
+                        loading="lazy"
                         onerror="this.onerror=null;this.src='{{ asset('images/team-placeholder.png') }}';"
                     >
                 @else
@@ -166,17 +237,23 @@
         {{-- QUICK STATS --}}
         <div class="relative mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5">
             <div>
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">Run rate</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
+                    Run rate
+                </p>
                 <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $runRate }}</p>
             </div>
 
             <div class="border-l border-white/10 pl-3 sm:pl-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">Extras</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
+                    Extras
+                </p>
                 <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $extrasTotal }}</p>
             </div>
 
             <div class="border-l border-white/10 pl-3 sm:pl-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">Legal balls</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-200 sm:text-xs">
+                    Legal balls
+                </p>
                 <p class="mt-1 text-lg font-extrabold sm:text-xl">{{ $legalBalls }}</p>
             </div>
         </div>
@@ -187,7 +264,12 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-[#202766]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-5 w-5"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 5.5 18.5 9.5M5 19l4.2-1.1L19 8.1a2.83 2.83 0 0 0-4-4L5.2 13.9 5 19Z"/>
                     </svg>
                 </div>
@@ -225,9 +307,11 @@
 
                                 $name = data_get($batter, 'name')
                                     ?: data_get($player, 'name')
+                                    ?: data_get($batter, 'player_name')
+                                    ?: data_get($batter, 'playerName')
                                     ?: 'Unknown batter';
 
-                                $profileUrl = $playerProfileUrl($batter, $fixture);
+                                $profileUrl = $playerProfileUrl($batter);
 
                                 $runs = (int) data_get($batter, 'runs', 0);
                                 $balls = (int) data_get($batter, 'balls', 0);
@@ -235,20 +319,28 @@
                                 $strikeRate = data_get($batter, 'strike_rate');
 
                                 if ($strikeRate === null) {
-                                    $strikeRate = $balls > 0 ? ($runs / $balls) * 100 : 0;
+                                    $strikeRate = $balls > 0
+                                        ? ($runs / $balls) * 100
+                                        : 0;
                                 }
 
-                                $dismissal = data_get($batter, 'dismissal', '');
+                                $dismissal = (string) data_get($batter, 'dismissal', '');
 
-                                $isNotOut = data_get($batter, 'is_not_out')
-                                    ?? str_contains(strtolower((string) $dismissal), 'not out');
+                                $isNotOut = data_get($batter, 'is_not_out');
+
+                                if ($isNotOut === null) {
+                                    $isNotOut = str_contains(
+                                        strtolower($dismissal),
+                                        'not out'
+                                    );
+                                }
                             @endphp
 
                             <tr class="transition-colors hover:bg-slate-50/80">
                                 <td class="px-4 py-3 sm:px-5">
                                     <div class="flex items-center gap-3">
                                         <img
-                                            src="{{ $photoUrl($player) }}"
+                                            src="{{ $photoUrl($player ?: $batter) }}"
                                             alt="{{ $name }}"
                                             loading="lazy"
                                             class="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-slate-100 object-cover"
@@ -262,7 +354,9 @@
                                                     <span>{{ $name }}</span>
                                                     <svg xmlns="http://www.w3.org/2000/svg"
                                                          class="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5"
-                                                         viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                         viewBox="0 0 20 20"
+                                                         fill="currentColor"
+                                                         aria-hidden="true">
                                                         <path fill-rule="evenodd" d="M3 10a1 1 0 0 1 1-1h9.586l-3.293-3.293a1 1 0 0 1 1.414-1.414l5 5a1 1 0 0 1 0 1.414l-5 5a1 1 0 1 1-1.414-1.414L13.586 11H4a1 1 0 0 1-1-1Z" clip-rule="evenodd"/>
                                                     </svg>
                                                 </a>
@@ -281,7 +375,7 @@
                                 </td>
 
                                 <td class="max-w-[200px] px-3 py-3 text-xs leading-5 text-slate-500">
-                                    {{ $dismissal ?: 'Not out / —' }}
+                                    {{ $dismissal ?: ($isNotOut ? 'Not out' : '—') }}
                                 </td>
 
                                 <td class="px-3 py-3 text-center font-black text-slate-900">{{ $runs }}</td>
@@ -294,7 +388,9 @@
                             <tr>
                                 <td colspan="7" class="px-5 py-10 text-center">
                                     <p class="font-bold text-slate-700">No batting figures yet</p>
-                                    <p class="mt-1 text-xs text-slate-500">Player-wise batting statistics will appear here when available.</p>
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        Player-wise batting statistics will appear here when available.
+                                    </p>
                                 </td>
                             </tr>
                         @endforelse
@@ -303,8 +399,12 @@
                     @if ($battingCount > 0)
                         <tfoot class="border-t-2 border-slate-200 bg-slate-50">
                             <tr>
-                                <td colspan="2" class="px-4 py-4 font-black text-slate-900 sm:px-5">Total</td>
-                                <td class="px-3 py-4 text-center font-black text-[#202766]">{{ $totalRuns }}</td>
+                                <td colspan="2" class="px-4 py-4 font-black text-slate-900 sm:px-5">
+                                    Total
+                                </td>
+                                <td class="px-3 py-4 text-center font-black text-[#202766]">
+                                    {{ $totalRuns }}
+                                </td>
                                 <td colspan="4" class="px-4 py-4 text-right text-xs font-bold text-slate-500">
                                     {{ $wickets }} wickets · {{ $overs }} overs
                                 </td>
@@ -327,7 +427,8 @@
             </div>
         @else
             <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span class="font-extrabold text-slate-800">Extras:</span> {{ $extrasTotal }}
+                <span class="font-extrabold text-slate-800">Extras:</span>
+                {{ $extrasTotal }}
             </div>
         @endif
     </div>
@@ -337,7 +438,12 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#e65d43]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-5 w-5"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="1.8">
                         <circle cx="12" cy="12" r="8.5"/>
                         <path stroke-linecap="round" stroke-linejoin="round" d="m8.5 5 2 3-1 2m6-4 1 3-2 2m-6 3 3 1 1 3m4-4 2 1"/>
                     </svg>
@@ -375,9 +481,11 @@
 
                                 $name = data_get($bowler, 'name')
                                     ?: data_get($player, 'name')
+                                    ?: data_get($bowler, 'player_name')
+                                    ?: data_get($bowler, 'playerName')
                                     ?: 'Unknown bowler';
 
-                                $profileUrl = $playerProfileUrl($bowler, $fixture);
+                                $profileUrl = $playerProfileUrl($bowler);
 
                                 $bowlerOvers = (string) data_get($bowler, 'overs', '0.0');
                                 $maidens = (int) data_get($bowler, 'maidens', 0);
@@ -385,9 +493,19 @@
                                 $wicketsTaken = (int) data_get($bowler, 'wickets', 0);
 
                                 $overParts = explode('.', $bowlerOvers);
-                                $completedOvers = max(0, (int) ($overParts[0] ?? 0));
-                                $ballsInOver = min(5, max(0, (int) ($overParts[1] ?? 0)));
-                                $bowlerLegalBalls = ($completedOvers * 6) + $ballsInOver;
+
+                                $completedOvers = max(
+                                    0,
+                                    (int) ($overParts[0] ?? 0)
+                                );
+
+                                $ballsInOver = min(
+                                    5,
+                                    max(0, (int) ($overParts[1] ?? 0))
+                                );
+
+                                $bowlerLegalBalls = ($completedOvers * 6)
+                                    + $ballsInOver;
 
                                 $economy = data_get($bowler, 'economy');
 
@@ -402,7 +520,7 @@
                                 <td class="px-4 py-3 sm:px-5">
                                     <div class="flex items-center gap-3">
                                         <img
-                                            src="{{ $photoUrl($player) }}"
+                                            src="{{ $photoUrl($player ?: $bowler) }}"
                                             alt="{{ $name }}"
                                             loading="lazy"
                                             class="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-slate-100 object-cover"
@@ -415,7 +533,9 @@
                                                 <span>{{ $name }}</span>
                                                 <svg xmlns="http://www.w3.org/2000/svg"
                                                      class="h-3.5 w-3.5 opacity-60 transition group-hover:translate-x-0.5"
-                                                     viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                     viewBox="0 0 20 20"
+                                                     fill="currentColor"
+                                                     aria-hidden="true">
                                                     <path fill-rule="evenodd" d="M3 10a1 1 0 0 1 1-1h9.586l-3.293-3.293a1 1 0 0 1 1.414-1.414l5 5a1 1 0 0 1 0 1.414l-5 5a1 1 0 1 1-1.414-1.414L13.586 11H4a1 1 0 0 1-1-1Z" clip-rule="evenodd"/>
                                                 </svg>
                                             </a>
@@ -429,13 +549,17 @@
                                 <td class="px-3 py-3 text-center text-slate-700">{{ $maidens }}</td>
                                 <td class="px-3 py-3 text-center text-slate-700">{{ $runsConceded }}</td>
                                 <td class="px-3 py-3 text-center font-black text-slate-900">{{ $wicketsTaken }}</td>
-                                <td class="px-4 py-3 text-right font-bold text-slate-800">{{ number_format((float) $economy, 2) }}</td>
+                                <td class="px-4 py-3 text-right font-bold text-slate-800">
+                                    {{ number_format((float) $economy, 2) }}
+                                </td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="6" class="px-5 py-10 text-center">
                                     <p class="font-bold text-slate-700">No bowling figures yet</p>
-                                    <p class="mt-1 text-xs text-slate-500">Bowling statistics will appear here when available.</p>
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        Bowling statistics will appear here when available.
+                                    </p>
                                 </td>
                             </tr>
                         @endforelse
@@ -448,13 +572,21 @@
     {{-- FOOTER SUMMARY --}}
     <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
         <div>
-            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Innings total</p>
-            <p class="mt-1 text-lg font-black text-[#202766]">{{ $totalRuns }}/{{ $wickets }}</p>
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Innings total
+            </p>
+            <p class="mt-1 text-lg font-black text-[#202766]">
+                {{ $totalRuns }}/{{ $wickets }}
+            </p>
         </div>
 
         <div class="text-right">
-            <p class="text-xs text-slate-500">{{ $legalBalls }} legal balls bowled</p>
-            <p class="mt-1 text-xs font-bold text-slate-600">Run rate {{ $runRate }}</p>
+            <p class="text-xs text-slate-500">
+                {{ $legalBalls }} legal balls bowled
+            </p>
+            <p class="mt-1 text-xs font-bold text-slate-600">
+                Run rate {{ $runRate }}
+            </p>
         </div>
     </div>
 </section>

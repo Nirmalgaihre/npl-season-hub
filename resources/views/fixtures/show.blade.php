@@ -14,7 +14,6 @@
     $scorecards = $scorecards ?? collect();
 
     $status = strtolower($fixture->status ?? 'scheduled');
-    $verified = (bool) $fixture->is_result_verified;
 
     $format = strtoupper(str_replace(
         '_',
@@ -40,69 +39,50 @@
         'abandoned' => 'ABANDONED',
     ];
 
-    $statusStyle = $statusStyles[$status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
+    $statusStyle = $statusStyles[$status]
+        ?? 'bg-slate-100 text-slate-700 ring-slate-200';
+
     $statusLabel = $statusLabels[$status] ?? strtoupper($status);
 
     /*
     |--------------------------------------------------------------------------
-    | Find innings by batting team
+    | Find innings using manual scorecard batting team IDs
     |--------------------------------------------------------------------------
     */
 
     $homeInning = $innings->first(
-        fn ($item) => (int) $item->batting_team_id === (int) $fixture->home_team_id
+        fn ($item) =>
+            (int) $item->batting_team_id === (int) $fixture->home_team_id
     );
 
     $awayInning = $innings->first(
-        fn ($item) => (int) $item->batting_team_id === (int) $fixture->away_team_id
+        fn ($item) =>
+            (int) $item->batting_team_id === (int) $fixture->away_team_id
     );
 
     /*
     |--------------------------------------------------------------------------
-    | Score visibility
+    | Manual scorecards are the only source of score figures
     |--------------------------------------------------------------------------
-    |
-    | Verified official results and live matches can use fixture score fields.
-    | When manual innings are available, display their totals as a fallback.
-    |
     */
-
-    $showOfficialScores = $verified || $status === 'live';
-
-    $homeScoreAvailable = $fixture->home_runs !== null;
-    $awayScoreAvailable = $fixture->away_runs !== null;
 
     $hasInnings = $innings->isNotEmpty();
 
-    $showHomeOfficialScore = $showOfficialScores && $homeScoreAvailable;
-    $showAwayOfficialScore = $showOfficialScores && $awayScoreAvailable;
+    $showHomeOfficialScore = false;
+    $showAwayOfficialScore = false;
+    $showOfficialScores = false;
+
+    $homeScoreAvailable = $homeInning !== null;
+    $awayScoreAvailable = $awayInning !== null;
+
+    $homeOvers = $homeInning?->overs_display ?? '—';
+    $awayOvers = $awayInning?->overs_display ?? '—';
 
     /*
     |--------------------------------------------------------------------------
-    | Display helpers
+    | Fixture information
     |--------------------------------------------------------------------------
     */
-
-    $homeOvers = $fixture->home_overs ?? '—';
-    $awayOvers = $fixture->away_overs ?? '—';
-
-    if (! $showHomeOfficialScore && $homeInning) {
-        $homeOvers = $homeInning->overs_display
-            ?? (
-                intdiv((int) ($homeInning->legal_balls ?? 0), 6)
-                . '.'
-                . ((int) ($homeInning->legal_balls ?? 0) % 6)
-            );
-    }
-
-    if (! $showAwayOfficialScore && $awayInning) {
-        $awayOvers = $awayInning->overs_display
-            ?? (
-                intdiv((int) ($awayInning->legal_balls ?? 0), 6)
-                . '.'
-                . ((int) ($awayInning->legal_balls ?? 0) % 6)
-            );
-    }
 
     $scheduledDate = $fixture->scheduled_at?->format('D, d M Y')
         ?? 'Date to be announced';
@@ -112,17 +92,16 @@
 
     $venue = $fixture->venue ?: 'Venue to be announced';
 
-    $showNotStartedMessage = in_array($status, ['scheduled', 'upcoming'], true)
-        && ! $hasInnings
-        && ! $showHomeOfficialScore
-        && ! $showAwayOfficialScore;
+    $showNotStartedMessage = in_array(
+        $status,
+        ['scheduled', 'upcoming'],
+        true
+    ) && ! $hasInnings;
 @endphp
 
 <div class="min-h-screen bg-[#f4f6fa] text-slate-900">
 
-    {{-- =========================================================
-         TOP NAVIGATION
-    ========================================================== --}}
+    {{-- TOP NAVIGATION --}}
     <header class="border-b border-slate-200 bg-white">
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
 
@@ -131,20 +110,19 @@
                     href="{{ route('fixtures.index') }}"
                     class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#202766]"
                 >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-4 w-4"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/>
                     </svg>
                     All fixtures
                 </a>
 
-                <nav aria-label="Breadcrumb" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                <nav aria-label="Breadcrumb"
+                     class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                     <a href="{{ route('home') }}" class="transition hover:text-slate-700">
                         Home
                     </a>
@@ -180,9 +158,7 @@
 
     <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
 
-        {{-- =====================================================
-             PAGE HEADING
-        ====================================================== --}}
+        {{-- PAGE HEADING --}}
         <section class="mb-6 sm:mb-8">
             <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
@@ -210,26 +186,22 @@
                 >
                     View scorecard
 
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-4 w-4"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7 7 7 7-7"/>
                     </svg>
                 </a>
             </div>
         </section>
 
-        {{-- =====================================================
-             MAIN SCOREBOARD
-        ====================================================== --}}
+        {{-- MAIN SCOREBOARD --}}
         <section class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
 
-            {{-- Scoreboard top strip --}}
+            {{-- SCOREBOARD HEADER --}}
             <div class="relative overflow-hidden bg-[#202766] px-5 py-5 text-white sm:px-8">
                 <div class="pointer-events-none absolute -right-12 -top-20 h-48 w-48 rounded-full border-[24px] border-white/[0.04]"></div>
                 <div class="pointer-events-none absolute -right-2 -top-8 h-32 w-32 rounded-full border-[16px] border-white/[0.04]"></div>
@@ -253,14 +225,12 @@
 
                     <div class="sm:text-right">
                         <div class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-4 w-4 text-orange-300"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.8"
-                            >
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-4 w-4 text-orange-300"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.8">
                                 <circle cx="12" cy="12" r="9"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
                             </svg>
@@ -277,7 +247,7 @@
                 </div>
             </div>
 
-            {{-- Team comparison --}}
+            {{-- TEAM COMPARISON --}}
             <div class="px-4 py-8 sm:px-8 sm:py-10">
                 <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-8">
 
@@ -306,15 +276,7 @@
                             {{ $home?->name ?? 'Home Team' }}
                         </h3>
 
-                        @if ($showHomeOfficialScore)
-                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
-                                {{ $fixture->home_runs }}<span class="text-slate-300">/</span>{{ $fixture->home_wickets ?? 0 }}
-                            </p>
-
-                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
-                                {{ $homeOvers }} overs
-                            </p>
-                        @elseif ($homeInning)
+                        @if ($homeInning)
                             <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
                                 {{ $homeInning->total_runs ?? 0 }}<span class="text-slate-300">/</span>{{ $homeInning->wickets ?? 0 }}
                             </p>
@@ -365,15 +327,7 @@
                             {{ $away?->name ?? 'Away Team' }}
                         </h3>
 
-                        @if ($showAwayOfficialScore)
-                            <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
-                                {{ $fixture->away_runs }}<span class="text-slate-300">/</span>{{ $fixture->away_wickets ?? 0 }}
-                            </p>
-
-                            <p class="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
-                                {{ $awayOvers }} overs
-                            </p>
-                        @elseif ($awayInning)
+                        @if ($awayInning)
                             <p class="mt-4 whitespace-nowrap text-3xl font-black tracking-tight text-[#202766] sm:text-5xl">
                                 {{ $awayInning->total_runs ?? 0 }}<span class="text-slate-300">/</span>{{ $awayInning->wickets ?? 0 }}
                             </p>
@@ -389,61 +343,40 @@
                     </div>
                 </div>
 
-                {{-- Match state / result --}}
-                @if ($verified && ($fixture->result_summary || $fixture->winner))
+                {{-- MATCH STATUS / RESULT --}}
+                @if ($status === 'completed' && $hasInnings)
                     <div class="mt-8 flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
                         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2.5"
-                            >
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-5 w-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/>
                             </svg>
                         </div>
 
                         <div class="min-w-0">
                             <p class="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700">
-                                Official match result
+                                Match completed
                             </p>
 
-                            @if ($fixture->winner)
-                                <p class="mt-1 font-black text-slate-900">
-                                    {{ $fixture->winner->name }} won
-                                </p>
-                            @endif
-
-                            @if ($fixture->result_summary)
-                                <p class="mt-1 text-sm leading-6 text-slate-600">
-                                    {{ $fixture->result_summary }}
-                                </p>
-                            @endif
-
-                            @if ($fixture->player_of_match)
-                                <p class="mt-2 text-sm text-slate-600">
-                                    Player of the Match:
-                                    <span class="font-extrabold text-slate-900">
-                                        {{ $fixture->player_of_match }}
-                                    </span>
-                                </p>
-                            @endif
+                            <p class="mt-1 text-sm leading-6 text-slate-600">
+                                The scorecard below shows the manually entered innings and player statistics.
+                            </p>
                         </div>
                     </div>
 
                 @elseif ($showNotStartedMessage)
                     <div class="mt-8 flex flex-col items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.7"
-                            >
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-5 w-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.7">
                                 <circle cx="12" cy="12" r="9"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
                             </svg>
@@ -462,14 +395,14 @@
                         </div>
                     </div>
 
-                @elseif ($status === 'completed' && ! $verified)
+                @elseif ($status === 'completed' && ! $hasInnings)
                     <div class="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
                         <p class="font-extrabold text-amber-900">
-                            Result awaiting verification
+                            Scorecard not available
                         </p>
 
                         <p class="mt-1 text-sm leading-6 text-amber-800">
-                            The official result will be displayed after verification.
+                            No manual innings have been entered for this fixture yet.
                         </p>
                     </div>
 
@@ -486,11 +419,17 @@
                 @endif
             </div>
 
-            {{-- Scoreboard bottom information --}}
+            {{-- SCOREBOARD BOTTOM INFORMATION --}}
             <div class="grid grid-cols-1 border-t border-slate-100 bg-slate-50 sm:grid-cols-3">
+
                 <div class="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-6">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.7">
                             <rect x="3" y="5" width="18" height="16" rx="2"/>
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16 3v4M8 3v4M3 10h18"/>
                         </svg>
@@ -508,7 +447,12 @@
 
                 <div class="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-6">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.7">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
                             <circle cx="12" cy="10" r="2.5"/>
                         </svg>
@@ -526,7 +470,12 @@
 
                 <div class="flex items-center gap-3 px-5 py-4 sm:px-6">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#202766] ring-1 ring-slate-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.7">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h16M4 12h16M4 17.5h16"/>
                         </svg>
                     </div>
@@ -543,9 +492,7 @@
             </div>
         </section>
 
-        {{-- =====================================================
-             SCORECARD SECTION
-        ====================================================== --}}
+        {{-- SCORECARD SECTION --}}
         <section id="scorecard" class="mt-10 scroll-mt-6 sm:mt-12">
 
             <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -566,16 +513,20 @@
                 @if ($innings->isNotEmpty())
                     <span class="inline-flex items-center gap-2 self-start rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200 sm:self-auto">
                         <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                        {{ $innings->count() }} {{ \Illuminate\Support\Str::plural('innings', $innings->count()) }}
+                        {{ $innings->count() }}
+                        {{ \Illuminate\Support\Str::plural('innings', $innings->count()) }}
                     </span>
                 @endif
             </div>
 
             @forelse ($innings as $inning)
                 @php
-                    $battingTeam = (int) $inning->batting_team_id === (int) $fixture->home_team_id
-                        ? $home
-                        : $away;
+                    $battingTeam = $inning->battingTeam
+                        ?? (
+                            (int) $inning->batting_team_id === (int) $fixture->home_team_id
+                                ? $home
+                                : $away
+                        );
 
                     $legalBalls = (int) ($inning->legal_balls ?? 0);
 
@@ -589,7 +540,7 @@
 
                 <div class="mb-6 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
 
-                    {{-- Innings summary header --}}
+                    {{-- INNINGS SUMMARY HEADER --}}
                     <div class="flex flex-col justify-between gap-4 border-b border-slate-100 px-4 py-5 sm:flex-row sm:items-center sm:px-6">
                         <div class="flex min-w-0 items-center gap-3">
                             <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#202766] text-xs font-black text-white">
@@ -622,7 +573,7 @@
                         </div>
                     </div>
 
-                    {{-- Detailed scorecard --}}
+                    {{-- DETAILED MANUAL SCORECARD --}}
                     @if ($scorecards->has($inning->id))
                         @include('fixtures.partials.scorecard', [
                             'fixture' => $fixture,
@@ -632,7 +583,12 @@
                     @else
                         <div class="px-5 py-10 text-center">
                             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-slate-400 ring-1 ring-slate-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     class="h-5 w-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="1.7">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 4.75h14A1.25 1.25 0 0 1 20.25 6v12A1.25 1.25 0 0 1 19 19.25H5A1.25 1.25 0 0 1 3.75 18V6A1.25 1.25 0 0 1 5 4.75Z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 12h8M8 15h4"/>
                                 </svg>
@@ -651,7 +607,12 @@
             @empty
                 <div class="rounded-2xl bg-white px-5 py-12 text-center shadow-sm ring-1 ring-slate-200 sm:py-16">
                     <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-[#202766]">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-7 w-7"
+                             fill="none"
+                             viewBox="0 0 24 24"
+                             stroke="currentColor"
+                             stroke-width="1.7">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 4.75h14A1.25 1.25 0 0 1 20.25 6v12A1.25 1.25 0 0 1 19 19.25H5A1.25 1.25 0 0 1 3.75 18V6A1.25 1.25 0 0 1 5 4.75Z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 12h8M8 15h4"/>
                         </svg>
@@ -662,7 +623,7 @@
                     </h3>
 
                     <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                        Match innings, batting figures and bowling statistics will appear here when scorecard data is available.
+                        Match innings, batting figures and bowling statistics will appear here when manual scorecard data is available.
                     </p>
 
                     @if (in_array($status, ['scheduled', 'upcoming'], true))
@@ -674,9 +635,7 @@
             @endforelse
         </section>
 
-        {{-- =====================================================
-             MATCH INFORMATION
-        ====================================================== --}}
+        {{-- MATCH INFORMATION --}}
         <section class="mt-10 sm:mt-12">
             <div class="mb-5">
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#e65d43]">
@@ -690,12 +649,12 @@
 
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-                {{-- Date --}}
+                {{-- DATE --}}
                 <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                                Date & time
+                                Date &amp; time
                             </p>
 
                             <p class="mt-3 font-extrabold text-slate-800">
@@ -708,7 +667,12 @@
                         </div>
 
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-[#202766] transition group-hover:bg-[#202766] group-hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-5 w-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.7">
                                 <rect x="3" y="5" width="18" height="16" rx="2"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16 3v4M8 3v4M3 10h18"/>
                             </svg>
@@ -716,7 +680,7 @@
                     </div>
                 </article>
 
-                {{-- Venue --}}
+                {{-- VENUE --}}
                 <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -734,7 +698,12 @@
                         </div>
 
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#e65d43] transition group-hover:bg-[#e65d43] group-hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-5 w-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.7">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
                                 <circle cx="12" cy="10" r="2.5"/>
                             </svg>
@@ -742,7 +711,7 @@
                     </div>
                 </article>
 
-                {{-- Format --}}
+                {{-- FORMAT --}}
                 <article class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md">
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -760,26 +729,33 @@
                         </div>
 
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-[#202766] transition group-hover:bg-[#202766] group-hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-5 w-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.7">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h16M4 12h16M4 17.5h16"/>
                             </svg>
                         </div>
                     </div>
                 </article>
-
             </div>
         </section>
 
-        {{-- =====================================================
-             BOTTOM NAVIGATION
-        ====================================================== --}}
+        {{-- BOTTOM NAVIGATION --}}
         <footer class="mt-10 border-t border-slate-200 pt-6 sm:mt-12">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <a
                     href="{{ route('fixtures.index') }}"
                     class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#202766] px-5 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#171d50] focus:outline-none focus:ring-2 focus:ring-[#202766] focus:ring-offset-2"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-4 w-4"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/>
                     </svg>
 
@@ -792,7 +768,12 @@
                 >
                     Back to homepage
 
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-4 w-4"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
                     </svg>
                 </a>

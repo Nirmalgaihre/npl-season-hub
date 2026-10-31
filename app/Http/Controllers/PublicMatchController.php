@@ -65,247 +65,157 @@ class PublicMatchController extends Controller
     /**
      * Display an individual match and its scorecards.
      */
-    public function show(
-        Fixture $fixture,
-        ScorecardService $scorecardService
-    ): View {
-        $fixture->load([
-            'season',
-            'homeTeam',
-            'awayTeam',
-            'winner',
-        ]);
+    
+/**
+ * Display a public match using manual_scorecards only.
+ *
+ * Live innings and live deliveries are deliberately not used.
+ */
+public function show(Fixture $fixture): View
+{
+    $fixture->load([
+        'season',
+        'homeTeam',
+        'awayTeam',
+        'winner',
+    ]);
 
-        abort_unless(
-            $fixture->season &&
-            in_array(
+    abort_unless(
+        $fixture->season
+            && in_array(
                 $fixture->season->status,
                 ['upcoming', 'active', 'completed'],
                 true
             ),
-            404
+        404
+    );
+
+    /*
+     * Fetch only manually entered scorecards for this fixture.
+     * Never query live_innings or live_deliveries here.
+     */
+    $manualInnings = ManualScorecard::query()
+        ->where('fixture_id', $fixture->id)
+        ->with(['battingTeam', 'bowlingTeam'])
+        ->orderBy('innings_number')
+        ->get();
+
+    /*
+     * Prepare the manual innings for the existing Blade view.
+     * Cricket overs such as 17.2 mean 17 overs and 2 balls,
+     * not 17.2 decimal overs.
+     */
+    $innings = $manualInnings->map(function ($inning) {
+        $oversText = (string) (
+            $inning->getRawOriginal('overs')
+            ?? $inning->overs
+            ?? '0.0'
         );
 
-        /*
-         * Keep unverified result details private.
-         * Scorecard visibility is handled separately below.
-         */
-        if (! $fixture->is_result_verified) {
-            foreach ([
-                'home_runs',
-                'home_wickets',
-                'home_overs',
-                'away_runs',
-                'away_wickets',
-                'away_overs',
-                'winner_team_id',
-                'player_of_match',
-                'result_summary',
-            ] as $attribute) {
-                $fixture->setAttribute($attribute, null);
-            }
+        if (preg_match('/^(\d+)\.(\d+)$/', $oversText, $matches)) {
+            $completedOvers = max(0, (int) $matches[1]);
+            $ballsInOver = (int) $matches[2];
+
+            // A valid cricket over contains 0–5 balls after the dot.
+            $legalBalls = ($completedOvers * 6)
+                + min($ballsInOver, 5);
+        } else {
+            $legalBalls = max(0, (int) $oversText) * 6;
+            $oversText = (string) max(0, (int) $oversText) . '.0';
         }
 
-        $innings = collect();
-        $scorecards = collect();
+        $inning->legal_balls = $legalBalls;
+        $inning->overs_display = $oversText;
+        $inning->is_current = false;
+        $inning->deliveries = collect();
 
-        $liveInnings = collect();
-        $manualInnings = collect();
+        return $inning;
+    });
 
-        /*
-         * Read both scorecard sources.
-         */
-        $canShowLiveScorecard = $fixture->status === 'live'
-            || (bool) $fixture->is_result_verified;
-
-        if ($canShowLiveScorecard) {
-            $liveInnings = DB::table('live_innings')
-                ->where('fixture_id', $fixture->id)
-                ->orderBy('innings_number')
-                ->get();
-        }
-
-        /*
-         * Manual scorecards may be published for scheduled fixtures
-         * when staff have entered the scorecard in advance.
-         *
-         * For completed matches, only show manual scorecards after
-         * the result has been verified.
-         */
-        $canShowManualScorecard = $fixture->status !== 'completed'
-            || (bool) $fixture->is_result_verified;
-
-        if ($canShowManualScorecard) {
-            $manualInnings = ManualScorecard::query()
-                ->where('fixture_id', $fixture->id)
-                ->with(['battingTeam', 'bowlingTeam'])
-                ->orderBy('innings_number')
-                ->get();
-        }
-
-        /*
-         * Prefer ball-by-ball live data when available.
-         * Otherwise, use the manually entered scorecards.
-         */
-        if ($liveInnings->isNotEmpty()) {
-            $innings = $liveInnings;
-
-            $deliveriesByInnings = DB::table('live_deliveries')
-                ->whereIn('innings_id', $innings->pluck('id'))
-                ->orderBy('id')
-                ->get()
-                ->groupBy('innings_id');
-
-            foreach ($innings as $inning) {
-                $deliveries = $deliveriesByInnings->get(
-                    $inning->id,
-                    collect()
-                );
-
-                $inning->overs = $deliveries
-                    ->groupBy('ball_number')
-                    ->map(function ($balls, $overNumber) {
-                        $legalBallsInOver = 0;
-
-                        $balls = $balls->map(function ($ball) use (
-                            &$legalBallsInOver,
-                            $overNumber
-                        ) {
-                            $ball->over_number = (int) $overNumber;
-
-                            $ball->display_ball = ((int) $overNumber)
-                                . '.'
-                                . min($legalBallsInOver + 1, 6);
-
-                            $ball->total_delivery_runs =
-                                (int) ($ball->batter_runs ?? 0)
-                                + (int) ($ball->extra_runs ?? 0);
-
-                            if ((bool) $ball->counts_as_legal_ball) {
-                                $legalBallsInOver++;
-                            }
-
-                            return $ball;
-                        });
-
-                        return (object) [
-                            'number' => (int) $overNumber,
-                            'balls' => $balls,
-                            'runs' => $balls->sum('total_delivery_runs'),
-                            'wickets' => $balls->filter(
-                                fn ($ball) => (bool) $ball->is_wicket
-                            )->count(),
-                        ];
-                    })
-                    ->sortKeys();
-
-                $inning->deliveries = $deliveries;
-            }
-
-            $scorecardInnings = LiveInnings::query()
-                ->where('fixture_id', $fixture->id)
-                ->whereIn('id', $innings->pluck('id'))
-                ->with('deliveries')
-                ->orderBy('innings_number')
-                ->get();
-
-            $scorecards = $scorecardService->forInnings(
-                $scorecardInnings
-            );
-        } elseif ($manualInnings->isNotEmpty()) {
-            /*
-             * Adapt ManualScorecard records to the properties
-             * expected by fixtures.partials.scorecard.
-             */
-            $innings = $manualInnings->map(function ($inning) {
-                $oversText = (string) $inning->getRawOriginal('overs');
-
-                if (preg_match('/^(\d+)\.(\d+)$/', $oversText, $matches)) {
-                    $completedOvers = (int) $matches[1];
-                    $ballsInOver = (int) $matches[2];
-
-                    $legalBalls = ($completedOvers * 6)
-                        + min($ballsInOver, 5);
-                } else {
-                    $legalBalls = (int) round((float) $oversText) * 6;
+    /*
+     * Key each scorecard by its own database ID.
+     * The existing fixtures.partials.scorecard view uses this ID.
+     */
+    $scorecards = $innings->mapWithKeys(function ($inning) {
+        $batters = collect($inning->batters ?? [])
+            ->map(function ($batter) {
+                if (! is_array($batter)) {
+                    return null;
                 }
 
-                $inning->legal_balls = $legalBalls;
-                $inning->overs_display = $oversText;
-                $inning->is_current = false;
-                $inning->deliveries = collect();
+                $dismissal = (string) ($batter['dismissal'] ?? '');
+                $runs = (int) ($batter['runs'] ?? 0);
+                $balls = (int) ($batter['balls'] ?? 0);
 
-                return $inning;
-            });
+                $batter['is_not_out'] = (bool) (
+                    $batter['is_not_out']
+                    ?? str_contains(
+                        mb_strtolower($dismissal),
+                        'not out'
+                    )
+                );
 
-            $scorecards = $innings->mapWithKeys(function ($inning) {
-                $batters = collect($inning->batters ?? [])
-                    ->map(function ($batter) {
-                        $dismissal = (string) ($batter['dismissal'] ?? '');
+                $batter['strike_rate'] = $balls > 0
+                    ? round(($runs / $balls) * 100, 2)
+                    : 0;
 
-                        $batter['is_not_out'] = str_contains(
-                            strtolower($dismissal),
-                            'not out'
-                        );
+                return $batter;
+            })
+            ->filter()
+            ->values()
+            ->all();
 
-                        $runs = (int) ($batter['runs'] ?? 0);
-                        $balls = (int) ($batter['balls'] ?? 0);
+        $bowlers = collect($inning->bowlers ?? [])
+            ->map(function ($bowler) {
+                if (! is_array($bowler)) {
+                    return null;
+                }
 
-                        $batter['strike_rate'] = $balls > 0
-                            ? round(($runs / $balls) * 100, 2)
-                            : 0;
+                $oversText = (string) ($bowler['overs'] ?? '0.0');
+                $parts = explode('.', $oversText, 2);
 
-                        return $batter;
-                    })
-                    ->all();
+                $completedOvers = max(
+                    0,
+                    (int) ($parts[0] ?? 0)
+                );
 
-                $bowlers = collect($inning->bowlers ?? [])
-                    ->map(function ($bowler) {
-                        $oversText = (string) ($bowler['overs'] ?? '0.0');
-                        $parts = explode('.', $oversText);
+                $ballsInOver = min(
+                    5,
+                    max(0, (int) ($parts[1] ?? 0))
+                );
 
-                        $completedOvers = max(
-                            0,
-                            (int) ($parts[0] ?? 0)
-                        );
+                $legalBalls = ($completedOvers * 6) + $ballsInOver;
+                $runs = (int) ($bowler['runs'] ?? 0);
 
-                        $ballsInOver = min(
-                            5,
-                            max(0, (int) ($parts[1] ?? 0))
-                        );
+                $bowler['economy'] = $legalBalls > 0
+                    ? round($runs / ($legalBalls / 6), 2)
+                    : 0;
 
-                        $legalBalls = ($completedOvers * 6) + $ballsInOver;
-                        $runs = (int) ($bowler['runs'] ?? 0);
+                return $bowler;
+            })
+            ->filter()
+            ->values()
+            ->all();
 
-                        $bowler['economy'] = $legalBalls > 0
-                            ? round($runs / ($legalBalls / 6), 2)
-                            : 0;
+        return [
+            $inning->id => [
+                'batters' => $batters,
+                'bowlers' => $bowlers,
+                'extras' => $inning->extras ?? 0,
+            ],
+        ];
+    });
 
-                        return $bowler;
-                    })
-                    ->all();
+    $currentInning = null;
 
-                return [
-                    $inning->id => [
-                        'batters' => $batters,
-                        'bowlers' => $bowlers,
-                        'extras' => (int) ($inning->extras ?? 0),
-                    ],
-                ];
-            });
-        }
+    return view('fixtures.show', [
+        'fixture' => $fixture,
+        'innings' => $innings,
+        'currentInning' => $currentInning,
+        'scorecards' => $scorecards,
+    ]);
+}
 
-        $currentInning = $innings->first(
-            fn ($inning) => (bool) ($inning->is_current ?? false)
-        );
-
-        return view('fixtures.show', [
-            'fixture' => $fixture,
-            'innings' => $innings,
-            'currentInning' => $currentInning,
-            'scorecards' => $scorecards,
-        ]);
-    }
 
 /**
  * Display a player's performance across all saved manual scorecards.
