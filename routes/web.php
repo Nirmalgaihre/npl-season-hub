@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\MatchController;
 use App\Http\Controllers\Admin\PlayerController;
+use App\Http\Controllers\Admin\PointTableController; // Added import
 use App\Http\Controllers\Admin\ScorecardController;
 use App\Http\Controllers\Admin\SeasonController;
 use App\Http\Controllers\Admin\TagController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LiveScoreController;
 use App\Http\Controllers\PublicMatchController;
 use App\Http\Controllers\PublicNewsController;
+use App\Http\Controllers\PublicPointTableController; // Added import
 use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
 use App\Http\Controllers\SeoController;
@@ -143,6 +145,15 @@ Route::get('/fixtures/{fixture}/live', [
 
 /*
 |--------------------------------------------------------------------------
+| Public Point Table
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/pointtable', [PublicPointTableController::class, 'index'])
+    ->name('pointtable.index');
+
+/*
+|--------------------------------------------------------------------------
 | Authentication
 |--------------------------------------------------------------------------
 */
@@ -232,6 +243,18 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         Route::resource('articles', ArticleController::class)
             ->except(['show']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Point Table Management
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/pointtable', [PointTableController::class, 'index'])
+            ->name('pointtable.index');
+
+        Route::put('/pointtable', [PointTableController::class, 'update'])
+            ->name('pointtable.update');
 
         /*
         |--------------------------------------------------------------------------

@@ -5,8 +5,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    public function up(): void
-    {
+   
+public function up(): void
+{
+    if (! Schema::hasTable('live_innings')) {
         Schema::create('live_innings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fixture_id')->constrained('fixtures')->cascadeOnDelete();
@@ -24,7 +26,9 @@ return new class extends Migration {
             $table->timestamps();
             $table->unique(['fixture_id', 'innings_number']);
         });
+    }
 
+    if (! Schema::hasTable('live_deliveries')) {
         Schema::create('live_deliveries', function (Blueprint $table) {
             $table->id();
             $table->foreignId('innings_id')->constrained('live_innings')->cascadeOnDelete();
@@ -34,7 +38,9 @@ return new class extends Migration {
             $table->string('bowler');
             $table->unsignedTinyInteger('batter_runs')->default(0);
             $table->unsignedTinyInteger('extra_runs')->default(0);
-            $table->enum('extra_type', ['none', 'wide', 'no_ball', 'bye', 'leg_bye', 'penalty'])->default('none');
+            $table->enum('extra_type', [
+                'none', 'wide', 'no_ball', 'bye', 'leg_bye', 'penalty'
+            ])->default('none');
             $table->boolean('is_wicket')->default(false);
             $table->string('wicket_type')->nullable();
             $table->string('dismissed_batter')->nullable();
@@ -44,6 +50,8 @@ return new class extends Migration {
             $table->index(['innings_id', 'ball_number']);
         });
     }
+}
+
 
     public function down(): void
     {

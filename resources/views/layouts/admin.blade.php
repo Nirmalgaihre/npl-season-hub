@@ -376,6 +376,8 @@
                 </span>
             </button>
 
+            
+
             <div
                 id="tournamentDropdown"
                 class="admin-submenu"
@@ -406,6 +408,14 @@
                     <span class="admin-nav-icon"><i class="fa-solid fa-trophy"></i></span>
                     <span class="flex-1">Fixtures &amp; Results</span>
                 </a>
+
+                <a href="{{ route('admin.pointtable.index') }}"
+   class="admin-nav-link {{ request()->routeIs('admin.pointtable.*') ? 'active' : '' }}">
+    <span class="admin-nav-icon">
+        <i class="fa-solid fa-ranking-star"></i>
+    </span>
+    <span class="flex-1">Points Table</span>
+</a>
             </div>
 
             {{-- LIVE SCORING --}}
