@@ -1,3 +1,4 @@
+
 @extends('layouts.admin')
 
 @section('title', 'Edit Scorecard')
@@ -6,7 +7,11 @@
 @php
     $homeTeam = $teams->firstWhere('id', $fixture->home_team_id);
     $awayTeam = $teams->firstWhere('id', $fixture->away_team_id);
+
     $scorecards = collect($scorecards)->sortBy('innings_number')->values();
+    $hasSecondInnings = $scorecards->contains(
+        fn ($inning) => (int) ($inning->innings_number ?? 0) === 2
+    );
 
     while ($scorecards->count() < 2) {
         $number = $scorecards->count() + 1;
@@ -142,13 +147,43 @@
         @csrf
         @method('PUT')
 
+        <div class="innings-option">
+            <label class="innings-toggle-label" for="enable-second-innings">
+                <input
+                    type="checkbox"
+                    id="enable-second-innings"
+                    {{ $hasSecondInnings ? 'checked' : '' }}
+                >
+                <span class="toggle-copy">
+                    <strong>Enable second innings</strong>
+                    <small>
+                        Save the first innings now and enter the second innings later.
+                    </small>
+                </span>
+            </label>
+
+            <span class="optional-badge">SECOND INNINGS OPTIONAL</span>
+        </div>
+
         @foreach($scorecards as $inningIndex => $inning)
             @php
-                $battingTeamId = (int) ($inning->batting_team_id ?? $fixture->home_team_id);
-                $bowlingTeamId = (int) ($inning->bowling_team_id ?? $fixture->away_team_id);
+                $inningsNumber = (int) ($inning->innings_number ?? ($inningIndex + 1));
 
-                $batters = is_array($inning->batters ?? null) ? $inning->batters : [];
-                $bowlers = is_array($inning->bowlers ?? null) ? $inning->bowlers : [];
+                $battingTeamId = (int) (
+                    $inning->batting_team_id ?? $fixture->home_team_id
+                );
+
+                $bowlingTeamId = (int) (
+                    $inning->bowling_team_id ?? $fixture->away_team_id
+                );
+
+                $batters = is_array($inning->batters ?? null)
+                    ? $inning->batters
+                    : [];
+
+                $bowlers = is_array($inning->bowlers ?? null)
+                    ? $inning->bowlers
+                    : [];
 
                 if (!$batters) {
                     $batters = [[
@@ -160,6 +195,8 @@
                         'strike_rate' => 0,
                         'dismissal_type' => 'not_out',
                         'dismissed_by' => '',
+                        'dismissed_by_bowler' => '',
+                        'dismissed_by_fielder' => '',
                     ]];
                 }
 
@@ -178,27 +215,35 @@
             <section
                 class="innings-card innings-section"
                 data-innings-index="{{ $inningIndex }}"
+                data-innings-number="{{ $inningsNumber }}"
+                @if($inningsNumber === 2 && !$hasSecondInnings)
+                    hidden
+                @endif
             >
                 <div class="innings-heading">
                     <div class="innings-title">
                         <span class="innings-number">
-                            {{ str_pad($inning->innings_number ?? ($inningIndex + 1), 2, '0', STR_PAD_LEFT) }}
+                            {{ str_pad($inningsNumber, 2, '0', STR_PAD_LEFT) }}
                         </span>
 
                         <div>
-                            <h3>Innings {{ $inning->innings_number ?? ($inningIndex + 1) }}</h3>
-                            <p>Set the batting side and enter the innings score.</p>
+                            <h3>Innings {{ $inningsNumber }}</h3>
+                            <p>
+                                {{ $inningsNumber === 1
+                                    ? 'Enter the first innings. You can save this independently.'
+                                    : 'Complete this innings now or leave it for later.' }}
+                            </p>
                         </div>
                     </div>
 
                     <span class="innings-badge">
-                        {{ $inningIndex === 0 ? 'First innings' : 'Second innings' }}
+                        {{ $inningsNumber === 1 ? 'First innings' : 'Second innings' }}
                     </span>
 
                     <input
                         type="hidden"
                         name="innings[{{ $inningIndex }}][innings_number]"
-                        value="{{ $inning->innings_number ?? ($inningIndex + 1) }}"
+                        value="{{ $inningsNumber }}"
                     >
                 </div>
 
@@ -262,7 +307,7 @@
                         <div class="section-heading">
                             <div>
                                 <h4>Innings score</h4>
-                                <p>Enter the current innings totals.</p>
+                                <p>Enter the innings totals.</p>
                             </div>
                         </div>
 
@@ -298,7 +343,7 @@
                         </div>
                     </div>
 
-                    {{-- Batting card --}}
+                    {{-- BATTING CARD --}}
                     <div class="players-section">
                         <div class="section-heading">
                             <div class="player-heading">
@@ -318,7 +363,7 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="player-table">
+                            <table class="player-table batting-table">
                                 <thead>
                                     <tr>
                                         <th class="player-column">BATTER</th>
@@ -328,7 +373,8 @@
                                         <th>6s</th>
                                         <th>SR</th>
                                         <th>DISMISSAL</th>
-                                        <th>DISMISSED BY</th>
+                                        <th>BOWLER</th>
+                                        <th>FIELDER / CATCHER</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -339,13 +385,33 @@
                                             $savedName = $batter['name'] ?? '';
 
                                             $knownPlayer = $players->first(
-                                                fn($p) =>
+                                                fn ($p) =>
                                                     (int) $p->team_id === $battingTeamId
                                                     && $p->name === $savedName
                                             );
 
                                             $dismissal = $batter['dismissal_type'] ?? 'not_out';
-                                            $dismissedBy = $batter['dismissed_by'] ?? '';
+
+                                            $legacyDismissedBy = $batter['dismissed_by'] ?? '';
+
+                                            $dismissedByBowler = $batter['dismissed_by_bowler']
+                                                ?? (
+                                                    in_array($dismissal, [
+                                                        'bowled', 'lbw', 'caught',
+                                                        'stumped', 'hit_wicket'
+                                                    ], true)
+                                                        ? $legacyDismissedBy
+                                                        : ''
+                                                );
+
+                                            $dismissedByFielder = $batter['dismissed_by_fielder']
+                                                ?? (
+                                                    in_array($dismissal, [
+                                                        'caught', 'run_out', 'stumped'
+                                                    ], true)
+                                                        ? $legacyDismissedBy
+                                                        : ''
+                                                );
                                         @endphp
 
                                         <tr class="batter-row">
@@ -421,32 +487,65 @@
 
                                             <td>
                                                 <select
-                                                    class="form-select dismissal-player"
-                                                    data-field="dismissed_by"
-                                                    data-saved-name="{{ $dismissedBy }}"
-                                                    name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][dismissed_by]"
+                                                    class="form-select dismissal-bowler"
+                                                    data-field="dismissed_by_bowler"
+                                                    data-saved-name="{{ $dismissedByBowler }}"
+                                                    name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][dismissed_by_bowler]"
                                                 >
-                                                    <option value="">Select bowler/fielder</option>
+                                                    <option value="">Select bowler</option>
 
                                                     @foreach($players as $player)
                                                         @if((int) $player->team_id === $bowlingTeamId)
                                                             <option
                                                                 value="{{ $player->name }}"
                                                                 data-team-id="{{ $player->team_id }}"
-                                                                @selected($dismissedBy === $player->name)
+                                                                @selected($dismissedByBowler === $player->name)
                                                             >
                                                                 {{ $player->name }}
                                                             </option>
                                                         @endif
                                                     @endforeach
 
-                                                    @if($dismissedBy && !$players->contains(
-                                                        fn($p) =>
+                                                    @if($dismissedByBowler && !$players->contains(
+                                                        fn ($p) =>
                                                             (int) $p->team_id === $bowlingTeamId
-                                                            && $p->name === $dismissedBy
+                                                            && $p->name === $dismissedByBowler
                                                     ))
-                                                        <option value="{{ $dismissedBy }}" selected>
-                                                            {{ $dismissedBy }} (saved)
+                                                        <option value="{{ $dismissedByBowler }}" selected>
+                                                            {{ $dismissedByBowler }} (saved)
+                                                        </option>
+                                                    @endif
+                                                </select>
+                                            </td>
+
+                                            <td>
+                                                <select
+                                                    class="form-select dismissal-fielder"
+                                                    data-field="dismissed_by_fielder"
+                                                    data-saved-name="{{ $dismissedByFielder }}"
+                                                    name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][dismissed_by_fielder]"
+                                                >
+                                                    <option value="">Select fielder</option>
+
+                                                    @foreach($players as $player)
+                                                        @if((int) $player->team_id === $bowlingTeamId)
+                                                            <option
+                                                                value="{{ $player->name }}"
+                                                                data-team-id="{{ $player->team_id }}"
+                                                                @selected($dismissedByFielder === $player->name)
+                                                            >
+                                                                {{ $player->name }}
+                                                            </option>
+                                                        @endif
+                                                    @endforeach
+
+                                                    @if($dismissedByFielder && !$players->contains(
+                                                        fn ($p) =>
+                                                            (int) $p->team_id === $bowlingTeamId
+                                                            && $p->name === $dismissedByFielder
+                                                    ))
+                                                        <option value="{{ $dismissedByFielder }}" selected>
+                                                            {{ $dismissedByFielder }} (saved)
                                                         </option>
                                                     @endif
                                                 </select>
@@ -468,7 +567,7 @@
                         </div>
                     </div>
 
-                    {{-- Bowling card --}}
+                    {{-- BOWLING CARD --}}
                     <div class="players-section">
                         <div class="section-heading">
                             <div class="player-heading">
@@ -507,7 +606,7 @@
                                             $savedName = $bowler['name'] ?? '';
 
                                             $knownPlayer = $players->first(
-                                                fn($p) =>
+                                                fn ($p) =>
                                                     (int) $p->team_id === $bowlingTeamId
                                                     && $p->name === $savedName
                                             );
@@ -589,7 +688,7 @@
         <div class="save-bar">
             <div class="save-bar-info">
                 <i class="fas fa-circle-check"></i>
-                <span>Changes are saved when you click Save scorecard.</span>
+                <span>Only enabled innings will be submitted. Unsubmitted saved innings remain unchanged.</span>
             </div>
 
             <div class="save-actions">
@@ -619,13 +718,7 @@
     <tr class="batter-row">
         <td class="player-column">
             <select class="form-select player-select batter-player" required></select>
-
-            <input
-                type="text"
-                class="form-control custom-player-name mt-2"
-                placeholder="Enter player name"
-                style="display:none"
-            >
+            <input type="text" class="form-control custom-player-name mt-2" placeholder="Enter player name" style="display:none">
         </td>
 
         @foreach(['runs', 'balls', 'fours', 'sixes', 'strike_rate'] as $field)
@@ -634,7 +727,6 @@
                     type="number"
                     min="0"
                     step="{{ $field === 'strike_rate' ? '0.01' : '1' }}"
-                    inputmode="{{ $field === 'strike_rate' ? 'decimal' : 'numeric' }}"
                     class="form-control stat-input"
                     data-field="{{ $field }}"
                     value="0"
@@ -645,16 +737,20 @@
         <td>
             <select class="form-select dismissal-type" data-field="dismissal_type">
                 @foreach($dismissalTypes as $value => $label)
-                    <option value="{{ $value }}" @selected($value === 'not_out')>
-                        {{ $label }}
-                    </option>
+                    <option value="{{ $value }}" @selected($value === 'not_out')>{{ $label }}</option>
                 @endforeach
             </select>
         </td>
 
         <td>
-            <select class="form-select dismissal-player" data-field="dismissed_by">
-                <option value="">Select bowler/fielder</option>
+            <select class="form-select dismissal-bowler" data-field="dismissed_by_bowler">
+                <option value="">Select bowler</option>
+            </select>
+        </td>
+
+        <td>
+            <select class="form-select dismissal-fielder" data-field="dismissed_by_fielder">
+                <option value="">Select fielder</option>
             </select>
         </td>
 
@@ -670,13 +766,7 @@
     <tr class="bowler-row">
         <td class="player-column">
             <select class="form-select player-select bowler-player" required></select>
-
-            <input
-                type="text"
-                class="form-control custom-player-name mt-2"
-                placeholder="Enter player name"
-                style="display:none"
-            >
+            <input type="text" class="form-control custom-player-name mt-2" placeholder="Enter player name" style="display:none">
         </td>
 
         @foreach(['overs', 'maidens', 'runs', 'wickets', 'economy'] as $field)
@@ -685,7 +775,6 @@
                     type="number"
                     min="0"
                     step="{{ in_array($field, ['overs', 'economy']) ? '0.01' : '1' }}"
-                    inputmode="{{ in_array($field, ['overs', 'economy']) ? 'decimal' : 'numeric' }}"
                     class="form-control stat-input"
                     data-field="{{ $field }}"
                     value="0"
@@ -725,7 +814,15 @@
 .versus{display:grid;place-items:center;width:43px;height:43px;border:1px solid #454c5a;border-radius:50%;color:#d0d5df;font-size:11px;font-weight:800}
 .match-venue{border-top:1px solid #343b49;padding-top:14px;color:#b4becc;font-size:12px}
 .match-venue i{margin-right:6px;color:#ff697a}
+.innings-option{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:0 0 22px;border:1px solid var(--border);border-radius:12px;padding:16px 19px;background:#fff}
+.innings-toggle-label{display:flex;align-items:center;gap:13px;margin:0;cursor:pointer}
+.innings-toggle-label input{width:19px;height:19px;accent-color:var(--red)}
+.toggle-copy{display:grid;gap:4px}
+.toggle-copy strong{font-size:13px;font-weight:800}
+.toggle-copy small{color:var(--muted);font-size:12px}
+.optional-badge{border-radius:20px;padding:7px 10px;background:#fff0f2;color:var(--red);font-size:9px;font-weight:850;letter-spacing:.6px}
 .innings-card{overflow:hidden;margin-bottom:25px;border:1px solid var(--border);border-radius:15px;background:#fff;box-shadow:0 4px 20px rgb(28 38 56 / 3%)}
+.innings-card[hidden]{display:none!important}
 .innings-heading{flex-wrap:wrap;border-bottom:1px solid var(--border);padding:19px 22px;background:#fcfcfd}
 .innings-title{display:flex;align-items:center;gap:13px}
 .innings-number{display:grid;place-items:center;width:43px;height:43px;border-radius:12px;background:#fff0f2;color:var(--red);font-size:15px;font-weight:900}
@@ -735,8 +832,7 @@
 .team-selection{display:grid;grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr);align-items:end;gap:14px;margin-bottom:29px}
 .field-group label{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:10px;font-weight:850;letter-spacing:.8px}
 .label-dot{width:8px;height:8px;border-radius:50%}
-.batting-dot{background:#c6283d}
-.bowling-dot{background:#3676df}
+.batting-dot{background:#c6283d}.bowling-dot{background:#3676df}
 .field-group .form-select{min-height:47px;border-color:#dfe4ec;border-radius:9px;color:#252d3b;font-size:13px;font-weight:650}
 .swap-indicator{display:grid;place-items:center;width:38px;height:38px;margin-bottom:4px;border:1px solid var(--border);border-radius:10px;color:#727d8e;background:#fff;cursor:pointer}
 .swap-indicator:hover{color:var(--red);background:#fff0f2;border-color:#f0c8ce}
@@ -749,27 +845,24 @@
 .score-input input{width:100%;min-width:0;border:0;outline:0;padding:0;color:#202633;background:transparent;font-size:27px;font-weight:850}
 .score-input input:focus{color:var(--red)}
 .score-input>span{display:block;margin-top:5px;color:#a1a9b7;font-size:9px;font-weight:800;letter-spacing:1px}
-.runs-input{border-color:#f0c8ce}
-.runs-input input{color:var(--red)}
+.runs-input{border-color:#f0c8ce}.runs-input input{color:var(--red)}
 .players-section{margin-top:30px}
 .player-heading{display:flex;align-items:center;gap:12px}
 .player-icon{display:grid;place-items:center;width:39px;height:39px;border-radius:11px;flex-shrink:0}
-.batter-icon{background:#fff0f2;color:#c6283d}
-.bowler-icon{background:#edf4ff;color:#3676df}
+.batter-icon{background:#fff0f2;color:#c6283d}.bowler-icon{background:#edf4ff;color:#3676df}
 .btn-add{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #e5c2c8;border-radius:8px;padding:9px 12px;background:#fff;color:var(--red);font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}
 .btn-add:hover{background:#fff1f3}
-.player-table{width:100%;min-width:1050px;border-collapse:separate;border-spacing:0}
+.player-table{width:100%;min-width:1250px;border-collapse:separate;border-spacing:0}
 .player-table thead th{border-top:1px solid #e9ecf1;border-bottom:1px solid #e9ecf1;padding:12px 8px;background:#f8f9fb;color:#798395;font-size:9px;font-weight:850;letter-spacing:.7px;text-align:center;white-space:nowrap}
 .player-table thead th:first-child{border-left:1px solid #e9ecf1;border-radius:9px 0 0;text-align:left}
 .player-table thead th:last-child{border-right:1px solid #e9ecf1;border-radius:0 9px 0 0}
 .player-table tbody td{border-bottom:1px solid #edf0f4;padding:10px 6px;text-align:center;vertical-align:top}
-.player-table .player-column{width:22%;min-width:180px;text-align:left}
-.player-select,.stat-input,.dismissal-type,.dismissal-player{min-height:39px;border-color:#e0e5ed;border-radius:7px;font-size:12px}
+.player-table .player-column{width:20%;min-width:180px;text-align:left}
+.player-select,.stat-input,.dismissal-type,.dismissal-bowler,.dismissal-fielder{min-height:39px;border-color:#e0e5ed;border-radius:7px;font-size:12px}
 .player-select{min-width:150px;font-weight:600}
 .stat-input{width:65px;min-width:52px;padding:6px;text-align:center;font-weight:700}
-.dismissal-type{min-width:125px}
-.dismissal-player{min-width:155px}
-.stat-input:focus,.player-select:focus,.custom-player-name:focus,.dismissal-type:focus,.dismissal-player:focus{border-color:#d45a6a;box-shadow:0 0 0 3px rgb(198 40 61 / 8%)}
+.dismissal-type{min-width:125px}.dismissal-bowler,.dismissal-fielder{min-width:155px}
+.stat-input:focus,.player-select:focus,.custom-player-name:focus,.dismissal-type:focus,.dismissal-bowler:focus,.dismissal-fielder:focus{border-color:#d45a6a;box-shadow:0 0 0 3px rgb(198 40 61 / 8%)}
 .custom-player-name{font-size:12px}
 .btn-remove{display:inline-grid;place-items:center;width:34px;height:36px;border:1px solid #f1d7db;border-radius:7px;background:#fff;color:#bd3345;cursor:pointer}
 .btn-remove:hover{background:#fff0f2}
@@ -781,36 +874,31 @@
 .btn-cancel{border:1px solid #dfe4ec;background:#fff;color:#535e70}
 .btn-save{border:1px solid var(--red);background:var(--red);color:#fff}
 .btn-save:hover{border-color:var(--red-dark);background:var(--red-dark);color:#fff}
+.btn-save:disabled{opacity:.65;cursor:wait}
 @media(max-width:767px){
-    .score-page-heading{align-items:flex-start}
-    .editor-status{display:none}
+    .score-page-heading{align-items:flex-start}.editor-status{display:none}
     .match-banner{padding:16px}
     .match-teams{grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr);gap:8px;padding:23px 0 17px}
-    .match-team{gap:8px}
-    .match-team-logo,.team-placeholder{width:37px;height:37px;flex-basis:37px}
-    .match-team h3{font-size:12px}
-    .team-side{font-size:8px}
-    .away-team-info{text-align:right}
-    .versus{width:31px;height:31px;font-size:9px}
+    .match-team{gap:8px}.match-team-logo,.team-placeholder{width:37px;height:37px;flex-basis:37px}
+    .match-team h3{font-size:12px}.team-side{font-size:8px}
+    .away-team-info{text-align:right}.versus{width:31px;height:31px;font-size:9px}
     .innings-heading,.innings-body{padding:15px}
     .team-selection{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:7px;align-items:end}
     .field-group .form-select{min-width:0;padding:8px 24px 8px 8px;font-size:11px}
     .swap-indicator{width:34px;height:36px}
-    .score-input-section{padding:13px}
-    .score-input-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .score-input-section{padding:13px}.score-input-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
     .score-input input{font-size:24px}
-    .section-heading{align-items:flex-start}
-    .player-heading{gap:8px}
-    .player-icon{width:33px;height:33px}
-    .btn-add{padding:8px;font-size:10px}
-    .save-bar{bottom:6px;padding:10px}
-    .save-bar-info{display:none}
-    .save-actions{width:100%}
-    .btn-cancel,.btn-save{flex:1;padding:0 10px}
+    .section-heading{align-items:flex-start}.player-heading{gap:8px}
+    .player-icon{width:33px;height:33px}.btn-add{padding:8px;font-size:10px}
+    .innings-option{align-items:flex-start;padding:13px}
+    .optional-badge{font-size:8px}
+    .save-bar{bottom:6px;padding:10px}.save-bar-info{display:none}
+    .save-actions{width:100%}.btn-cancel,.btn-save{flex:1;padding:0 10px}
 }
 @media(max-width:420px){
     .team-selection{grid-template-columns:1fr}
     .swap-indicator{margin:0 auto;transform:rotate(90deg)}
+    .innings-option{flex-direction:column}
 }
 </style>
 
@@ -818,6 +906,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     const optionTemplate = document.getElementById('all-player-options');
     const form = document.getElementById('scorecard-form');
+    const secondInningsToggle = document.getElementById('enable-second-innings');
 
     if (!optionTemplate || !form) return;
 
@@ -828,21 +917,18 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleCustomName(select) {
         const row = select.closest('tr');
         const input = row?.querySelector('.custom-player-name');
-
         if (!input) return;
 
         const isOther = select.value === '__other__';
-
         input.style.display = isOther ? '' : 'none';
         input.required = isOther;
 
-        if (!isOther) {
-            input.value = '';
-        }
+        if (!isOther) input.value = '';
     }
 
     function filterPlayerSelect(select, teamId, savedName = '') {
         const currentValue = savedName || select.value;
+        const custom = select.closest('tr')?.querySelector('.custom-player-name');
 
         select.replaceChildren();
 
@@ -864,12 +950,7 @@ document.addEventListener('DOMContentLoaded', function () {
             select.value = currentValue;
         } else if (currentValue) {
             select.value = '__other__';
-
-            const custom = select.closest('tr')?.querySelector('.custom-player-name');
-
-            if (custom) {
-                custom.value = currentValue;
-            }
+            if (custom) custom.value = currentValue;
         } else {
             select.value = '';
         }
@@ -877,16 +958,15 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleCustomName(select);
     }
 
-    function filterDismissalPlayer(select, teamId, savedName = '') {
+    function filterDismissalSelect(select, teamId, savedName = '', placeholder = 'Select player') {
         const currentValue = savedName || select.value;
 
         select.replaceChildren();
 
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Select bowler/fielder';
-
-        select.appendChild(placeholder);
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = placeholder;
+        select.appendChild(empty);
 
         allPlayerOptions().forEach(option => {
             if (
@@ -903,12 +983,10 @@ document.addEventListener('DOMContentLoaded', function () {
         );
 
         if (currentValue && !exists) {
-            const savedOption = document.createElement('option');
-
-            savedOption.value = currentValue;
-            savedOption.textContent = currentValue + ' (saved)';
-
-            select.appendChild(savedOption);
+            const saved = document.createElement('option');
+            saved.value = currentValue;
+            saved.textContent = currentValue + ' (saved)';
+            select.appendChild(saved);
         }
 
         select.value = currentValue || '';
@@ -918,108 +996,127 @@ document.addEventListener('DOMContentLoaded', function () {
         const option = Array.from(select.options).find(item =>
             item.value !== '' && item.value !== String(excludedId)
         );
+        if (option) select.value = option.value;
+    }
 
-        if (option) {
-            select.value = option.value;
-        }
+    function toggleDismissalFields(row) {
+        const type = row.querySelector('.dismissal-type')?.value || 'not_out';
+        const bowler = row.querySelector('.dismissal-bowler');
+        const fielder = row.querySelector('.dismissal-fielder');
+
+        if (!bowler || !fielder) return;
+
+        const bowlerNeeded = [
+            'bowled', 'caught', 'lbw', 'stumped', 'hit_wicket',
+            'run_out', 'obstructing_field', 'other'
+        ].includes(type);
+
+        const fielderNeeded = [
+            'caught', 'run_out', 'stumped', 'obstructing_field', 'other'
+        ].includes(type);
+
+        bowler.disabled = !bowlerNeeded;
+        fielder.disabled = !fielderNeeded;
+
+        bowler.title = bowlerNeeded ? 'Bowler involved in dismissal' : 'Not needed for this dismissal';
+        fielder.title = fielderNeeded ? 'Fielder or catcher involved in dismissal' : 'Not needed for this dismissal';
+
+        bowler.classList.toggle('dismissal-not-needed', !bowlerNeeded);
+        fielder.classList.toggle('dismissal-not-needed', !fielderNeeded);
     }
 
     function refreshInnings(section) {
         const batting = section.querySelector('.batting-team');
         const bowling = section.querySelector('.bowling-team');
 
+        if (!batting || !bowling) return;
+
         if (batting.value === bowling.value) {
             selectOtherTeam(bowling, batting.value);
         }
 
         Array.from(batting.options).forEach(option => {
-            option.disabled =
-                option.value !== '' && option.value === bowling.value;
+            option.disabled = option.value !== '' && option.value === bowling.value;
         });
 
         Array.from(bowling.options).forEach(option => {
-            option.disabled =
-                option.value !== '' && option.value === batting.value;
+            option.disabled = option.value !== '' && option.value === batting.value;
         });
 
         section.querySelectorAll('.batter-player').forEach(select => {
-            filterPlayerSelect(
-                select,
-                batting.value,
-                select.dataset.savedName || select.value
-            );
-
+            filterPlayerSelect(select, batting.value, select.dataset.savedName || select.value);
             select.dataset.savedName = '';
         });
 
         section.querySelectorAll('.bowler-player').forEach(select => {
-            filterPlayerSelect(
-                select,
-                bowling.value,
-                select.dataset.savedName || select.value
-            );
-
+            filterPlayerSelect(select, bowling.value, select.dataset.savedName || select.value);
             select.dataset.savedName = '';
         });
 
-        section.querySelectorAll('.dismissal-player').forEach(select => {
-            filterDismissalPlayer(
+        section.querySelectorAll('.dismissal-bowler').forEach(select => {
+            filterDismissalSelect(
                 select,
                 bowling.value,
-                select.dataset.savedName || select.value
+                select.dataset.savedName || select.value,
+                'Select bowler'
             );
-
             select.dataset.savedName = '';
         });
+
+        section.querySelectorAll('.dismissal-fielder').forEach(select => {
+            filterDismissalSelect(
+                select,
+                bowling.value,
+                select.dataset.savedName || select.value,
+                'Select fielder'
+            );
+            select.dataset.savedName = '';
+        });
+
+        section.querySelectorAll('.batter-row').forEach(toggleDismissalFields);
     }
 
     function renumberRows(section, type) {
         const isBatter = type === 'batters';
-
-        const list = section.querySelector(
-            isBatter ? '.batter-list' : '.bowler-list'
-        );
-
+        const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
         const index = section.dataset.inningsIndex;
 
         Array.from(list.querySelectorAll('tr')).forEach((row, rowIndex) => {
+            const base = `innings[${index}][${type}][${rowIndex}]`;
+
             const select = row.querySelector('.player-select');
             const custom = row.querySelector('.custom-player-name');
 
-            select.name = `innings[${index}][${type}][${rowIndex}][name]`;
-
-            custom.name =
-                `innings[${index}][${type}][${rowIndex}][custom_name]`;
+            if (select) select.name = `${base}[name]`;
+            if (custom) custom.name = `${base}[custom_name]`;
 
             row.querySelectorAll('[data-field]').forEach(input => {
-                input.name =
-                    `innings[${index}][${type}][${rowIndex}][${input.dataset.field}]`;
+                input.name = `${base}[${input.dataset.field}]`;
             });
+
+            if (isBatter) {
+                ['dismissed_by_bowler', 'dismissed_by_fielder'].forEach(field => {
+                    const input = row.querySelector(`[data-field="${field}"]`);
+                    if (input) input.name = `${base}[${field}]`;
+                });
+            }
 
             const fields = isBatter
                 ? ['runs', 'balls', 'fours', 'sixes', 'strike_rate']
                 : ['overs', 'maidens', 'runs', 'wickets', 'economy'];
 
             fields.forEach(field => {
-                const input =
-                    row.querySelector(`input[name$="[${field}]"]`) ||
-                    row.querySelector(`input[data-field="${field}"]`);
+                const input = row.querySelector(`input[name$="[${field}]"]`)
+                    || row.querySelector(`input[data-field="${field}"]`);
 
-                if (input) {
-                    input.name =
-                        `innings[${index}][${type}][${rowIndex}][${field}]`;
-                }
+                if (input) input.name = `${base}[${field}]`;
             });
         });
     }
 
     function addPlayerRow(section, type) {
         const isBatter = type === 'batters';
-
-        const list = section.querySelector(
-            isBatter ? '.batter-list' : '.bowler-list'
-        );
-
+        const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
         const template = document.getElementById(
             isBatter ? 'new-batter-template' : 'new-bowler-template'
         );
@@ -1027,14 +1124,33 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = template.content.firstElementChild.cloneNode(true);
         const select = row.querySelector('.player-select');
 
-        allPlayerOptions().forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
+        allPlayerOptions().forEach(option => select.appendChild(option.cloneNode(true)));
 
         list.appendChild(row);
-
         renumberRows(section, type);
         refreshInnings(section);
+    }
+
+    function updateSecondInningsVisibility() {
+        const second = document.querySelector('.innings-section[data-innings-number="2"]');
+        if (!second || !secondInningsToggle) return;
+
+        const enabled = secondInningsToggle.checked;
+        second.hidden = !enabled;
+
+        second.querySelectorAll('input, select, textarea, button').forEach(control => {
+            control.disabled = !enabled;
+        });
+
+        // Re-enable the second-innings controls only when the innings is active.
+        // This also keeps hidden required inputs from blocking first-innings saves.
+        if (enabled) {
+            second.querySelectorAll('.team-select, .score-input input, .player-select').forEach(control => {
+                control.disabled = false;
+            });
+
+            refreshInnings(second);
+        }
     }
 
     document.querySelectorAll('.innings-section').forEach(section => {
@@ -1045,7 +1161,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (batting.value === bowling.value) {
                 selectOtherTeam(bowling, batting.value);
             }
-
             refreshInnings(section);
         });
 
@@ -1053,16 +1168,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (bowling.value === batting.value) {
                 selectOtherTeam(batting, bowling.value);
             }
-
             refreshInnings(section);
         });
 
         section.querySelector('.swap-teams').addEventListener('click', () => {
-            const oldBatting = batting.value;
-
+            const previousBatting = batting.value;
             batting.value = bowling.value;
-            bowling.value = oldBatting;
-
+            bowling.value = previousBatting;
             refreshInnings(section);
         });
 
@@ -1078,14 +1190,19 @@ document.addEventListener('DOMContentLoaded', function () {
             if (event.target.matches('.player-select')) {
                 toggleCustomName(event.target);
             }
+
+            if (event.target.matches('.dismissal-type')) {
+                toggleDismissalFields(event.target.closest('.batter-row'));
+            }
         });
 
         section.addEventListener('click', event => {
             const button = event.target.closest('.remove-row');
-
             if (!button) return;
 
             const row = button.closest('.batter-row, .bowler-row');
+            if (!row) return;
+
             const isBatter = row.classList.contains('batter-row');
             const type = isBatter ? 'batters' : 'bowlers';
             const list = row.parentElement;
@@ -1094,27 +1211,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 row.remove();
             } else {
                 row.querySelectorAll('input').forEach(input => {
-                    input.value = input.classList.contains('custom-player-name')
-                        ? ''
-                        : 0;
+                    input.value = input.classList.contains('custom-player-name') ? '' : 0;
                 });
 
-                const select = row.querySelector('.player-select');
-
-                select.value = '';
-                toggleCustomName(select);
-
-                const dismissalPlayer = row.querySelector('.dismissal-player');
-
-                if (dismissalPlayer) {
-                    dismissalPlayer.value = '';
+                const playerSelect = row.querySelector('.player-select');
+                if (playerSelect) {
+                    playerSelect.value = '';
+                    toggleCustomName(playerSelect);
                 }
+
+                row.querySelectorAll('.dismissal-bowler, .dismissal-fielder').forEach(select => {
+                    select.value = '';
+                });
 
                 const dismissalType = row.querySelector('.dismissal-type');
+                if (dismissalType) dismissalType.value = 'not_out';
 
-                if (dismissalType) {
-                    dismissalType.value = 'not_out';
-                }
+                toggleDismissalFields(row);
             }
 
             renumberRows(section, type);
@@ -1123,13 +1236,22 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshInnings(section);
     });
 
-    form.addEventListener('submit', function () {
-        const button = document.getElementById('save-button');
+    if (secondInningsToggle) {
+        secondInningsToggle.addEventListener('change', updateSecondInningsVisibility);
+        updateSecondInningsVisibility();
+    }
 
+    form.addEventListener('submit', function () {
+        // Renumber rows immediately before submission so all dynamic names are correct.
+        document.querySelectorAll('.innings-section').forEach(section => {
+            renumberRows(section, 'batters');
+            renumberRows(section, 'bowlers');
+        });
+
+        const button = document.getElementById('save-button');
         if (button) {
             button.disabled = true;
-            button.innerHTML =
-                '<i class="fas fa-spinner fa-spin"></i> Saving…';
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
         }
     });
 });
