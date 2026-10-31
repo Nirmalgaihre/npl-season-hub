@@ -1,4 +1,3 @@
-
 @extends('layouts.admin')
 
 @section('title', 'Edit Scorecard')
@@ -7,23 +6,43 @@
 @php
     $homeTeam = $teams->firstWhere('id', $fixture->home_team_id);
     $awayTeam = $teams->firstWhere('id', $fixture->away_team_id);
+
+    $scorecards = collect($scorecards)->sortBy('innings_number')->values();
+
+    // Display at least two innings. The second innings starts with reversed teams.
+    while ($scorecards->count() < 2) {
+        $number = $scorecards->count() + 1;
+        $previous = $scorecards->last();
+
+        $scorecards->push((object) [
+            'id' => null,
+            'innings_number' => $number,
+            'batting_team_id' => $number === 1
+                ? $fixture->home_team_id
+                : ($previous->bowling_team_id ?? $fixture->away_team_id),
+            'bowling_team_id' => $number === 1
+                ? $fixture->away_team_id
+                : ($previous->batting_team_id ?? $fixture->home_team_id),
+            'total_runs' => 0,
+            'wickets' => 0,
+            'overs' => '0.0',
+            'extras' => 0,
+            'batters' => [],
+            'bowlers' => [],
+        ]);
+    }
 @endphp
 
 <div class="score-editor">
-
-    {{-- Page heading --}}
     <div class="score-page-heading">
         <div>
             <a href="{{ route('admin.scorecards.index') }}" class="back-link">
                 <i class="fas fa-arrow-left"></i> All scorecards
             </a>
             <h2>Edit scorecard</h2>
-            <p>Update the innings, select players and enter match statistics.</p>
+            <p>Manage innings, teams, players and match statistics.</p>
         </div>
-
-        <span class="editor-status">
-            <span></span> Score editor
-        </span>
+        <span class="editor-status"><span></span> Score editor</span>
     </div>
 
     @if(session('success'))
@@ -41,11 +60,10 @@
         </div>
     @endif
 
-    {{-- Match overview --}}
     <div class="match-banner">
         <div class="match-banner-top">
             <span class="match-label">
-                <i class="fas fa-cricket-bat-ball"></i>
+                <i class="fas fa-baseball-bat-ball"></i>
                 {{ $fixture->match_number ? 'MATCH '.$fixture->match_number : 'MATCH SCORECARD' }}
             </span>
             <span class="match-label muted-label">
@@ -63,7 +81,6 @@
                         {{ strtoupper(substr($homeTeam->short_name ?? $homeTeam->name ?? 'H', 0, 3)) }}
                     </div>
                 @endif
-
                 <div>
                     <span class="team-side">HOME TEAM</span>
                     <h3>{{ $homeTeam->name ?? 'Home team' }}</h3>
@@ -77,7 +94,6 @@
                     <span class="team-side">AWAY TEAM</span>
                     <h3>{{ $awayTeam->name ?? 'Away team' }}</h3>
                 </div>
-
                 @if($awayTeam && $awayTeam->logo)
                     <img src="{{ asset('storage/'.$awayTeam->logo) }}"
                          alt="{{ $awayTeam->name }}" class="match-team-logo">
@@ -89,7 +105,7 @@
             </div>
         </div>
 
-        @if($fixture->venue)
+        @if($fixture->venue ?? false)
             <div class="match-venue">
                 <i class="fas fa-location-dot"></i> {{ $fixture->venue }}
             </div>
@@ -97,7 +113,7 @@
     </div>
 
     <form method="POST"
-          action="{{ route('admin.scorecards.update', $fixture->id) }}"
+          action="{{ route('admin.scorecards.update', ['fixture' => $fixture->id]) }}"
           id="scorecard-form">
         @csrf
         @method('PUT')
@@ -130,31 +146,28 @@
 
                 <div class="innings-heading">
                     <div class="innings-title">
-                        <span class="innings-number">{{ str_pad($inning->innings_number ?? ($inningIndex + 1), 2, '0', STR_PAD_LEFT) }}</span>
+                        <span class="innings-number">
+                            {{ str_pad($inning->innings_number ?? ($inningIndex + 1), 2, '0', STR_PAD_LEFT) }}
+                        </span>
                         <div>
                             <h3>Innings {{ $inning->innings_number ?? ($inningIndex + 1) }}</h3>
-                            <p>Match scoring and player statistics</p>
+                            <p>Set the batting side and enter the innings score.</p>
                         </div>
                     </div>
-
+                    <span class="innings-badge">
+                        {{ $inningIndex === 0 ? 'First innings' : 'Second innings' }}
+                    </span>
                     <input type="hidden"
                            name="innings[{{ $inningIndex }}][innings_number]"
                            value="{{ $inning->innings_number ?? ($inningIndex + 1) }}">
                 </div>
 
                 <div class="innings-body">
-
-                    {{-- Teams --}}
                     <div class="team-selection">
                         <div class="field-group">
-                            <label>
-                                <span class="label-dot batting-dot"></span>
-                                BATTING TEAM
-                            </label>
-
+                            <label><span class="label-dot batting-dot"></span> BATTING TEAM</label>
                             <select class="form-select batting-team team-select"
-                                    name="innings[{{ $inningIndex }}][batting_team_id]"
-                                    required>
+                                    name="innings[{{ $inningIndex }}][batting_team_id]" required>
                                 @foreach($teams as $team)
                                     <option value="{{ $team->id }}"
                                         @selected($battingTeamId === (int) $team->id)>
@@ -164,19 +177,17 @@
                             </select>
                         </div>
 
-                        <div class="swap-indicator">
+                        <button type="button"
+                                class="swap-indicator swap-teams"
+                                title="Swap batting and bowling teams"
+                                aria-label="Swap batting and bowling teams">
                             <i class="fas fa-arrow-right-arrow-left"></i>
-                        </div>
+                        </button>
 
                         <div class="field-group">
-                            <label>
-                                <span class="label-dot bowling-dot"></span>
-                                BOWLING TEAM
-                            </label>
-
+                            <label><span class="label-dot bowling-dot"></span> BOWLING TEAM</label>
                             <select class="form-select bowling-team team-select"
-                                    name="innings[{{ $inningIndex }}][bowling_team_id]"
-                                    required>
+                                    name="innings[{{ $inningIndex }}][bowling_team_id]" required>
                                 @foreach($teams as $team)
                                     <option value="{{ $team->id }}"
                                         @selected($bowlingTeamId === (int) $team->id)>
@@ -187,55 +198,36 @@
                         </div>
                     </div>
 
-                    {{-- Main score --}}
                     <div class="score-input-section">
                         <div class="section-heading">
                             <div>
-                                <h4>Match score</h4>
+                                <h4>Innings score</h4>
                                 <p>Enter the current innings totals.</p>
                             </div>
                         </div>
 
                         <div class="score-input-grid">
-                            <div class="score-input runs-input">
-                                <label>Total runs</label>
-                                <input type="number" min="0" step="1"
-                                       name="innings[{{ $inningIndex }}][total_runs]"
-                                       value="{{ $inning->total_runs ?? 0 }}"
-                                       required>
-                                <span>RUNS</span>
-                            </div>
-
-                            <div class="score-input">
-                                <label>Wickets</label>
-                                <input type="number" min="0" max="10" step="1"
-                                       name="innings[{{ $inningIndex }}][wickets]"
-                                       value="{{ $inning->wickets ?? 0 }}"
-                                       required>
-                                <span>WICKETS</span>
-                            </div>
-
-                            <div class="score-input">
-                                <label>Overs</label>
-                                <input type="number" min="0" max="999" step="0.1"
-                                       name="innings[{{ $inningIndex }}][overs]"
-                                       value="{{ $inning->overs ?? '0.0' }}"
-                                       required>
-                                <span>OVERS</span>
-                            </div>
-
-                            <div class="score-input">
-                                <label>Extras</label>
-                                <input type="number" min="0" step="1"
-                                       name="innings[{{ $inningIndex }}][extras]"
-                                       value="{{ $inning->extras ?? 0 }}"
-                                       required>
-                                <span>EXTRAS</span>
-                            </div>
+                            @foreach([
+                                'total_runs' => ['Total runs', 'RUNS', 0],
+                                'wickets' => ['Wickets', 'WICKETS', 10],
+                                'overs' => ['Overs', 'OVERS', 999],
+                                'extras' => ['Extras', 'EXTRAS', null],
+                            ] as $field => $config)
+                                <div class="score-input {{ $field === 'total_runs' ? 'runs-input' : '' }}">
+                                    <label>{{ $config[0] }}</label>
+                                    <input type="number"
+                                           min="0"
+                                           @if($config[2] !== null) max="{{ $config[2] }}" @endif
+                                           step="{{ $field === 'overs' ? '0.1' : '1' }}"
+                                           name="innings[{{ $inningIndex }}][{{ $field }}]"
+                                           value="{{ $inning->$field ?? ($field === 'overs' ? '0.0' : 0) }}"
+                                           required>
+                                    <span>{{ $config[1] }}</span>
+                                </div>
+                            @endforeach
                         </div>
                     </div>
 
-                    {{-- Batters --}}
                     <div class="players-section">
                         <div class="section-heading">
                             <div class="player-heading">
@@ -244,10 +236,9 @@
                                 </span>
                                 <div>
                                     <h4>Batting card</h4>
-                                    <p>Select players from the batting team.</p>
+                                    <p>Players from the selected batting team.</p>
                                 </div>
                             </div>
-
                             <button type="button" class="btn-add add-batter">
                                 <i class="fas fa-plus"></i> Add batter
                             </button>
@@ -258,36 +249,29 @@
                                 <thead>
                                     <tr>
                                         <th class="player-column">PLAYER</th>
-                                        <th>RUNS</th>
-                                        <th>BALLS</th>
-                                        <th>4s</th>
-                                        <th>6s</th>
-                                        <th>SR</th>
-                                        <th></th>
+                                        <th>RUNS</th><th>BALLS</th><th>4s</th><th>6s</th><th>SR</th><th></th>
                                     </tr>
                                 </thead>
                                 <tbody class="batter-list">
                                     @foreach($batters as $rowIndex => $batter)
                                         @php
                                             $savedName = $batter['name'] ?? '';
-                                            $knownPlayer = $players->first(
-                                                fn($p) => (int) $p->team_id === $battingTeamId
-                                                    && $p->name === $savedName
+                                            $knownPlayer = $players->first(fn($p) =>
+                                                (int) $p->team_id === $battingTeamId &&
+                                                $p->name === $savedName
                                             );
                                         @endphp
-
                                         <tr class="batter-row">
                                             <td class="player-column">
                                                 <select class="form-select player-select batter-player"
                                                         name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][name]"
-                                                        data-saved-name="{{ $savedName }}"
-                                                        required>
+                                                        data-saved-name="{{ $savedName }}" required>
                                                     <option value="">Select batter</option>
                                                     @foreach($players as $player)
                                                         @if((int) $player->team_id === $battingTeamId)
                                                             <option value="{{ $player->name }}"
-                                                                data-team-id="{{ $player->team_id }}"
-                                                                @selected($player->name === $savedName)>
+                                                                    data-team-id="{{ $player->team_id }}"
+                                                                    @selected($player->name === $savedName)>
                                                                 {{ $player->name }}
                                                             </option>
                                                         @endif
@@ -297,7 +281,6 @@
                                                         Other player…
                                                     </option>
                                                 </select>
-
                                                 <input type="text"
                                                        class="form-control custom-player-name mt-2"
                                                        name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][custom_name]"
@@ -306,21 +289,17 @@
                                                        style="{{ $savedName !== '' && !$knownPlayer ? '' : 'display:none' }}">
                                             </td>
 
-                                            @foreach(['runs', 'balls', 'fours', 'sixes', 'strike_rate'] as $field)
+                                            @foreach(['runs','balls','fours','sixes','strike_rate'] as $field)
                                                 <td>
-                                                    <input type="number"
-                                                           min="0"
+                                                    <input type="number" min="0"
                                                            step="{{ $field === 'strike_rate' ? '0.01' : '1' }}"
                                                            class="form-control stat-input"
                                                            name="innings[{{ $inningIndex }}][batters][{{ $rowIndex }}][{{ $field }}]"
                                                            value="{{ $batter[$field] ?? 0 }}">
                                                 </td>
                                             @endforeach
-
                                             <td>
-                                                <button type="button"
-                                                        class="btn-remove remove-row"
-                                                        aria-label="Remove batter">
+                                                <button type="button" class="btn-remove remove-row" aria-label="Remove batter">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
@@ -331,19 +310,15 @@
                         </div>
                     </div>
 
-                    {{-- Bowlers --}}
-                    <div class="players-section bowling-section">
+                    <div class="players-section">
                         <div class="section-heading">
                             <div class="player-heading">
-                                <span class="player-icon bowler-icon">
-                                    <i class="fas fa-bullseye"></i>
-                                </span>
+                                <span class="player-icon bowler-icon"><i class="fas fa-bullseye"></i></span>
                                 <div>
                                     <h4>Bowling card</h4>
-                                    <p>Select players from the bowling team.</p>
+                                    <p>Players from the selected bowling team.</p>
                                 </div>
                             </div>
-
                             <button type="button" class="btn-add add-bowler">
                                 <i class="fas fa-plus"></i> Add bowler
                             </button>
@@ -354,36 +329,29 @@
                                 <thead>
                                     <tr>
                                         <th class="player-column">PLAYER</th>
-                                        <th>OVERS</th>
-                                        <th>MAIDENS</th>
-                                        <th>RUNS</th>
-                                        <th>WKTS</th>
-                                        <th>ECON</th>
-                                        <th></th>
+                                        <th>OVERS</th><th>MAIDENS</th><th>RUNS</th><th>WKTS</th><th>ECON</th><th></th>
                                     </tr>
                                 </thead>
                                 <tbody class="bowler-list">
                                     @foreach($bowlers as $rowIndex => $bowler)
                                         @php
                                             $savedName = $bowler['name'] ?? '';
-                                            $knownPlayer = $players->first(
-                                                fn($p) => (int) $p->team_id === $bowlingTeamId
-                                                    && $p->name === $savedName
+                                            $knownPlayer = $players->first(fn($p) =>
+                                                (int) $p->team_id === $bowlingTeamId &&
+                                                $p->name === $savedName
                                             );
                                         @endphp
-
                                         <tr class="bowler-row">
                                             <td class="player-column">
                                                 <select class="form-select player-select bowler-player"
                                                         name="innings[{{ $inningIndex }}][bowlers][{{ $rowIndex }}][name]"
-                                                        data-saved-name="{{ $savedName }}"
-                                                        required>
+                                                        data-saved-name="{{ $savedName }}" required>
                                                     <option value="">Select bowler</option>
                                                     @foreach($players as $player)
                                                         @if((int) $player->team_id === $bowlingTeamId)
                                                             <option value="{{ $player->name }}"
-                                                                data-team-id="{{ $player->team_id }}"
-                                                                @selected($player->name === $savedName)>
+                                                                    data-team-id="{{ $player->team_id }}"
+                                                                    @selected($player->name === $savedName)>
                                                                 {{ $player->name }}
                                                             </option>
                                                         @endif
@@ -393,7 +361,6 @@
                                                         Other player…
                                                     </option>
                                                 </select>
-
                                                 <input type="text"
                                                        class="form-control custom-player-name mt-2"
                                                        name="innings[{{ $inningIndex }}][bowlers][{{ $rowIndex }}][custom_name]"
@@ -402,21 +369,17 @@
                                                        style="{{ $savedName !== '' && !$knownPlayer ? '' : 'display:none' }}">
                                             </td>
 
-                                            @foreach(['overs', 'maidens', 'runs', 'wickets', 'economy'] as $field)
+                                            @foreach(['overs','maidens','runs','wickets','economy'] as $field)
                                                 <td>
-                                                    <input type="number"
-                                                           min="0"
-                                                           step="{{ in_array($field, ['overs', 'economy']) ? '0.1' : '1' }}"
+                                                    <input type="number" min="0"
+                                                           step="{{ in_array($field, ['overs','economy']) ? '0.1' : '1' }}"
                                                            class="form-control stat-input"
                                                            name="innings[{{ $inningIndex }}][bowlers][{{ $rowIndex }}][{{ $field }}]"
                                                            value="{{ $bowler[$field] ?? 0 }}">
                                                 </td>
                                             @endforeach
-
                                             <td>
-                                                <button type="button"
-                                                        class="btn-remove remove-row"
-                                                        aria-label="Remove bowler">
+                                                <button type="button" class="btn-remove remove-row" aria-label="Remove bowler">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
@@ -426,32 +389,25 @@
                             </table>
                         </div>
                     </div>
-
                 </div>
             </section>
         @endforeach
 
-        {{-- Sticky save controls --}}
         <div class="save-bar">
             <div class="save-bar-info">
                 <i class="fas fa-circle-check"></i>
-                <span>Your changes are saved when you click Save scorecard.</span>
+                <span>Changes are saved when you click Save scorecard.</span>
             </div>
-
-            <div class="d-flex gap-2">
-                <a href="{{ route('admin.scorecards.index') }}"
-                   class="btn-cancel">Cancel</a>
-
+            <div class="save-actions">
+                <a href="{{ route('admin.scorecards.index') }}" class="btn-cancel">Cancel</a>
                 <button type="submit" class="btn-save" id="save-button">
-                    <i class="fas fa-floppy-disk"></i>
-                    Save scorecard
+                    <i class="fas fa-floppy-disk"></i> Save scorecard
                 </button>
             </div>
         </div>
     </form>
 </div>
 
-{{-- Native HTML player options generated from the database --}}
 <template id="all-player-options">
     <option value="">Select player</option>
     @foreach($players as $player)
@@ -466,738 +422,145 @@
 <template id="new-batter-template">
     <tr class="batter-row">
         <td class="player-column">
-            <select class="form-select player-select batter-player" required>
-                <option value="">Select batter</option>
-            </select>
+            <select class="form-select player-select batter-player" required></select>
             <input type="text" class="form-control custom-player-name mt-2"
                    placeholder="Enter player name" style="display:none">
         </td>
-        @foreach(['runs', 'balls', 'fours', 'sixes', 'strike_rate'] as $field)
+        @foreach(['runs','balls','fours','sixes','strike_rate'] as $field)
             <td>
                 <input type="number" min="0"
                        step="{{ $field === 'strike_rate' ? '0.01' : '1' }}"
-                       class="form-control stat-input"
-                       data-field="{{ $field }}" value="0">
+                       class="form-control stat-input" data-field="{{ $field }}" value="0">
             </td>
         @endforeach
-        <td>
-            <button type="button" class="btn-remove remove-row">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
+        <td><button type="button" class="btn-remove remove-row" aria-label="Remove batter"><i class="fas fa-trash"></i></button></td>
     </tr>
 </template>
 
 <template id="new-bowler-template">
     <tr class="bowler-row">
         <td class="player-column">
-            <select class="form-select player-select bowler-player" required>
-                <option value="">Select bowler</option>
-            </select>
+            <select class="form-select player-select bowler-player" required></select>
             <input type="text" class="form-control custom-player-name mt-2"
                    placeholder="Enter player name" style="display:none">
         </td>
-        @foreach(['overs', 'maidens', 'runs', 'wickets', 'economy'] as $field)
+        @foreach(['overs','maidens','runs','wickets','economy'] as $field)
             <td>
                 <input type="number" min="0"
-                       step="{{ in_array($field, ['overs', 'economy']) ? '0.1' : '1' }}"
-                       class="form-control stat-input"
-                       data-field="{{ $field }}" value="0">
+                       step="{{ in_array($field, ['overs','economy']) ? '0.1' : '1' }}"
+                       class="form-control stat-input" data-field="{{ $field }}" value="0">
             </td>
         @endforeach
-        <td>
-            <button type="button" class="btn-remove remove-row">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
+        <td><button type="button" class="btn-remove remove-row" aria-label="Remove bowler"><i class="fas fa-trash"></i></button></td>
     </tr>
 </template>
 
 <style>
-.score-editor {
-    --score-red: #c6283d;
-    --score-red-dark: #a91f32;
-    --score-text: #202633;
-    --score-muted: #778092;
-    --score-border: #e7eaf0;
-    color: var(--score-text);
-    padding-bottom: 100px;
-}
-
-.score-page-heading {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 18px;
-    margin-bottom: 24px;
-}
-
-.back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    color: #687386;
-    font-size: 13px;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.back-link:hover {
-    color: var(--score-red);
-}
-
-.score-page-heading h2 {
-    margin: 0;
-    font-size: clamp(24px, 3vw, 31px);
-    font-weight: 800;
-    letter-spacing: -1px;
-}
-
-.score-page-heading p,
-.innings-title p,
-.section-heading p {
-    margin: 5px 0 0;
-    color: var(--score-muted);
-    font-size: 13px;
-}
-
-.editor-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid var(--score-border);
-    border-radius: 30px;
-    padding: 9px 13px;
-    background: #fff;
-    color: #586274;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.editor-status span {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #16a36a;
-}
-
-.match-banner {
-    overflow: hidden;
-    margin-bottom: 24px;
-    border: 1px solid #262d3b;
-    border-radius: 16px;
-    padding: 22px;
-    background: #171d29;
-    color: #fff;
-}
-
-.match-banner-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.match-label {
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.1px;
-}
-
-.match-label i {
-    margin-right: 5px;
-    color: #ff697a;
-}
-
-.muted-label {
-    color: #aeb7c6;
-}
-
-.match-teams {
-    display: grid;
-    grid-template-columns: 1fr 50px 1fr;
-    align-items: center;
-    gap: 16px;
-    padding: 27px 0 20px;
-}
-
-.match-team {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-}
-
-.away-team {
-    justify-content: flex-end;
-}
-
-.match-team h3 {
-    margin: 5px 0 0;
-    color: #fff;
-    font-size: clamp(15px, 2vw, 21px);
-    font-weight: 750;
-}
-
-.team-side {
-    color: #9da8bb;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1px;
-}
-
-.match-team-logo,
-.team-placeholder {
-    width: 53px;
-    height: 53px;
-    flex: 0 0 53px;
-    border-radius: 13px;
-    object-fit: contain;
-    background: #fff;
-    padding: 5px;
-}
-
-.team-placeholder {
-    display: grid;
-    place-items: center;
-    color: #242b38;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.versus {
-    display: grid;
-    place-items: center;
-    width: 43px;
-    height: 43px;
-    border: 1px solid #454c5a;
-    border-radius: 50%;
-    color: #d0d5df;
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.match-venue {
-    border-top: 1px solid #343b49;
-    padding-top: 14px;
-    color: #b4becc;
-    font-size: 12px;
-}
-
-.match-venue i {
-    margin-right: 6px;
-    color: #ff697a;
-}
-
-.innings-card {
-    overflow: hidden;
-    margin-bottom: 25px;
-    border: 1px solid var(--score-border);
-    border-radius: 15px;
-    background: #fff;
-    box-shadow: 0 4px 20px rgb(28 38 56 / 3%);
-}
-
-.innings-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--score-border);
-    padding: 19px 22px;
-    background: #fcfcfd;
-}
-
-.innings-title {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-}
-
-.innings-number {
-    display: grid;
-    place-items: center;
-    width: 43px;
-    height: 43px;
-    border-radius: 12px;
-    background: #fff0f2;
-    color: var(--score-red);
-    font-size: 15px;
-    font-weight: 900;
-}
-
-.innings-title h3 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 800;
-}
-
-.innings-body {
-    padding: 22px;
-}
-
-.team-selection {
-    display: grid;
-    grid-template-columns: 1fr 42px 1fr;
-    align-items: end;
-    gap: 14px;
-    margin-bottom: 29px;
-}
-
-.field-group label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 9px;
-    font-size: 10px;
-    font-weight: 850;
-    letter-spacing: .8px;
-}
-
-.label-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-.batting-dot {
-    background: #c6283d;
-}
-
-.bowling-dot {
-    background: #3676df;
-}
-
-.field-group .form-select {
-    min-height: 47px;
-    border-color: #dfe4ec;
-    border-radius: 9px;
-    color: #252d3b;
-    font-size: 13px;
-    font-weight: 650;
-}
-
-.swap-indicator {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    margin-bottom: 4px;
-    border: 1px solid var(--score-border);
-    border-radius: 10px;
-    color: #727d8e;
-}
-
-.score-input-section {
-    margin-bottom: 31px;
-    border-radius: 13px;
-    padding: 20px;
-    background: #f7f8fb;
-}
-
-.section-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 18px;
-}
-
-.section-heading h4 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-}
-
-.score-input-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 13px;
-}
-
-.score-input {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid #e4e8ef;
-    border-radius: 11px;
-    padding: 13px 14px 11px;
-    background: #fff;
-}
-
-.score-input label {
-    display: block;
-    margin-bottom: 7px;
-    color: #6d7788;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.score-input input {
-    width: 100%;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    padding: 0;
-    color: #202633;
-    background: transparent;
-    font-size: 27px;
-    font-weight: 850;
-}
-
-.score-input input:focus {
-    color: var(--score-red);
-}
-
-.score-input > span {
-    display: block;
-    margin-top: 5px;
-    color: #a1a9b7;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 1px;
-}
-
-.runs-input {
-    border-color: #f0c8ce;
-}
-
-.runs-input input {
-    color: var(--score-red);
-}
-
-.players-section {
-    margin-top: 30px;
-}
-
-.player-heading {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.player-icon {
-    display: grid;
-    place-items: center;
-    width: 39px;
-    height: 39px;
-    border-radius: 11px;
-}
-
-.batter-icon {
-    background: #fff0f2;
-    color: #c6283d;
-}
-
-.bowler-icon {
-    background: #edf4ff;
-    color: #3676df;
-}
-
-.btn-add {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    border: 1px solid #e5c2c8;
-    border-radius: 8px;
-    padding: 9px 12px;
-    background: #fff;
-    color: var(--score-red);
-    font-size: 12px;
-    font-weight: 750;
-    white-space: nowrap;
-}
-
-.btn-add:hover {
-    background: #fff1f3;
-}
-
-.player-table {
-    width: 100%;
-    min-width: 650px;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-.player-table thead th {
-    border-top: 1px solid #e9ecf1;
-    border-bottom: 1px solid #e9ecf1;
-    padding: 12px 8px;
-    background: #f8f9fb;
-    color: #798395;
-    font-size: 9px;
-    font-weight: 850;
-    letter-spacing: .7px;
-    text-align: center;
-    white-space: nowrap;
-}
-
-.player-table thead th:first-child {
-    border-left: 1px solid #e9ecf1;
-    border-radius: 9px 0 0 0;
-    text-align: left;
-}
-
-.player-table thead th:last-child {
-    border-right: 1px solid #e9ecf1;
-    border-radius: 0 9px 0 0;
-}
-
-.player-table tbody td {
-    border-bottom: 1px solid #edf0f4;
-    padding: 10px 6px;
-    text-align: center;
-    vertical-align: top;
-}
-
-.player-table .player-column {
-    width: 32%;
-    min-width: 180px;
-    padding-left: 0;
-    text-align: left;
-}
-
-.player-table tbody .player-column {
-    padding-left: 0;
-}
-
-.player-select,
-.stat-input {
-    min-height: 39px;
-    border-color: #e0e5ed;
-    border-radius: 7px;
-    font-size: 12px;
-}
-
-.player-select {
-    min-width: 150px;
-    font-weight: 600;
-}
-
-.stat-input {
-    width: 65px;
-    min-width: 52px;
-    padding: 6px;
-    text-align: center;
-    font-weight: 700;
-}
-
-.stat-input:focus,
-.player-select:focus,
-.custom-player-name:focus {
-    border-color: #d45a6a;
-    box-shadow: 0 0 0 3px rgb(198 40 61 / 8%);
-}
-
-.custom-player-name {
-    font-size: 12px;
-}
-
-.btn-remove {
-    display: inline-grid;
-    place-items: center;
-    width: 34px;
-    height: 36px;
-    border: 1px solid #f1d7db;
-    border-radius: 7px;
-    background: #fff;
-    color: #bd3345;
-}
-
-.btn-remove:hover {
-    background: #fff0f2;
-}
-
-.save-bar {
-    position: sticky;
-    bottom: 12px;
-    z-index: 20;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 15px;
-    margin-top: 25px;
-    border: 1px solid #e3e7ee;
-    border-radius: 13px;
-    padding: 13px 16px;
-    background: rgb(255 255 255 / 96%);
-    box-shadow: 0 8px 35px rgb(24 33 49 / 12%);
-    backdrop-filter: blur(10px);
-}
-
-.save-bar-info {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    color: #727d8e;
-    font-size: 11px;
-}
-
-.save-bar-info i {
-    color: #169968;
-}
-
-.btn-cancel,
-.btn-save {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 42px;
-    border-radius: 8px;
-    padding: 0 17px;
-    font-size: 12px;
-    font-weight: 800;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.btn-cancel {
-    border: 1px solid #dfe4ec;
-    background: #fff;
-    color: #535e70;
-}
-
-.btn-save {
-    border: 1px solid var(--score-red);
-    background: var(--score-red);
-    color: #fff;
-}
-
-.btn-save:hover {
-    border-color: var(--score-red-dark);
-    background: var(--score-red-dark);
-    color: #fff;
-}
-
-@media (max-width: 767px) {
-    .score-page-heading {
-        align-items: flex-start;
-    }
-
-    .editor-status {
-        display: none;
-    }
-
-    .match-banner {
-        padding: 16px;
-    }
-
-    .match-teams {
-        grid-template-columns: minmax(0, 1fr) 35px minmax(0, 1fr);
-        gap: 8px;
-        padding: 23px 0 17px;
-    }
-
-    .match-team {
-        gap: 8px;
-    }
-
-    .match-team-logo,
-    .team-placeholder {
-        width: 37px;
-        height: 37px;
-        flex-basis: 37px;
-    }
-
-    .match-team h3 {
-        font-size: 13px;
-        overflow-wrap: anywhere;
-    }
-
-    .team-side {
-        font-size: 8px;
-    }
-
-    .away-team-info {
-        text-align: right;
-    }
-
-    .versus {
-        width: 33px;
-        height: 33px;
-        font-size: 9px;
-    }
-
-    .innings-heading,
-    .innings-body {
-        padding: 16px;
-    }
-
-    .team-selection {
-        grid-template-columns: 1fr;
-        gap: 12px;
-    }
-
-    .swap-indicator {
-        display: none;
-    }
-
-    .score-input-section {
-        padding: 13px;
-    }
-
-    .score-input-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 9px;
-    }
-
-    .score-input input {
-        font-size: 24px;
-    }
-
-    .section-heading {
-        align-items: flex-start;
-    }
-
-    .player-heading {
-        gap: 8px;
-    }
-
-    .player-icon {
-        width: 33px;
-        height: 33px;
-        flex-shrink: 0;
-    }
-
-    .btn-add {
-        padding: 8px;
-        font-size: 10px;
-    }
-
-    .save-bar {
-        bottom: 6px;
-        padding: 10px;
-    }
-
-    .save-bar-info {
-        display: none;
-    }
-
-    .save-bar > div:last-child {
-        width: 100%;
-    }
-
-    .btn-cancel,
-    .btn-save {
-        flex: 1;
-        padding: 0 10px;
-    }
-}
+.score-editor{--red:#c6283d;--red-dark:#a91f32;--text:#202633;--muted:#778092;--border:#e7eaf0;color:var(--text);padding-bottom:100px}
+.score-page-heading,.section-heading,.innings-heading,.match-banner-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.score-page-heading{align-items:flex-end;margin-bottom:24px}
+.back-link{display:inline-flex;gap:8px;align-items:center;margin-bottom:14px;color:#687386;font-size:13px;font-weight:600;text-decoration:none}
+.back-link:hover{color:var(--red)}
+.score-page-heading h2{margin:0;font-size:clamp(24px,3vw,31px);font-weight:800;letter-spacing:-1px}
+.score-page-heading p,.innings-title p,.section-heading p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.editor-status,.innings-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:30px;padding:9px 13px;background:#fff;color:#586274;font-size:12px;font-weight:700;white-space:nowrap}
+.editor-status span{width:7px;height:7px;border-radius:50%;background:#16a36a}
+.match-banner{overflow:hidden;margin-bottom:24px;border:1px solid #262d3b;border-radius:16px;padding:22px;background:#171d29;color:#fff}
+.match-label{font-size:11px;font-weight:800;letter-spacing:1px}.match-label i{margin-right:5px;color:#ff697a}.muted-label{color:#aeb7c6}
+.match-teams{display:grid;grid-template-columns:1fr 50px 1fr;align-items:center;gap:16px;padding:27px 0 20px}
+.match-team{display:flex;align-items:center;gap:14px;min-width:0}.away-team{justify-content:flex-end}
+.match-team h3{margin:5px 0 0;color:#fff;font-size:clamp(14px,2vw,21px);font-weight:750;overflow-wrap:anywhere}
+.team-side{color:#9da8bb;font-size:10px;font-weight:800;letter-spacing:1px}
+.match-team-logo,.team-placeholder{width:53px;height:53px;flex:0 0 53px;border-radius:13px;object-fit:contain;background:#fff;padding:5px}
+.team-placeholder{display:grid;place-items:center;color:#242b38;font-size:12px;font-weight:900}
+.versus{display:grid;place-items:center;width:43px;height:43px;border:1px solid #454c5a;border-radius:50%;color:#d0d5df;font-size:11px;font-weight:800}
+.match-venue{border-top:1px solid #343b49;padding-top:14px;color:#b4becc;font-size:12px}.match-venue i{margin-right:6px;color:#ff697a}
+.innings-card{overflow:hidden;margin-bottom:25px;border:1px solid var(--border);border-radius:15px;background:#fff;box-shadow:0 4px 20px rgb(28 38 56 / 3%)}
+.innings-heading{flex-wrap:wrap;border-bottom:1px solid var(--border);padding:19px 22px;background:#fcfcfd}
+.innings-title{display:flex;align-items:center;gap:13px}
+.innings-number{display:grid;place-items:center;width:43px;height:43px;border-radius:12px;background:#fff0f2;color:var(--red);font-size:15px;font-weight:900}
+.innings-title h3{margin:0;font-size:17px;font-weight:800}
+.innings-badge{padding:6px 10px;font-size:10px}
+.innings-body{padding:22px}
+.team-selection{display:grid;grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr);align-items:end;gap:14px;margin-bottom:29px}
+.field-group label{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:10px;font-weight:850;letter-spacing:.8px}
+.label-dot{width:8px;height:8px;border-radius:50%}.batting-dot{background:#c6283d}.bowling-dot{background:#3676df}
+.field-group .form-select{min-height:47px;border-color:#dfe4ec;border-radius:9px;color:#252d3b;font-size:13px;font-weight:650}
+.swap-indicator{display:grid;place-items:center;width:38px;height:38px;margin-bottom:4px;border:1px solid var(--border);border-radius:10px;color:#727d8e;background:#fff;cursor:pointer;transition:.2s}
+.swap-indicator:hover{color:var(--red);background:#fff0f2;border-color:#f0c8ce}
+.swap-indicator:focus-visible{outline:3px solid rgb(198 40 61 / 20%);outline-offset:2px}
+.score-input-section{margin-bottom:31px;border-radius:13px;padding:20px;background:#f7f8fb}
+.section-heading{margin-bottom:18px}.section-heading h4{margin:0;font-size:15px;font-weight:800}
+.score-input-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.score-input{position:relative;overflow:hidden;border:1px solid #e4e8ef;border-radius:11px;padding:13px 14px 11px;background:#fff}
+.score-input label{display:block;margin-bottom:7px;color:#6d7788;font-size:11px;font-weight:700}
+.score-input input{width:100%;min-width:0;border:0;outline:0;padding:0;color:#202633;background:transparent;font-size:27px;font-weight:850}
+.score-input input:focus{color:var(--red)}.score-input>span{display:block;margin-top:5px;color:#a1a9b7;font-size:9px;font-weight:800;letter-spacing:1px}
+.runs-input{border-color:#f0c8ce}.runs-input input{color:var(--red)}
+.players-section{margin-top:30px}.player-heading{display:flex;align-items:center;gap:12px}
+.player-icon{display:grid;place-items:center;width:39px;height:39px;border-radius:11px;flex-shrink:0}
+.batter-icon{background:#fff0f2;color:#c6283d}.bowler-icon{background:#edf4ff;color:#3676df}
+.btn-add{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #e5c2c8;border-radius:8px;padding:9px 12px;background:#fff;color:var(--red);font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}
+.btn-add:hover{background:#fff1f3}
+.player-table{width:100%;min-width:650px;border-collapse:separate;border-spacing:0}
+.player-table thead th{border-top:1px solid #e9ecf1;border-bottom:1px solid #e9ecf1;padding:12px 8px;background:#f8f9fb;color:#798395;font-size:9px;font-weight:850;letter-spacing:.7px;text-align:center;white-space:nowrap}
+.player-table thead th:first-child{border-left:1px solid #e9ecf1;border-radius:9px 0 0;text-align:left}
+.player-table thead th:last-child{border-right:1px solid #e9ecf1;border-radius:0 9px 0 0}
+.player-table tbody td{border-bottom:1px solid #edf0f4;padding:10px 6px;text-align:center;vertical-align:top}
+.player-table .player-column{width:32%;min-width:180px;text-align:left}
+.player-select,.stat-input{min-height:39px;border-color:#e0e5ed;border-radius:7px;font-size:12px}
+.player-select{min-width:150px;font-weight:600}.stat-input{width:65px;min-width:52px;padding:6px;text-align:center;font-weight:700}
+.stat-input:focus,.player-select:focus,.custom-player-name:focus{border-color:#d45a6a;box-shadow:0 0 0 3px rgb(198 40 61 / 8%)}
+.custom-player-name{font-size:12px}
+.btn-remove{display:inline-grid;place-items:center;width:34px;height:36px;border:1px solid #f1d7db;border-radius:7px;background:#fff;color:#bd3345;cursor:pointer}
+.btn-remove:hover{background:#fff0f2}
+.save-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:25px;border:1px solid #e3e7ee;border-radius:13px;padding:13px 16px;background:rgb(255 255 255 / 96%);box-shadow:0 8px 35px rgb(24 33 49 / 12%);backdrop-filter:blur(10px)}
+.save-bar-info{display:flex;align-items:center;gap:9px;color:#727d8e;font-size:11px}.save-bar-info i{color:#169968}
+.save-actions{display:flex;gap:8px}.btn-cancel,.btn-save{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;border-radius:8px;padding:0 17px;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-cancel{border:1px solid #dfe4ec;background:#fff;color:#535e70}.btn-save{border:1px solid var(--red);background:var(--red);color:#fff}
+.btn-save:hover{border-color:var(--red-dark);background:var(--red-dark);color:#fff}
+@media(max-width:767px){
+.score-page-heading{align-items:flex-start}.editor-status{display:none}.match-banner{padding:16px}
+.match-teams{grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr);gap:8px;padding:23px 0 17px}
+.match-team{gap:8px}.match-team-logo,.team-placeholder{width:37px;height:37px;flex-basis:37px}
+.match-team h3{font-size:12px}.team-side{font-size:8px}.away-team-info{text-align:right}
+.versus{width:31px;height:31px;font-size:9px}.innings-heading,.innings-body{padding:15px}
+.team-selection{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:7px;align-items:end}
+.field-group .form-select{min-width:0;padding:8px 24px 8px 8px;font-size:11px}
+.swap-indicator{width:34px;height:36px}.score-input-section{padding:13px}
+.score-input-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.score-input input{font-size:24px}
+.section-heading{align-items:flex-start}.player-heading{gap:8px}.player-icon{width:33px;height:33px}
+.btn-add{padding:8px;font-size:10px}.save-bar{bottom:6px;padding:10px}
+.save-bar-info{display:none}.save-actions{width:100%}.btn-cancel,.btn-save{flex:1;padding:0 10px}
+}
+@media(max-width:420px){.team-selection{grid-template-columns:1fr}.swap-indicator{margin:0 auto;transform:rotate(90deg)}}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const optionTemplate = document.getElementById('all-player-options');
+    const form = document.getElementById('scorecard-form');
 
     function allPlayerOptions() {
         return Array.from(optionTemplate.content.querySelectorAll('option'));
+    }
+
+    function toggleCustomName(select) {
+        const row = select.closest('tr');
+        const input = row?.querySelector('.custom-player-name');
+        if (!input) return;
+
+        const isOther = select.value === '__other__';
+        input.style.display = isOther ? '' : 'none';
+        input.required = isOther;
+        if (!isOther) input.value = '';
     }
 
     function filterPlayerSelect(select, teamId, savedName = '') {
         const currentValue = savedName || select.value;
         select.replaceChildren();
 
-        allPlayerOptions().forEach(function (option) {
+        allPlayerOptions().forEach(option => {
             if (
                 option.value === '' ||
                 option.value === '__other__' ||
@@ -1207,8 +570,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        const exists = Array.from(select.options).some(
-            option => option.value === currentValue
+        const exists = Array.from(select.options).some(option =>
+            option.value === currentValue
         );
 
         if (exists) {
@@ -1222,31 +585,33 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleCustomName(select);
     }
 
-    function toggleCustomName(select) {
-        if (!select) return;
-
-        const row = select.closest('tr');
-        const input = row?.querySelector('.custom-player-name');
-
-        if (!input) return;
-
-        const isOther = select.value === '__other__';
-        input.style.display = isOther ? '' : 'none';
-        input.required = isOther;
-
-        if (!isOther) {
-            input.value = '';
-        }
+    function selectOtherTeam(select, excludedId) {
+        const option = Array.from(select.options).find(item =>
+            item.value !== '' &&
+            item.value !== String(excludedId)
+        );
+        if (option) select.value = option.value;
     }
 
     function refreshInnings(section) {
-        const battingTeam = section.querySelector('.batting-team');
-        const bowlingTeam = section.querySelector('.bowling-team');
+        const batting = section.querySelector('.batting-team');
+        const bowling = section.querySelector('.bowling-team');
+
+        if (batting.value === bowling.value) {
+            selectOtherTeam(bowling, batting.value);
+        }
+
+        Array.from(batting.options).forEach(option => {
+            option.disabled = option.value !== '' && option.value === bowling.value;
+        });
+        Array.from(bowling.options).forEach(option => {
+            option.disabled = option.value !== '' && option.value === batting.value;
+        });
 
         section.querySelectorAll('.batter-player').forEach(select => {
             filterPlayerSelect(
                 select,
-                battingTeam.value,
+                batting.value,
                 select.dataset.savedName || select.value
             );
             select.dataset.savedName = '';
@@ -1255,30 +620,20 @@ document.addEventListener('DOMContentLoaded', function () {
         section.querySelectorAll('.bowler-player').forEach(select => {
             filterPlayerSelect(
                 select,
-                bowlingTeam.value,
+                bowling.value,
                 select.dataset.savedName || select.value
             );
             select.dataset.savedName = '';
-        });
-
-        Array.from(battingTeam.options).forEach(option => {
-            option.disabled = option.value === bowlingTeam.value;
-        });
-
-        Array.from(bowlingTeam.options).forEach(option => {
-            option.disabled = option.value === battingTeam.value;
         });
     }
 
     function renumberRows(section, type) {
         const isBatter = type === 'batters';
-        const selector = isBatter ? '.batter-row' : '.bowler-row';
-        const listSelector = isBatter ? '.batter-list' : '.bowler-list';
-        const playerSelector = isBatter ? '.batter-player' : '.bowler-player';
+        const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
         const index = section.dataset.inningsIndex;
 
-        section.querySelectorAll(listSelector + ' ' + selector).forEach((row, rowIndex) => {
-            const select = row.querySelector(playerSelector);
+        Array.from(list.querySelectorAll('tr')).forEach((row, rowIndex) => {
+            const select = row.querySelector('.player-select');
             const custom = row.querySelector('.custom-player-name');
 
             select.name = `innings[${index}][${type}][${rowIndex}][name]`;
@@ -1289,11 +644,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             const fields = isBatter
-                ? ['runs', 'balls', 'fours', 'sixes', 'strike_rate']
-                : ['overs', 'maidens', 'runs', 'wickets', 'economy'];
+                ? ['runs','balls','fours','sixes','strike_rate']
+                : ['overs','maidens','runs','wickets','economy'];
 
             fields.forEach(field => {
-                const input = row.querySelector(`[name$="[${field}]"]`);
+                const input = row.querySelector(`input[name$="[${field}]"]`)
+                    || row.querySelector(`[data-field="${field}"]`);
                 if (input) {
                     input.name = `innings[${index}][${type}][${rowIndex}][${field}]`;
                 }
@@ -1304,25 +660,41 @@ document.addEventListener('DOMContentLoaded', function () {
     function addPlayerRow(section, type) {
         const isBatter = type === 'batters';
         const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
-        const template = document.getElementById(isBatter ? 'new-batter-template' : 'new-bowler-template');
+        const template = document.getElementById(
+            isBatter ? 'new-batter-template' : 'new-bowler-template'
+        );
         const row = template.content.firstElementChild.cloneNode(true);
         const select = row.querySelector('.player-select');
 
-        allPlayerOptions().forEach(option => {
-            select.appendChild(option.cloneNode(true));
-        });
-
+        allPlayerOptions().forEach(option => select.appendChild(option.cloneNode(true)));
         list.appendChild(row);
+
         renumberRows(section, type);
         refreshInnings(section);
     }
 
     document.querySelectorAll('.innings-section').forEach(section => {
-        section.querySelector('.batting-team').addEventListener('change', () => {
+        const batting = section.querySelector('.batting-team');
+        const bowling = section.querySelector('.bowling-team');
+
+        batting.addEventListener('change', () => {
+            if (batting.value === bowling.value) {
+                selectOtherTeam(bowling, batting.value);
+            }
             refreshInnings(section);
         });
 
-        section.querySelector('.bowling-team').addEventListener('change', () => {
+        bowling.addEventListener('change', () => {
+            if (bowling.value === batting.value) {
+                selectOtherTeam(batting, bowling.value);
+            }
+            refreshInnings(section);
+        });
+
+        section.querySelector('.swap-teams').addEventListener('click', () => {
+            const oldBatting = batting.value;
+            batting.value = bowling.value;
+            bowling.value = oldBatting;
             refreshInnings(section);
         });
 
@@ -1345,7 +717,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!button) return;
 
             const row = button.closest('.batter-row, .bowler-row');
-            const type = row.classList.contains('batter-row') ? 'batters' : 'bowlers';
+            const isBatter = row.classList.contains('batter-row');
+            const type = isBatter ? 'batters' : 'bowlers';
             const list = row.parentElement;
 
             if (list.children.length > 1) {
@@ -1354,7 +727,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 row.querySelectorAll('input').forEach(input => {
                     input.value = input.classList.contains('custom-player-name') ? '' : 0;
                 });
-
                 const select = row.querySelector('.player-select');
                 select.value = '';
                 toggleCustomName(select);
@@ -1366,7 +738,7 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshInnings(section);
     });
 
-    document.getElementById('scorecard-form').addEventListener('submit', function () {
+    form.addEventListener('submit', function () {
         const button = document.getElementById('save-button');
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
