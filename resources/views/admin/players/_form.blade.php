@@ -1,4 +1,3 @@
-
 <form method="POST"
       action="{{ $action }}"
       enctype="multipart/form-data"
@@ -65,7 +64,7 @@
                     'wicket_keeper' => 'Wicket-keeper',
                 ] as $value => $label)
                     <option value="{{ $value }}"
-                        @selected(old('role', $player?->role) === $value)>
+                        @selected(old('role', $player?->role ?? 'batter') === $value)>
                         {{ $label }}
                     </option>
                 @endforeach

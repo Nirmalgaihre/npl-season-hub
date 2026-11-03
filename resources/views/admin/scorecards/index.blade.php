@@ -1,13 +1,7 @@
-
 @extends('layouts.admin')
 
 @section('content')
 @php
-    /*
-    |--------------------------------------------------------------------------
-    | Safe defaults for optional view data
-    |--------------------------------------------------------------------------
-    */
     $seasons = $seasons ?? collect();
     $teams = $teams ?? collect();
     $savedFixtures = $savedFixtures ?? [];
@@ -17,555 +11,467 @@
         ->all();
 @endphp
 
-<div class="sc-page mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-slate-50/80">
+    <div class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
 
-    {{-- Page heading --}}
-    <div class="sc-heading mb-7">
-        <div class="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        {{-- ───────────────────────────────────────────────
+             HEADER
+        ─────────────────────────────────────────────── --}}
+        <div class="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-red-700">
-                    <span class="h-2 w-2 rounded-full bg-red-600"></span>
-                    NPL Management
+                <div class="mb-4 inline-flex items-center gap-2.5 rounded-full border border-amber-200/70 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-800 shadow-sm">
+                    <span class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60"></span>
+                        <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-600"></span>
+                    </span>
+                    NPL Operations Hub
                 </div>
 
                 <h1 class="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
                     Manual Scorecards
                 </h1>
-
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                    Manage match scorecards, review saved innings and enter match scores.
+                <p class="mt-2 max-w-2xl text-[15px] leading-relaxed text-slate-500">
+                    Manage match scorecards, audit saved innings, and enter real-time results with precision.
                 </p>
             </div>
 
-            <div class="flex items-center gap-3">
-                <div class="rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        Fixtures found
-                    </p>
-                    <p class="mt-1 text-2xl font-black text-slate-900">
-                        {{ $fixtures->total() }}
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Flash messages --}}
-    @if (session('success'))
-        <div role="status" class="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-            <svg class="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.78-9.72a.75.75 0 00-1.06-1.06L9 10.94 7.78 9.72a.75.75 0 00-1.06 1.06l1.75 1.75a.75.75 0 001.06 0l4.25-4.25z" clip-rule="evenodd"/>
-            </svg>
-            <div>
-                <p class="font-bold">Changes saved</p>
-                <p class="mt-1 text-sm">{{ session('success') }}</p>
-            </div>
-        </div>
-    @endif
-
-    @if (session('error'))
-        <div role="alert" class="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            {{ session('error') }}
-        </div>
-    @endif
-
-    @if ($errors->any())
-        <div role="alert" class="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
-            <p class="font-bold">Please check the following:</p>
-            <ul class="mt-2 list-inside list-disc space-y-1 text-sm">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    {{-- Filters --}}
-    <section class="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex flex-col gap-1 border-b border-slate-100 px-5 py-4 sm:px-6">
-            <h2 class="font-bold text-slate-900">Find a fixture</h2>
-            <p class="text-sm text-slate-500">
-                Narrow the list by season, team or match number.
-            </p>
-        </div>
-
-        <form
-            method="GET"
-            action="{{ route('admin.scorecards.index') }}"
-            class="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 xl:grid-cols-4"
-        >
-            <label class="block text-sm font-semibold text-slate-700">
-                Season
-
-                <select
-                    name="season_id"
-                    class="sc-control mt-2"
-                >
-                    <option value="">All seasons</option>
-
-                    @foreach ($seasons as $season)
-                        <option
-                            value="{{ $season->id }}"
-                            @selected((string) request('season_id') === (string) $season->id)
-                        >
-                            {{ $season->name ?? $season->title ?? ('Season ' . $season->id) }}
-                        </option>
-                    @endforeach
-                </select>
-            </label>
-
-            <label class="block text-sm font-semibold text-slate-700">
-                Team
-
-                <select
-                    name="team_id"
-                    class="sc-control mt-2"
-                >
-                    <option value="">All teams</option>
-
-                    @foreach ($teams as $team)
-                        <option
-                            value="{{ $team->id }}"
-                            @selected((string) request('team_id') === (string) $team->id)
-                        >
-                            {{ $team->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </label>
-
-            <label class="block text-sm font-semibold text-slate-700">
-                Match number
-
-                <input
-                    type="number"
-                    min="1"
-                    name="match_number"
-                    value="{{ request('match_number') }}"
-                    class="sc-control mt-2"
-                    placeholder="e.g. 12"
-                >
-            </label>
-
-            <div class="flex flex-wrap items-end gap-2">
-                <button
-                    type="submit"
-                    class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100 sm:flex-none"
-                >
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <circle cx="11" cy="11" r="7"/>
-                        <path d="m16 16 4 4"/>
+            {{-- Stats Card --}}
+            <div class="flex items-center gap-5 rounded-2xl border border-slate-200/80 bg-white px-6 py-4 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.08)]">
+                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-amber-400 shadow-inner">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    Apply filters
-                </button>
-
-                <a
-                    href="{{ route('admin.scorecards.index') }}"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                    Reset
-                </a>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Fixtures</p>
+                    <p class="text-2xl font-black tabular-nums text-slate-900">{{ $fixtures->total() }}</p>
+                </div>
             </div>
-        </form>
-    </section>
-
-    {{-- List header --}}
-    <div class="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">Fixtures</h2>
-            <p class="mt-1 text-sm text-slate-500">
-                @if ($fixtures->total() > 0)
-                    Showing {{ $fixtures->firstItem() }}–{{ $fixtures->lastItem() }}
-                    of {{ $fixtures->total() }} fixtures
-                @else
-                    No fixtures match your current filters.
-                @endif
-            </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
-            <span class="inline-flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Scorecard saved
-            </span>
-            <span class="inline-flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-slate-300"></span>
-                Not entered
-            </span>
-        </div>
-    </div>
+        {{-- ───────────────────────────────────────────────
+             FLASH MESSAGES
+        ─────────────────────────────────────────────── --}}
+        @if (session('success'))
+            <div role="status" class="mb-6 flex items-start gap-3.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 px-5 py-4 text-emerald-900 shadow-sm">
+                <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                    <svg class="h-4.5 w-4.5 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.78-9.72a.75.75 0 00-1.06-1.06L9 10.94 7.78 9.72a.75.75 0 00-1.06 1.06l1.75 1.75a.75.75 0 001.06 0l4.25-4.25z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-bold">Success</p>
+                    <p class="mt-0.5 text-sm text-emerald-800/90">{{ session('success') }}</p>
+                </div>
+            </div>
+        @endif
 
-    {{-- Desktop table --}}
-    <div class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200">
-                <thead class="bg-slate-50">
-                    <tr class="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
-                        <th scope="col" class="px-5 py-4">Match</th>
-                        <th scope="col" class="px-5 py-4">Season</th>
-                        <th scope="col" class="px-5 py-4">Scheduled</th>
-                        <th scope="col" class="px-5 py-4">Score</th>
-                        <th scope="col" class="px-5 py-4">Result</th>
-                        <th scope="col" class="px-5 py-4">Status</th>
-                        <th scope="col" class="px-5 py-4 text-right">Action</th>
-                    </tr>
-                </thead>
+        @if (session('error'))
+            <div role="alert" class="mb-6 rounded-2xl border border-rose-200/80 bg-rose-50/90 px-5 py-4 text-sm text-rose-900 shadow-sm">
+                <p class="font-bold">Action Failed</p>
+                <p class="mt-0.5 text-rose-800/90">{{ session('error') }}</p>
+            </div>
+        @endif
 
-                <tbody class="divide-y divide-slate-100">
-                    @forelse ($fixtures as $fixture)
-                        @php
-                            $hasScorecard = in_array(
-                                (int) $fixture->id,
-                                $savedFixtures,
-                                true
-                            );
+        @if ($errors->any())
+            <div role="alert" class="mb-6 rounded-2xl border border-rose-200/80 bg-rose-50/90 px-5 py-4 text-rose-900 shadow-sm">
+                <p class="font-bold">Please check the highlighted fields:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1 text-sm text-rose-800/90">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
-                            $homeTeam = $fixture->homeTeam;
-                            $awayTeam = $fixture->awayTeam;
+        {{-- ───────────────────────────────────────────────
+             FILTERS
+        ─────────────────────────────────────────────── --}}
+        <section class="mb-8 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_4px_24px_-6px_rgba(15,23,42,0.07)]">
+            <div class="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-6 py-4">
+                <div>
+                    <h2 class="text-[15px] font-bold text-slate-900">Filter Fixtures</h2>
+                    <p class="text-xs text-slate-500">Refine by season, team, or match number</p>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Advanced
+                </span>
+            </div>
 
-                            $homeName = $homeTeam->short_name
-                                ?? $homeTeam->name
-                                ?? 'Home';
+            <form method="GET" action="{{ route('admin.scorecards.index') }}"
+                  class="grid gap-5 p-6 sm:grid-cols-2 xl:grid-cols-4">
 
-                            $awayName = $awayTeam->short_name
-                                ?? $awayTeam->name
-                                ?? 'Away';
-
-                            $hasScores = $fixture->home_runs !== null
-                                || $fixture->away_runs !== null;
-                        @endphp
-
-                        <tr class="align-top transition hover:bg-slate-50/80">
-                            <td class="px-5 py-5">
-                                <p class="font-bold text-slate-900">
-                                    Match #{{ $fixture->match_number ?? $fixture->id }}
-                                </p>
-
-                                <p class="mt-1 text-sm text-slate-600">
-                                    {{ $homeTeam->name ?? 'Home team' }}
-                                    <span class="mx-1 text-slate-400">vs</span>
-                                    {{ $awayTeam->name ?? 'Away team' }}
-                                </p>
-
-                                <p class="mt-1 text-xs text-slate-400">
-                                    {{ $fixture->match_type ?? 'Match' }}
-                                </p>
-                            </td>
-
-                            <td class="px-5 py-5 text-sm text-slate-600">
-                                {{ $fixture->season->name ?? $fixture->season->title ?? '—' }}
-                            </td>
-
-                            <td class="whitespace-nowrap px-5 py-5 text-sm text-slate-600">
-                                @if ($fixture->scheduled_at)
-                                    <p class="font-semibold text-slate-700">
-                                        {{ \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('d M Y') }}
-                                    </p>
-                                    <p class="mt-1 text-xs text-slate-500">
-                                        {{ \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('h:i A') }}
-                                    </p>
-                                @else
-                                    <span class="text-slate-400">Not scheduled</span>
-                                @endif
-                            </td>
-
-                            <td class="px-5 py-5">
-                                @if ($hasScores)
-                                    <div class="space-y-3">
-                                        <div>
-                                            <p class="font-bold text-slate-900">
-                                                {{ $homeName }}
-                                                <span class="ml-1 tabular-nums">
-                                                    {{ $fixture->home_runs ?? '—' }}
-                                                    @if ($fixture->home_wickets !== null)
-                                                        /{{ $fixture->home_wickets }}
-                                                    @endif
-                                                </span>
-                                            </p>
-
-                                            @if ($fixture->home_overs !== null)
-                                                <p class="mt-0.5 text-xs text-slate-500">
-                                                    {{ $fixture->home_overs }} overs
-                                                </p>
-                                            @endif
-                                        </div>
-
-                                        <div>
-                                            <p class="font-bold text-slate-900">
-                                                {{ $awayName }}
-                                                <span class="ml-1 tabular-nums">
-                                                    {{ $fixture->away_runs ?? '—' }}
-                                                    @if ($fixture->away_wickets !== null)
-                                                        /{{ $fixture->away_wickets }}
-                                                    @endif
-                                                </span>
-                                            </p>
-
-                                            @if ($fixture->away_overs !== null)
-                                                <p class="mt-0.5 text-xs text-slate-500">
-                                                    {{ $fixture->away_overs }} overs
-                                                </p>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @else
-                                    <span class="text-sm text-slate-400">No score yet</span>
-                                @endif
-                            </td>
-
-                            <td class="max-w-xs px-5 py-5 text-sm">
-                                @if ($fixture->winner_team_id)
-                                    <p class="font-semibold text-emerald-700">
-                                        {{ $fixture->result_summary ?: 'Result recorded' }}
-                                    </p>
-                                @elseif ($hasScorecard)
-                                    <span class="text-slate-600">
-                                        {{ $fixture->result_summary ?: 'Scorecard saved' }}
-                                    </span>
-                                @else
-                                    <span class="text-slate-400">Pending</span>
-                                @endif
-                            </td>
-
-                            <td class="px-5 py-5">
-                                @if ($hasScorecard)
-                                    <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                        Saved
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-slate-300"></span>
-                                        Not entered
-                                    </span>
-                                @endif
-                            </td>
-
-                            <td class="whitespace-nowrap px-5 py-5 text-right">
-                                <a
-                                    href="{{ route('admin.scorecards.edit', ['fixture' => $fixture->id]) }}"
-                                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100"
-                                >
-                                    {{ $hasScorecard ? 'Edit scorecard' : 'Enter scorecard' }}
-
-                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                        <path d="M5 12h14"/>
-                                        <path d="m12 5 7 7-7 7"/>
-                                    </svg>
-                                </a>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="px-6 py-16 text-center">
-                                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                                    <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-                                        <circle cx="11" cy="11" r="7"/>
-                                        <path d="m16 16 4 4"/>
-                                    </svg>
-                                </div>
-                                <h3 class="mt-4 font-bold text-slate-900">No fixtures found</h3>
-                                <p class="mt-1 text-sm text-slate-500">
-                                    Try another season, team or match number.
-                                </p>
-                                <a
-                                    href="{{ route('admin.scorecards.index') }}"
-                                    class="mt-4 inline-flex text-sm font-bold text-red-700 hover:text-red-800"
-                                >
-                                    Clear filters
-                                </a>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    {{-- Responsive fixture cards for mobile and tablet --}}
-    <div class="space-y-4 lg:hidden">
-        @forelse ($fixtures as $fixture)
-            @php
-                $hasScorecard = in_array(
-                    (int) $fixture->id,
-                    $savedFixtures,
-                    true
-                );
-
-                $homeTeam = $fixture->homeTeam;
-                $awayTeam = $fixture->awayTeam;
-
-                $homeName = $homeTeam->short_name
-                    ?? $homeTeam->name
-                    ?? 'Home';
-
-                $awayName = $awayTeam->short_name
-                    ?? $awayTeam->name
-                    ?? 'Away';
-
-                $hasScores = $fixture->home_runs !== null
-                    || $fixture->away_runs !== null;
-            @endphp
-
-            <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-                    <div class="min-w-0">
-                        <p class="text-xs font-bold uppercase tracking-wider text-red-700">
-                            Match #{{ $fixture->match_number ?? $fixture->id }}
-                        </p>
-
-                        <h3 class="mt-1 font-bold leading-6 text-slate-900">
-                            {{ $homeTeam->name ?? 'Home team' }}
-                            <span class="text-slate-400">vs</span>
-                            {{ $awayTeam->name ?? 'Away team' }}
-                        </h3>
-
-                        <p class="mt-1 text-xs text-slate-500">
-                            {{ $fixture->season->name ?? $fixture->season->title ?? 'Season not assigned' }}
-                        </p>
-                    </div>
-
-                    @if ($hasScorecard)
-                        <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                            Saved
-                        </span>
-                    @else
-                        <span class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                            Pending
-                        </span>
-                    @endif
+                <div>
+                    <label class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Season</label>
+                    <select name="season_id" class="sc-control">
+                        <option value="">All Seasons</option>
+                        @foreach ($seasons as $season)
+                            <option value="{{ $season->id }}"
+                                @selected((string) request('season_id') === (string) $season->id)>
+                                {{ $season->name ?? $season->title ?? ('Season ' . $season->id) }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
 
-                <div class="space-y-4 p-4 sm:p-5">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="rounded-xl bg-slate-50 p-3">
-                            <p class="text-xs font-semibold text-slate-500">
-                                {{ $homeName }}
-                            </p>
-                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900">
-                                @if ($hasScores)
-                                    {{ $fixture->home_runs ?? '—' }}
-                                    @if ($fixture->home_wickets !== null)
-                                        <span class="text-base font-semibold">/{{ $fixture->home_wickets }}</span>
-                                    @endif
-                                @else
-                                    —
-                                @endif
-                            </p>
-                            @if ($fixture->home_overs !== null)
-                                <p class="mt-1 text-xs text-slate-500">
-                                    {{ $fixture->home_overs }} overs
-                                </p>
-                            @endif
-                        </div>
+                <div>
+                    <label class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Team</label>
+                    <select name="team_id" class="sc-control">
+                        <option value="">All Teams</option>
+                        @foreach ($teams as $team)
+                            <option value="{{ $team->id }}"
+                                @selected((string) request('team_id') === (string) $team->id)>
+                                {{ $team->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
-                        <div class="rounded-xl bg-slate-50 p-3">
-                            <p class="text-xs font-semibold text-slate-500">
-                                {{ $awayName }}
-                            </p>
-                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900">
-                                @if ($hasScores)
-                                    {{ $fixture->away_runs ?? '—' }}
-                                    @if ($fixture->away_wickets !== null)
-                                        <span class="text-base font-semibold">/{{ $fixture->away_wickets }}</span>
-                                    @endif
-                                @else
-                                    —
-                                @endif
-                            </p>
-                            @if ($fixture->away_overs !== null)
-                                <p class="mt-1 text-xs text-slate-500">
-                                    {{ $fixture->away_overs }} overs
-                                </p>
-                            @endif
-                        </div>
-                    </div>
+                <div>
+                    <label class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Match Number</label>
+                    <input type="number" min="1" name="match_number"
+                           value="{{ request('match_number') }}"
+                           class="sc-control" placeholder="e.g. 12">
+                </div>
 
-                    <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
-                        <div class="text-slate-500">
-                            @if ($fixture->scheduled_at)
-                                <p class="font-semibold text-slate-700">
-                                    {{ \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('d M Y, h:i A') }}
-                                </p>
-                            @else
-                                <p>Not scheduled</p>
-                            @endif
-
-                            <p class="mt-1">
-                                {{ $fixture->result_summary ?: ($fixture->winner_team_id ? 'Result recorded' : 'Result pending') }}
-                            </p>
-                        </div>
-
-                        <span class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                            {{ $fixture->match_type ?? 'Match' }}
-                        </span>
-                    </div>
-
-                    <a
-                        href="{{ route('admin.scorecards.edit', ['fixture' => $fixture->id]) }}"
-                        class="flex w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100"
-                    >
-                        {{ $hasScorecard ? 'Edit scorecard' : 'Enter scorecard' }}
-
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M5 12h14"/>
-                            <path d="m12 5 7 7-7 7"/>
+                <div class="flex items-end gap-3">
+                    <button type="submit"
+                            class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-300/40">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/>
                         </svg>
+                        Apply Filters
+                    </button>
+
+                    <a href="{{ route('admin.scorecards.index') }}"
+                       class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100">
+                        Reset
                     </a>
                 </div>
-            </article>
-        @empty
-            <div class="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center">
-                <h3 class="font-bold text-slate-900">No fixtures found</h3>
-                <p class="mt-1 text-sm text-slate-500">
-                    Try changing your filters.
+            </form>
+        </section>
+
+        {{-- ───────────────────────────────────────────────
+             TABLE HEADER + LEGEND
+        ─────────────────────────────────────────────── --}}
+        <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">Match Schedules & Scorecards</h2>
+                <p class="mt-0.5 text-sm text-slate-500">
+                    @if ($fixtures->total() > 0)
+                        Showing <span class="font-semibold text-slate-700">{{ $fixtures->firstItem() }}–{{ $fixtures->lastItem() }}</span>
+                        of <span class="font-semibold text-slate-700">{{ $fixtures->total() }}</span> fixtures
+                    @else
+                        No matches match your current filters
+                    @endif
                 </p>
-                <a
-                    href="{{ route('admin.scorecards.index') }}"
-                    class="mt-4 inline-flex font-bold text-red-700 hover:text-red-800"
-                >
-                    Clear filters
-                </a>
             </div>
-        @endforelse
-    </div>
 
-    {{-- Pagination --}}
-    @if ($fixtures->hasPages())
-        <div class="mt-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-5">
-            {{ $fixtures->links() }}
+            <div class="flex items-center gap-5 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-sm">
+                <span class="inline-flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></span>
+                    Saved Scorecard
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full bg-slate-300 ring-2 ring-slate-100"></span>
+                    Pending Entry
+                </span>
+            </div>
         </div>
-    @endif
 
+        {{-- ───────────────────────────────────────────────
+             DESKTOP TABLE
+        ─────────────────────────────────────────────── --}}
+        <div class="hidden overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_4px_24px_-6px_rgba(15,23,42,0.07)] lg:block">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100">
+                    <thead>
+                        <tr class="bg-slate-50/90 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th scope="col" class="px-6 py-4">Match Details</th>
+                            <th scope="col" class="px-6 py-4">Season</th>
+                            <th scope="col" class="px-6 py-4">Schedule</th>
+                            <th scope="col" class="px-6 py-4">Current Score</th>
+                            <th scope="col" class="px-6 py-4">Result Status</th>
+                            <th scope="col" class="px-6 py-4">Scorecard</th>
+                            <th scope="col" class="px-6 py-4 text-right">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-slate-100 text-sm">
+                        @forelse ($fixtures as $fixture)
+                            @php
+                                $hasScorecard = in_array((int) $fixture->id, $savedFixtures, true);
+                                $homeTeam = $fixture->homeTeam;
+                                $awayTeam = $fixture->awayTeam;
+                                $homeName = $homeTeam->short_name ?? $homeTeam->name ?? 'Home';
+                                $awayName = $awayTeam->short_name ?? $awayTeam->name ?? 'Away';
+                                $hasScores = $fixture->home_runs !== null || $fixture->away_runs !== null;
+                            @endphp
+
+                            <tr class="group transition-colors hover:bg-slate-50/70">
+                                {{-- Match Details --}}
+                                <td class="px-6 py-5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="inline-flex items-center rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white">
+                                            #{{ $fixture->match_number ?? $fixture->id }}
+                                        </span>
+                                        <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                            {{ $fixture->match_type ?? 'T20' }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-2 font-bold text-slate-900">
+                                        {{ $homeTeam->name ?? 'Home Team' }}
+                                        <span class="mx-1.5 font-normal text-slate-400">vs</span>
+                                        {{ $awayTeam->name ?? 'Away Team' }}
+                                    </p>
+                                </td>
+
+                                {{-- Season --}}
+                                <td class="px-6 py-5 font-medium text-slate-600">
+                                    {{ $fixture->season->name ?? $fixture->season->title ?? '—' }}
+                                </td>
+
+                                {{-- Schedule --}}
+                                <td class="px-6 py-5 whitespace-nowrap">
+                                    @if ($fixture->scheduled_at)
+                                        <p class="font-semibold text-slate-800">
+                                            {{ \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('d M Y') }}
+                                        </p>
+                                        <p class="text-xs text-slate-400">
+                                            {{ \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('h:i A') }}
+                                        </p>
+                                    @else
+                                        <span class="italic text-slate-400">Unscheduled</span>
+                                    @endif
+                                </td>
+
+                                {{-- Score --}}
+                                <td class="px-6 py-5">
+                                    @if ($hasScores)
+                                        <div class="space-y-1.5 min-w-[160px]">
+                                            <div class="flex items-center justify-between gap-6">
+                                                <span class="font-medium text-slate-600">{{ $homeName }}</span>
+                                                <span class="font-bold tabular-nums text-slate-900">
+                                                    {{ $fixture->home_runs ?? '—' }}
+                                                    @if ($fixture->home_wickets !== null)/{{ $fixture->home_wickets }}@endif
+                                                    @if ($fixture->home_overs !== null)
+                                                        <span class="ml-1 text-xs font-normal text-slate-400">({{ $fixture->home_overs }})</span>
+                                                    @endif
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center justify-between gap-6">
+                                                <span class="font-medium text-slate-600">{{ $awayName }}</span>
+                                                <span class="font-bold tabular-nums text-slate-900">
+                                                    {{ $fixture->away_runs ?? '—' }}
+                                                    @if ($fixture->away_wickets !== null)/{{ $fixture->away_wickets }}@endif
+                                                    @if ($fixture->away_overs !== null)
+                                                        <span class="ml-1 text-xs font-normal text-slate-400">({{ $fixture->away_overs }})</span>
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <span class="italic text-slate-400">No runs recorded</span>
+                                    @endif
+                                </td>
+
+                                {{-- Result --}}
+                                <td class="px-6 py-5 max-w-[200px]">
+                                    @if ($fixture->winner_team_id)
+                                        <span class="font-semibold text-emerald-700">
+                                            {{ $fixture->result_summary ?: 'Result Recorded' }}
+                                        </span>
+                                    @elseif ($hasScorecard)
+                                        <span class="text-slate-600">
+                                            {{ $fixture->result_summary ?: 'Scorecard Saved' }}
+                                        </span>
+                                    @else
+                                        <span class="text-slate-400">Awaiting outcome</span>
+                                    @endif
+                                </td>
+
+                                {{-- Status --}}
+                                <td class="px-6 py-5 whitespace-nowrap">
+                                    @if ($hasScorecard)
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                            Saved
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                                            Pending
+                                        </span>
+                                    @endif
+                                </td>
+
+                                {{-- Action --}}
+                                <td class="px-6 py-5 text-right whitespace-nowrap">
+                                    <a href="{{ route('admin.scorecards.edit', ['fixture' => $fixture->id]) }}"
+                                       class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-300/40 group-hover:shadow-md">
+                                        {{ $hasScorecard ? 'Edit Scorecard' : 'Enter Scorecard' }}
+                                        <svg class="h-3.5 w-3.5 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/>
+                                        </svg>
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="px-6 py-20 text-center">
+                                    <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                        <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/>
+                                        </svg>
+                                    </div>
+                                    <h3 class="mt-4 text-lg font-bold text-slate-900">No match records found</h3>
+                                    <p class="mt-1.5 text-sm text-slate-500">Try adjusting or clearing your filters.</p>
+                                    <a href="{{ route('admin.scorecards.index') }}"
+                                       class="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-slate-900 hover:underline">
+                                        Clear all filters
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/>
+                                        </svg>
+                                    </a>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {{-- ───────────────────────────────────────────────
+             MOBILE / TABLET CARDS
+        ─────────────────────────────────────────────── --}}
+        <div class="space-y-4 lg:hidden">
+            @forelse ($fixtures as $fixture)
+                @php
+                    $hasScorecard = in_array((int) $fixture->id, $savedFixtures, true);
+                    $homeTeam = $fixture->homeTeam;
+                    $awayTeam = $fixture->awayTeam;
+                    $homeName = $homeTeam->short_name ?? $homeTeam->name ?? 'Home';
+                    $awayName = $awayTeam->short_name ?? $awayTeam->name ?? 'Away';
+                    $hasScores = $fixture->home_runs !== null || $fixture->away_runs !== null;
+                @endphp
+
+                <div class="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]">
+                    {{-- Card Header --}}
+                    <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white">
+                                    #{{ $fixture->match_number ?? $fixture->id }}
+                                </span>
+                                <span class="text-[11px] font-semibold uppercase text-slate-400">
+                                    {{ $fixture->match_type ?? 'T20' }}
+                                </span>
+                            </div>
+                            <h3 class="mt-2 text-[15px] font-bold leading-snug text-slate-900">
+                                {{ $homeTeam->name ?? 'Home Team' }}
+                                <span class="font-normal text-slate-400">vs</span>
+                                {{ $awayTeam->name ?? 'Away Team' }}
+                            </h3>
+                        </div>
+
+                        <span class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold
+                            {{ $hasScorecard
+                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border border-slate-200 bg-slate-100 text-slate-600' }}">
+                            {{ $hasScorecard ? 'Saved' : 'Pending' }}
+                        </span>
+                    </div>
+
+                    {{-- Scores --}}
+                    <div class="grid grid-cols-2 gap-3 px-5 py-4">
+                        <div class="rounded-xl bg-slate-50 px-3.5 py-3">
+                            <p class="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ $homeName }}</p>
+                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900">
+                                {{ $fixture->home_runs ?? '—' }}
+                                @if($fixture->home_wickets !== null)
+                                    <span class="text-sm font-semibold text-slate-500">/{{ $fixture->home_wickets }}</span>
+                                @endif
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50 px-3.5 py-3">
+                            <p class="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ $awayName }}</p>
+                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900">
+                                {{ $fixture->away_runs ?? '—' }}
+                                @if($fixture->away_wickets !== null)
+                                    <span class="text-sm font-semibold text-slate-500">/{{ $fixture->away_wickets }}</span>
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- Meta + Action --}}
+                    <div class="flex items-center justify-between border-t border-slate-100 px-5 py-3.5 text-xs text-slate-500">
+                        <span>
+                            {{ $fixture->scheduled_at
+                                ? \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('d M Y · h:i A')
+                                : 'Unscheduled' }}
+                        </span>
+                    </div>
+
+                    <div class="px-5 pb-5">
+                        <a href="{{ route('admin.scorecards.edit', ['fixture' => $fixture->id]) }}"
+                           class="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800">
+                            {{ $hasScorecard ? 'Edit Scorecard' : 'Enter Scorecard' }}
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            @empty
+                <div class="rounded-2xl border border-slate-200/70 bg-white px-6 py-14 text-center shadow-sm">
+                    <p class="text-slate-500">No match records found.</p>
+                    <a href="{{ route('admin.scorecards.index') }}" class="mt-3 inline-block text-sm font-bold text-slate-900 hover:underline">
+                        Clear filters
+                    </a>
+                </div>
+            @endforelse
+        </div>
+
+        {{-- Pagination --}}
+        @if ($fixtures->hasPages())
+            <div class="mt-8 rounded-2xl border border-slate-200/70 bg-white px-5 py-4 shadow-sm">
+                {{ $fixtures->links() }}
+            </div>
+        @endif
+
+    </div>
 </div>
 
 @push('styles')
 <style>
-    .sc-page {
-        color: #0f172a;
-    }
-
     .sc-control {
         display: block;
         width: 100%;
         min-height: 44px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #e2e8f0;
         border-radius: 12px;
         background-color: #fff;
-        padding: 10px 12px;
+        padding: 10px 14px;
         color: #0f172a;
         font-size: 14px;
+        font-weight: 500;
         outline: none;
-        transition: border-color .15s ease, box-shadow .15s ease;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .sc-control:hover {
+        border-color: #cbd5e1;
     }
 
     .sc-control:focus {
-        border-color: #b91c1c;
-        box-shadow: 0 0 0 3px rgba(185, 28, 28, .10);
+        border-color: #0f172a;
+        box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
     }
 
     .sc-control::placeholder {
         color: #94a3b8;
+        font-weight: 400;
     }
 </style>
 @endpush

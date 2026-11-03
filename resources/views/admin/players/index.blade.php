@@ -39,8 +39,9 @@
         </div>
     @endif
 
+    <!-- Filter Form with Team and Role Filter -->
     <form method="GET" action="{{ route('admin.players.index') }}"
-          class="grid gap-3 border border-slate-200 bg-white p-4 md:grid-cols-[1fr_220px_auto]">
+          class="grid gap-3 border border-slate-200 bg-white p-4 md:grid-cols-[1fr_180px_180px_auto]">
         <input
             type="search"
             name="search"
@@ -49,6 +50,7 @@
             class="w-full border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#1d0647]"
         >
 
+        <!-- Filter by Team -->
         <select name="team_id"
                 class="w-full border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#1d0647]">
             <option value="">All teams</option>
@@ -57,6 +59,16 @@
                     {{ $team->name }}
                 </option>
             @endforeach
+        </select>
+
+        <!-- Filter by Role -->
+        <select name="role"
+                class="w-full border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#1d0647]">
+            <option value="">All roles</option>
+            <option value="batsman" @selected(request('role') === 'batsman')>Batsman</option>
+            <option value="bowler" @selected(request('role') === 'bowler')>Bowler</option>
+            <option value="all_rounder" @selected(request('role') === 'all_rounder')>All Rounder</option>
+            <option value="wicket_keeper" @selected(request('role') === 'wicket_keeper')>Wicket Keeper</option>
         </select>
 
         <button class="bg-[#1d0647] px-5 py-3 text-sm font-bold text-white">
@@ -103,7 +115,7 @@
                             <td class="px-5 py-4">
                                 {{ $player->role
                                     ? ucwords(str_replace('_', ' ', $player->role))
-                                    : 'Not set' }}
+                                    : 'Batsman' }} <!-- Default display fallback -->
                             </td>
 
                             <td class="px-5 py-4">
