@@ -1,16 +1,102 @@
+
 @extends('layouts.app')
 
-@section('title', ($playerName ?? 'Player') . ' - Player Performance | NPL Season Hub')
+@section('title', ($playerName ?? 'Player') . ' | NPL Player Profile')
+
+@section('meta_description', 'Player profile, batting statistics, bowling statistics and match history on NPL Season Hub.')
 
 @section('content')
 @php
-    $getValue = function ($entry, $key, $default = '—') {
-        $value = data_get($entry, $key, $default);
+    use Illuminate\Support\Facades\DB;
+    use Illuminate\Support\Facades\Storage;
+    use Illuminate\Support\Str;
 
-        return $value === null || $value === '' ? $default : $value;
+    $playerName = trim($playerName ?? 'Player');
+    $performances = collect($performances ?? []);
+    $battingStats = $battingStats ?? [];
+    $bowlingStats = $bowlingStats ?? [];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Find the registered player and their team
+    |--------------------------------------------------------------------------
+    */
+    $registeredPlayer = $player ?? DB::table('players')
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower($playerName)])
+        ->first();
+
+    $registeredTeam = null;
+    $registeredTeamId = data_get($registeredPlayer, 'team_id');
+
+    if ($registeredTeamId) {
+        $registeredTeam = DB::table('teams')
+            ->where('id', $registeredTeamId)
+            ->first();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Resolve logos stored in storage/app/public/teams
+    |--------------------------------------------------------------------------
+    */
+    $imageUrl = function ($path, $folder = null) {
+        if (!$path || !is_string($path)) {
+            return null;
+        }
+
+        $path = trim($path);
+
+        if ($path === '' || $path === '—') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['https://', 'http://', 'data:', '/'])) {
+            return $path;
+        }
+
+        $path = preg_replace('#^storage/#', '', $path);
+
+        if ($folder && !Str::startsWith($path, $folder . '/')) {
+            $path = $folder . '/' . ltrim($path, '/');
+        }
+
+        return Storage::disk('public')->url($path);
     };
 
-    $formatNumber = function ($value, $decimals = 2) {
+    $teamLogo = $registeredTeam
+        ? $imageUrl(data_get($registeredTeam, 'logo') ?: data_get($registeredTeam, 'logo_path'), 'teams')
+        : null;
+
+    $playerPhotoPath = data_get($registeredPlayer, 'photo_path')
+        ?: data_get($registeredPlayer, 'photo')
+        ?: data_get($registeredPlayer, 'image');
+
+    $playerPhoto = $imageUrl($playerPhotoPath);
+
+    $playerRole = data_get($registeredPlayer, 'role')
+        ?: data_get($registeredPlayer, 'playing_role')
+        ?: 'Cricketer';
+
+    $teamName = data_get($registeredTeam, 'name')
+        ?: data_get($registeredPlayer, 'team.name')
+        ?: 'Team not listed';
+
+    $teamShortName = data_get($registeredTeam, 'short_name')
+        ?: $teamName;
+
+    $initials = collect(preg_split('/\s+/', $playerName))
+        ->filter()
+        ->take(2)
+        ->map(fn ($part) => Str::upper(Str::substr($part, 0, 1)))
+        ->implode('');
+
+    $value = function ($data, $key, $default = 0) {
+        $result = data_get($data, $key);
+
+        return $result === null || $result === '' ? $default : $result;
+    };
+
+    $number = function ($value, $decimals = 2) {
         if ($value === null || $value === '' || $value === '—') {
             return '—';
         }
@@ -20,1313 +106,481 @@
             : $value;
     };
 
-    $formatDate = function ($date) {
-        if (!$date || $date === '—') {
-            return 'Date TBC';
+    $date = function ($date) {
+        if (!$date) {
+            return 'Date TBA';
         }
 
         try {
             return \Illuminate\Support\Carbon::parse($date)->format('d M Y');
         } catch (\Throwable $e) {
-            return $date;
+            return 'Date TBA';
         }
     };
 
-    $teamName = function ($team) use ($getValue) {
-        if (is_string($team)) {
-            return $team;
-        }
+    $batting = [
+        ['Runs', $value($battingStats, 'runs'), 'Total runs'],
+        ['Highest score', $value($battingStats, 'highest_score'), 'Best innings'],
+        ['Average', $number($value($battingStats, 'average', '—')), 'Runs per dismissal'],
+        ['Strike rate', $number($value($battingStats, 'strike_rate', '—')), 'Runs per 100 balls'],
+        ['Fours', $value($battingStats, 'fours'), 'Boundaries'],
+        ['Sixes', $value($battingStats, 'sixes'), 'Maximums'],
+        ['Innings', $value($battingStats, 'innings'), 'Batting innings'],
+        ['Not outs', $value($battingStats, 'not_outs'), 'Not dismissed'],
+    ];
 
-        return $getValue($team, 'short_name', $getValue($team, 'name', 'Team'));
-    };
-
-    $teamLogo = function ($team) use ($getValue) {
-        if (is_string($team) || !$team) {
-            return null;
-        }
-
-        $logo = $getValue(
-            $team,
-            'logo',
-            $getValue($team, 'logo_path', $getValue($team, 'image', null))
-        );
-
-        if (!$logo || $logo === '—') {
-            return null;
-        }
-
-        if (
-            str_starts_with($logo, 'https://') ||
-            str_starts_with($logo, 'http://') ||
-            str_starts_with($logo, 'data:') ||
-            str_starts_with($logo, '/')
-        ) {
-            return $logo;
-        }
-
-        return str_starts_with($logo, 'storage/')
-            ? asset($logo)
-            : \Illuminate\Support\Facades\Storage::disk('public')->url($logo);
-    };
-
-    $player = $player ?? null;
-    $playerName = $playerName ?? $getValue($player, 'name', 'Player');
-
-    $battingStats = $battingStats ?? [];
-    $bowlingStats = $bowlingStats ?? [];
-    $performancesCollection = collect($performances ?? []);
-
-    $totalRuns = $getValue($battingStats, 'runs', 0);
-    $highestScore = $getValue($battingStats, 'highest_score', 0);
-    $battingAverage = $getValue($battingStats, 'average', '—');
-    $strikeRate = $getValue($battingStats, 'strike_rate', '—');
-    $fours = $getValue($battingStats, 'fours', 0);
-    $sixes = $getValue($battingStats, 'sixes', 0);
-    $battingInnings = $getValue($battingStats, 'innings', 0);
-    $notOuts = $getValue($battingStats, 'not_outs', 0);
-
-    $totalWickets = $getValue($bowlingStats, 'wickets', 0);
-    $economy = $getValue($bowlingStats, 'economy', '—');
-    $overs = $getValue($bowlingStats, 'overs', 0);
-    $runsConceded = $getValue($bowlingStats, 'runs', 0);
-    $maidens = $getValue($bowlingStats, 'maidens', 0);
-    $bowlingInnings = $getValue($bowlingStats, 'innings', 0);
-
-    $playerPhoto = $getValue(
-        $player,
-        'photo',
-        $getValue($player, 'image', $getValue($player, 'photo_path', null))
-    );
-
-    $playerPhotoUrl = null;
-
-    if ($playerPhoto && $playerPhoto !== '—') {
-        if (
-            str_starts_with($playerPhoto, 'https://') ||
-            str_starts_with($playerPhoto, 'http://') ||
-            str_starts_with($playerPhoto, '/')
-        ) {
-            $playerPhotoUrl = $playerPhoto;
-        } elseif (str_starts_with($playerPhoto, 'storage/')) {
-            $playerPhotoUrl = asset($playerPhoto);
-        } else {
-            $playerPhotoUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($playerPhoto);
-        }
-    }
-
-    $playerInitial = strtoupper(mb_substr($playerName, 0, 1));
-    $playerRole = $getValue(
-        $player,
-        'role',
-        $getValue($player, 'playing_role', 'CRICKETER')
-    );
-
-    $playerTeamName = $getValue(
-        $player,
-        'team.short_name',
-        $getValue($player, 'team.name', 'NPL PLAYER')
-    );
+    $bowling = [
+        ['Wickets', $value($bowlingStats, 'wickets'), 'Wickets taken'],
+        ['Economy', $number($value($bowlingStats, 'economy', '—')), 'Runs per over'],
+        ['Overs', $value($bowlingStats, 'overs'), 'Overs bowled'],
+        ['Runs conceded', $value($bowlingStats, 'runs'), 'Bowling runs'],
+        ['Maidens', $value($bowlingStats, 'maidens'), 'Maiden overs'],
+        ['Innings', $value($bowlingStats, 'innings'), 'Bowling innings'],
+    ];
 
     /*
-     * Set this path to the actual NPL logo in your public directory.
-     * Expected file: public/images/npl-logo.png
-     */
-    $nplLogo = asset('images/npl-logo.png');
+    |--------------------------------------------------------------------------
+    | Build match-history entries using actual scorecard teams
+    |--------------------------------------------------------------------------
+    */
+    $matchRows = $performances->map(function ($performance) use (
+        $registeredTeamId,
+        $imageUrl,
+        $date,
+        $value
+    ) {
+        $fixture = data_get($performance, 'fixture');
+        $scorecard = data_get($performance, 'scorecard');
 
-    $battingCards = [
-        ['Runs', $totalRuns, 'Total runs scored'],
-        ['Highest Score', $highestScore, 'Best individual innings'],
-        ['Batting Average', $formatNumber($battingAverage), 'Runs per dismissal'],
-        ['Strike Rate', $formatNumber($strikeRate), 'Runs per 100 balls'],
-        ['Fours', $fours, 'Boundaries scored'],
-        ['Sixes', $sixes, 'Maximums scored'],
-        ['Innings', $battingInnings, 'Batting innings'],
-        ['Not Outs', $notOuts, 'Innings not dismissed'],
-    ];
+        $batter = data_get($performance, 'batter');
+        $bowler = data_get($performance, 'bowler');
 
-    $bowlingCards = [
-        ['Wickets', $totalWickets, 'Total wickets taken'],
-        ['Economy', $formatNumber($economy), 'Runs conceded per over'],
-        ['Overs', $overs, 'Overs bowled'],
-        ['Runs Conceded', $runsConceded, 'Bowling runs conceded'],
-        ['Maidens', $maidens, 'Maiden overs'],
-        ['Innings', $bowlingInnings, 'Innings bowled'],
-    ];
+        $battingTeam = data_get($performance, 'batting_team');
+        $bowlingTeam = data_get($performance, 'bowling_team');
+
+        $battingTeamId = data_get($scorecard, 'batting_team_id')
+            ?? data_get($performance, 'batting_team_id');
+
+        $bowlingTeamId = data_get($scorecard, 'bowling_team_id')
+            ?? data_get($performance, 'bowling_team_id');
+
+        /*
+         * Prefer the registered player's team to determine the opponent.
+         * Fall back to the innings role when the team ID is unavailable.
+         */
+        if ($registeredTeamId && (string) $registeredTeamId === (string) $battingTeamId) {
+            $myTeam = $battingTeam;
+            $opponent = $bowlingTeam;
+        } elseif ($registeredTeamId && (string) $registeredTeamId === (string) $bowlingTeamId) {
+            $myTeam = $bowlingTeam;
+            $opponent = $battingTeam;
+        } elseif ($batter) {
+            $myTeam = $battingTeam;
+            $opponent = $bowlingTeam;
+        } else {
+            $myTeam = $bowlingTeam;
+            $opponent = $battingTeam;
+        }
+
+        $opponentName = data_get($opponent, 'name')
+            ?: data_get($opponent, 'short_name')
+            ?: 'Opponent unavailable';
+
+        $myTeamName = data_get($myTeam, 'name')
+            ?: data_get($myTeam, 'short_name')
+            ?: 'Team unavailable';
+
+        $opponentLogo = $imageUrl(
+            data_get($opponent, 'logo') ?: data_get($opponent, 'logo_path'),
+            'teams'
+        );
+
+        $myTeamLogo = $imageUrl(
+            data_get($myTeam, 'logo') ?: data_get($myTeam, 'logo_path'),
+            'teams'
+        );
+
+        $matchId = data_get($fixture, 'id');
+        $matchNumber = data_get($fixture, 'match_number');
+
+        $dismissal = data_get($batter, 'dismissal');
+
+        return [
+            'fixture' => $fixture,
+            'fixture_id' => $matchId,
+            'match_number' => $matchNumber,
+            'date' => $date(data_get($fixture, 'scheduled_at')),
+            'my_team' => $myTeamName,
+            'my_team_logo' => $myTeamLogo,
+            'opponent' => $opponentName,
+            'opponent_logo' => $opponentLogo,
+            'runs' => $value($batter, 'runs'),
+            'balls' => $value($batter, 'balls'),
+            'fours' => $value($batter, 'fours'),
+            'sixes' => $value($batter, 'sixes'),
+            'wickets' => $value($bowler, 'wickets'),
+            'bowling_runs' => $value($bowler, 'runs'),
+            'overs' => $value($bowler, 'overs'),
+            'economy' => $value($bowler, 'economy', '—'),
+            'dismissal' => $dismissal,
+        ];
+    });
+
+    $hasPerformanceData = $matchRows->isNotEmpty();
 @endphp
 
-<style>
-    /* ─────────────────────────────────────────────
-       NPL Player Performance – refined design system
-       ───────────────────────────────────────────── */
-    .player-page {
-        --npl-navy: #0b1424;
-        --npl-navy-mid: #152238;
-        --npl-red: #e11d2e;
-        --npl-red-soft: #ff4d5e;
-        --npl-muted: #6b7a90;
-        --npl-border: #e2e8f0;
-        --npl-surface: #ffffff;
-        --npl-bg: #f4f6fa;
-        --radius-lg: 18px;
-        --radius-md: 12px;
-        --radius-sm: 8px;
-        --shadow-sm: 0 1px 3px rgba(11, 20, 36, 0.04);
-        --shadow-md: 0 8px 24px rgba(11, 20, 36, 0.07);
-        --shadow-lg: 0 20px 48px rgba(11, 20, 36, 0.1);
-
-        padding: 32px 0 72px;
-        color: #1a2332;
-        background: var(--npl-bg);
-        font-feature-settings: "tnum" 1;
-    }
-
-    .player-page,
-    .player-page * {
-        box-sizing: border-box;
-    }
-
-    .player-page .player-container {
-        width: min(1160px, calc(100% - 40px));
-        margin: 0 auto;
-    }
-
-    .player-page a {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    /* ── Back link ── */
-    .player-back {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 24px;
-        color: var(--npl-muted) !important;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        transition: color 0.15s ease;
-    }
-
-    .player-back:hover {
-        color: var(--npl-red) !important;
-    }
-
-    /* ── Hero player card ── */
-    .npl-player-card {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 290px;
-        min-height: 380px;
-        overflow: hidden;
-        margin-bottom: 28px;
-        border-radius: var(--radius-lg);
-        background: var(--npl-surface);
-        box-shadow: var(--shadow-lg);
-        border: 1px solid rgba(11, 20, 36, 0.06);
-    }
-
-    .npl-card-main {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-width: 0;
-        padding: 32px 36px 26px;
-        overflow: hidden;
-        color: #fff;
-        background:
-            radial-gradient(ellipse 80% 60% at 92% 8%, rgba(225, 29, 46, 0.28), transparent 50%),
-            linear-gradient(145deg, #0b1424 0%, #121f35 55%, #1a2d4a 100%);
-    }
-
-    .npl-card-main::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        opacity: 0.7;
-        pointer-events: none;
-    }
-
-    .npl-card-main::after {
-        position: absolute;
-        right: -160px;
-        bottom: -200px;
-        width: 440px;
-        height: 440px;
-        border: 48px solid rgba(255, 255, 255, 0.04);
-        border-radius: 50%;
-        content: "";
-        pointer-events: none;
-    }
-
-    .npl-card-top,
-    .npl-card-player,
-    .npl-card-footer {
-        position: relative;
-        z-index: 2;
-    }
-
-    .npl-card-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-    }
-
-    .npl-brand {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        min-width: 0;
-    }
-
-    .npl-brand-logo {
-        width: 50px;
-        height: 50px;
-        flex: 0 0 50px;
-        padding: 5px;
-        border-radius: 12px;
-        background: #fff;
-        object-fit: contain;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .npl-brand-title {
-        margin: 0;
-        color: #fff;
-        font-size: 14px;
-        font-weight: 800;
-        letter-spacing: 1.4px;
-        line-height: 1.2;
-    }
-
-    .npl-brand-subtitle {
-        margin-top: 4px;
-        color: rgba(185, 198, 218, 0.9);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 1.8px;
-        text-transform: uppercase;
-    }
-
-    .npl-season-tag {
-        padding: 7px 12px;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 6px;
-        background: rgba(255, 255, 255, 0.06);
-        color: #fff;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 1.2px;
-        white-space: nowrap;
-        backdrop-filter: blur(4px);
-    }
-
-    .npl-card-player {
-        padding: 40px 0 32px;
-    }
-
-    .npl-card-eyebrow {
-        margin-bottom: 12px;
-        color: var(--npl-red-soft);
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 2.2px;
-        text-transform: uppercase;
-    }
-
-    .npl-card-name {
-        max-width: 640px;
-        margin: 0;
-        color: #fff;
-        font-size: clamp(28px, 4vw, 48px);
-        font-weight: 900;
-        letter-spacing: -1.2px;
-        line-height: 1.08;
-        overflow-wrap: anywhere;
-        text-transform: uppercase;
-    }
-
-    .npl-card-role {
-        display: inline-flex;
-        align-items: center;
-        margin-top: 18px;
-        padding: 8px 14px;
-        border-radius: 6px;
-        background: var(--npl-red);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        box-shadow: 0 4px 14px rgba(225, 29, 46, 0.35);
-    }
-
-    .npl-card-footer {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 10px 24px;
-        padding-top: 18px;
-        border-top: 1px solid rgba(255, 255, 255, 0.12);
-        color: rgba(199, 209, 224, 0.95);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-    }
-
-    .npl-card-footer span {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .npl-card-footer span::before {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--npl-red-soft);
-        content: "";
-        flex-shrink: 0;
-    }
-
-    /* Portrait side */
-    .npl-card-portrait {
-        position: relative;
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
-        min-width: 0;
-        overflow: hidden;
-        background:
-            radial-gradient(ellipse at 50% 20%, #ffffff 0%, #eef2f7 55%, #d8e0eb 100%);
-    }
-
-    .npl-card-portrait::before {
-        position: absolute;
-        top: 28px;
-        left: 50%;
-        width: 220px;
-        height: 220px;
-        border: 1px solid rgba(11, 20, 36, 0.08);
-        border-radius: 50%;
-        content: "";
-        transform: translateX(-50%);
-    }
-
-    .npl-player-photo {
-        position: relative;
-        z-index: 1;
-        display: block;
-        width: 100%;
-        height: 100%;
-        min-height: 380px;
-        max-height: 440px;
-        object-fit: cover;
-        object-position: center top;
-    }
-
-    .npl-player-fallback {
-        position: relative;
-        z-index: 1;
-        align-self: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 150px;
-        height: 150px;
-        border: 6px solid rgba(255, 255, 255, 0.85);
-        border-radius: 50%;
-        background: var(--npl-navy);
-        color: #fff;
-        font-size: 64px;
-        font-weight: 900;
-        box-shadow: 0 12px 32px rgba(11, 20, 36, 0.2);
-    }
-
-    .npl-card-number {
-        position: absolute;
-        right: 14px;
-        bottom: 14px;
-        z-index: 3;
-        padding: 7px 11px;
-        border-radius: 6px;
-        background: var(--npl-red);
-        color: #fff;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 1px;
-        box-shadow: 0 4px 12px rgba(225, 29, 46, 0.4);
-    }
-
-    /* ── Quick highlight stats ── */
-    .npl-card-stats {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-        margin-bottom: 40px;
-    }
-
-    .npl-mini-stat {
-        min-width: 0;
-        padding: 20px 18px;
-        border: 1px solid var(--npl-border);
-        border-radius: var(--radius-md);
-        background: var(--npl-surface);
-        box-shadow: var(--shadow-sm);
-        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-    }
-
-    .npl-mini-stat:hover {
-        transform: translateY(-3px);
-        border-color: #f5b0b6;
-        box-shadow: var(--shadow-md);
-    }
-
-    .npl-mini-stat-label {
-        display: block;
-        margin-bottom: 10px;
-        color: var(--npl-muted);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-    }
-
-    .npl-mini-stat-value {
-        display: block;
-        color: var(--npl-navy);
-        font-size: 28px;
-        font-weight: 800;
-        line-height: 1.15;
-        overflow-wrap: anywhere;
-        letter-spacing: -0.5px;
-    }
-
-    .npl-mini-stat-note {
-        display: block;
-        margin-top: 6px;
-        color: #8a94a6;
-        font-size: 12px;
-        line-height: 1.4;
-    }
-
-    /* ── Section blocks ── */
-    .player-section {
-        margin-top: 44px;
-    }
-
-    .player-section-heading {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 18px;
-    }
-
-    .player-section-heading h2 {
-        margin: 0;
-        color: #0f1a2c;
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: -0.4px;
-        line-height: 1.25;
-    }
-
-    .player-section-heading p {
-        margin: 6px 0 0;
-        color: var(--npl-muted);
-        font-size: 14px;
-        line-height: 1.5;
-    }
-
-    .player-count {
-        padding: 7px 12px;
-        border: 1px solid var(--npl-border);
-        border-radius: 8px;
-        background: var(--npl-surface);
-        color: #4a5568;
-        font-size: 12px;
-        font-weight: 700;
-        white-space: nowrap;
-        box-shadow: var(--shadow-sm);
-    }
-
-    /* Stats grid */
-    .player-stats {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-    }
-
-    .player-stat {
-        min-width: 0;
-        padding: 20px 18px;
-        border: 1px solid var(--npl-border);
-        border-radius: var(--radius-md);
-        background: var(--npl-surface);
-        transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-    }
-
-    .player-stat:hover {
-        transform: translateY(-2px);
-        border-color: #cdd5e0;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .player-stat-label {
-        display: block;
-        margin-bottom: 10px;
-        color: var(--npl-muted);
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .player-stat-value {
-        display: block;
-        color: #0f1a2c;
-        font-size: 26px;
-        font-weight: 800;
-        line-height: 1.2;
-        overflow-wrap: anywhere;
-        letter-spacing: -0.4px;
-    }
-
-    .player-stat-note {
-        display: block;
-        margin-top: 6px;
-        color: #8a94a6;
-        font-size: 12px;
-        line-height: 1.45;
-    }
-
-    /* ── Match history table ── */
-    .player-table-panel {
-        overflow: hidden;
-        border: 1px solid var(--npl-border);
-        border-radius: var(--radius-md);
-        background: var(--npl-surface);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .player-table-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 20px 22px;
-        border-bottom: 1px solid #edf1f6;
-        background: #fafbfc;
-    }
-
-    .player-table-heading h3 {
-        margin: 0;
-        color: #0f1a2c;
-        font-size: 15px;
-        font-weight: 750;
-    }
-
-    .player-table-heading p {
-        margin: 5px 0 0;
-        color: var(--npl-muted);
-        font-size: 13px;
-    }
-
-    .player-table-wrap {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .player-table {
-        width: 100%;
-        border-collapse: collapse;
-        white-space: nowrap;
-    }
-
-    .player-table th {
-        padding: 14px 16px;
-        border-bottom: 1px solid #e8ecf2;
-        background: #f7f9fc;
-        color: #5a6578;
-        font-size: 11px;
-        font-weight: 700;
-        text-align: left;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-    }
-
-    .player-table td {
-        padding: 16px;
-        border-bottom: 1px solid #f0f3f7;
-        color: #2d3748;
-        font-size: 13px;
-        vertical-align: middle;
-    }
-
-    .player-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-
-    .player-table tbody tr:hover {
-        background: #f8fafc;
-    }
-
-    .player-match-link {
-        color: var(--npl-red) !important;
-        font-weight: 700;
-        transition: opacity 0.15s ease;
-    }
-
-    .player-match-link:hover {
-        opacity: 0.8;
-        text-decoration: underline;
-    }
-
-    .player-team {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-    }
-
-    .player-team-logo {
-        width: 28px;
-        height: 28px;
-        border: 1px solid #e8ebf1;
-        border-radius: 50%;
-        object-fit: contain;
-        background: #fff;
-        flex-shrink: 0;
-    }
-
-    .player-highlight {
-        color: var(--npl-red);
-        font-weight: 800;
-    }
-
-    .player-secondary {
-        margin-top: 4px;
-        color: #8a94a6;
-        font-size: 11px;
-        line-height: 1.55;
-    }
-
-    .player-opponent {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-    }
-
-    .player-opponent-name {
-        color: #1a2332;
-        font-weight: 650;
-    }
-
-    .player-score {
-        display: inline-block;
-        padding: 5px 9px;
-        border-radius: 6px;
-        background: #f0f3f8;
-        color: #0f1a2c;
-        font-size: 12px;
-        font-weight: 750;
-    }
-
-    .player-score-unavailable {
-        color: #8a94a6;
-        font-size: 12px;
-    }
-
-    /* Empty state */
-    .player-empty {
-        padding: 56px 24px;
-        text-align: center;
-    }
-
-    .player-empty-mark {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 52px;
-        height: 52px;
-        margin: 0 auto 16px;
-        border-radius: 50%;
-        background: #f0f3f8;
-        color: #6b7a90;
-        font-size: 22px;
-        font-weight: 800;
-    }
-
-    .player-empty h3 {
-        margin: 0 0 8px;
-        color: #1a2332;
-        font-size: 17px;
-        font-weight: 750;
-    }
-
-    .player-empty p {
-        max-width: 400px;
-        margin: 0 auto;
-        color: var(--npl-muted);
-        font-size: 14px;
-        line-height: 1.65;
-    }
-
-    .player-note {
-        margin-top: 16px;
-        color: #8a94a6;
-        font-size: 12px;
-        line-height: 1.6;
-    }
-
-    /* ── Responsive ── */
-    @media (max-width: 960px) {
-        .npl-player-card {
-            grid-template-columns: minmax(0, 1fr) 250px;
-        }
-
-        .npl-card-main {
-            padding: 28px 26px;
-        }
-
-        .npl-card-stats,
-        .player-stats {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 640px) {
-        .player-page {
-            padding-top: 20px;
-            padding-bottom: 56px;
-        }
-
-        .player-page .player-container {
-            width: calc(100% - 28px);
-        }
-
-        .npl-player-card {
-            grid-template-columns: 1fr;
-        }
-
-        .npl-card-main {
-            min-height: 300px;
-            padding: 24px 20px;
-        }
-
-        .npl-card-portrait {
-            min-height: 280px;
-            max-height: 340px;
-        }
-
-        .npl-player-photo {
-            min-height: 280px;
-            max-height: 340px;
-            object-position: center 22%;
-        }
-
-        .npl-card-portrait::before {
-            top: 22px;
-            width: 180px;
-            height: 180px;
-        }
-
-        .npl-player-fallback {
-            width: 120px;
-            height: 120px;
-            font-size: 50px;
-        }
-
-        .npl-card-player {
-            padding: 28px 0 24px;
-        }
-
-        .npl-card-name {
-            font-size: clamp(26px, 7.5vw, 38px);
-        }
-
-        .npl-card-stats {
-            gap: 12px;
-            margin-bottom: 32px;
-        }
-
-        .npl-mini-stat,
-        .player-stat {
-            padding: 16px 14px;
-        }
-
-        .npl-mini-stat-value,
-        .player-stat-value {
-            font-size: 24px;
-        }
-
-        .player-section {
-            margin-top: 36px;
-        }
-
-        .player-section-heading h2 {
-            font-size: 19px;
-        }
-
-        .player-section-heading p {
-            font-size: 13px;
-        }
-
-        .player-table-heading {
-            padding: 16px 18px;
-        }
-
-        .player-table th,
-        .player-table td {
-            padding: 12px 14px;
-        }
-    }
-
-    @media (max-width: 400px) {
-        .npl-card-top {
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-
-        .npl-brand {
-            gap: 10px;
-        }
-
-        .npl-brand-logo {
-            width: 42px;
-            height: 42px;
-            flex-basis: 42px;
-        }
-
-        .npl-brand-title {
-            font-size: 12px;
-            letter-spacing: 0.8px;
-        }
-
-        .npl-brand-subtitle {
-            font-size: 9px;
-            letter-spacing: 1.2px;
-        }
-
-        .npl-season-tag {
-            padding: 6px 9px;
-            font-size: 9px;
-        }
-
-        .npl-card-main {
-            padding: 20px 16px;
-        }
-
-        .npl-card-stats,
-        .player-stats {
-            gap: 10px;
-        }
-
-        .npl-mini-stat,
-        .player-stat {
-            padding: 14px 12px;
-        }
-
-        .npl-mini-stat-value,
-        .player-stat-value {
-            font-size: 22px;
-        }
-
-        .player-section-heading {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-        }
-    }
-</style>
-
-<div class="player-page">
-    <div class="player-container">
-
-        <a href="{{ url()->previous() }}" class="player-back">
-            <span aria-hidden="true">←</span>
-            <span>Back</span>
-        </a>
-
-        {{-- NPL collectible-style player card --}}
-        <section class="npl-player-card">
-
-            <div class="npl-card-main">
-                <div class="npl-card-top">
-                    <div class="npl-brand">
-                        <img
-                            src="{{ $nplLogo }}"
-                            alt="Nepal Premier League"
-                            class="npl-brand-logo"
-                            onerror="this.style.display='none'"
-                        >
-
-                        <div>
-                            <p class="npl-brand-title">NEPAL PREMIER LEAGUE</p>
-                            <div class="npl-brand-subtitle">OFFICIAL PLAYER PROFILE</div>
-                        </div>
+<div class="min-h-screen bg-slate-50 pb-14 text-slate-900">
+
+    {{-- Top navigation --}}
+    <div class="border-b border-slate-200 bg-white">
+        <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between gap-4">
+                <a href="{{ url()->previous() }}"
+                   class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 transition hover:text-rose-600">
+                    <span class="text-lg">←</span>
+                    Back
+                </a>
+
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold uppercase tracking-wider text-slate-600">
+                    NPL Season Hub
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <main class="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+
+        {{-- Player profile hero --}}
+        <section class="relative overflow-hidden rounded-3xl bg-[#101b32] shadow-xl">
+            <div class="absolute -right-16 -top-24 h-72 w-72 rounded-full border-[35px] border-white/5"></div>
+            <div class="absolute -bottom-28 right-1/3 h-64 w-64 rounded-full bg-rose-600/10 blur-3xl"></div>
+
+            <div class="relative grid md:grid-cols-[1fr_300px]">
+
+                <div class="flex min-w-0 flex-col justify-between p-6 sm:p-9 lg:p-11">
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="rounded-full bg-rose-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white">
+                            Player profile
+                        </span>
+
+                        <span class="text-xs font-semibold text-slate-400">
+                            Nepal Premier League
+                        </span>
                     </div>
 
-                    <span class="npl-season-tag">SEASON 03</span>
+                    <div class="py-9">
+                        <p class="text-xs font-bold uppercase tracking-[0.2em] text-rose-400">
+                            {{ $teamName }}
+                        </p>
+
+                        <h1 class="mt-3 break-words text-3xl font-black tracking-tight text-white sm:text-5xl">
+                            {{ $playerName }}
+                        </h1>
+
+                        <span class="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-bold text-white">
+                            <span class="h-2 w-2 rounded-full bg-rose-400"></span>
+                            {{ $playerRole }}
+                        </span>
+
+                        <p class="mt-5 max-w-xl text-sm leading-6 text-slate-300">
+                            Player statistics, match-by-match performance and team information.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
+
+                        {{-- Actual registered team logo --}}
+                        @if ($teamLogo)
+                            <img
+                                src="{{ $teamLogo }}"
+                                alt="{{ $teamName }} logo"
+                                class="h-12 w-12 rounded-xl border border-white/15 bg-white p-1.5 object-contain"
+                                onerror="this.style.display='none'"
+                            >
+                        @else
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sm font-black text-white">
+                                {{ Str::upper(Str::substr($teamShortName, 0, 3)) }}
+                            </div>
+                        @endif
+
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Registered team
+                            </p>
+                            <p class="mt-1 font-extrabold text-white">
+                                {{ $teamName }}
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="npl-card-player">
-                    <div class="npl-card-eyebrow">The player card</div>
+                {{-- Player portrait --}}
+                <div class="relative flex min-h-[270px] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-200 to-slate-400 md:min-h-[390px]">
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.8),_transparent_70%)]"></div>
 
-                    <h1 class="npl-card-name">{{ $playerName }}</h1>
+                    @if ($playerPhoto)
+                        <img
+                            src="{{ $playerPhoto }}"
+                            alt="{{ $playerName }}"
+                            class="relative z-10 h-full max-h-[420px] min-h-[270px] w-full object-contain object-bottom"
+                            onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';"
+                        >
+                    @endif
 
-                    <div class="npl-card-role">{{ $playerRole }}</div>
-                </div>
-
-                <div class="npl-card-footer">
-                    <span>{{ $playerTeamName }}</span>
-                    <span>Nepal Premier League</span>
-                </div>
-            </div>
-
-            <div class="npl-card-portrait">
-                @if ($playerPhotoUrl)
-                    <img
-                        src="{{ $playerPhotoUrl }}"
-                        alt="{{ $playerName }}"
-                        class="npl-player-photo"
-                        onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';"
+                    <div
+                        class="relative z-10 {{ $playerPhoto ? 'hidden' : 'flex' }} h-36 w-36 items-center justify-center rounded-full border-8 border-white/70 bg-[#101b32] text-5xl font-black text-white shadow-2xl"
                     >
-                @endif
+                        {{ $initials ?: 'P' }}
+                    </div>
 
-                <div
-                    class="npl-player-fallback"
-                    @if ($playerPhotoUrl) style="display:none" @endif
-                >
-                    {{ $playerInitial }}
+                    @if ($teamLogo)
+                        <div class="absolute bottom-4 right-4 z-20 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
+                            <img
+                                src="{{ $teamLogo }}"
+                                alt="{{ $teamName }} logo"
+                                class="h-12 w-12 object-contain sm:h-14 sm:w-14"
+                                onerror="this.style.display='none'"
+                            >
+                        </div>
+                    @endif
                 </div>
-
-                <div class="npl-card-number">NPL · S03</div>
             </div>
         </section>
 
-        {{-- Featured season statistics --}}
-        <section class="npl-card-stats" aria-label="Player highlights">
-            <div class="npl-mini-stat">
-                <span class="npl-mini-stat-label">Total Runs</span>
-                <strong class="npl-mini-stat-value">{{ $totalRuns }}</strong>
-                <span class="npl-mini-stat-note">Runs scored</span>
-            </div>
-
-            <div class="npl-mini-stat">
-                <span class="npl-mini-stat-label">Highest Score</span>
-                <strong class="npl-mini-stat-value">{{ $highestScore }}</strong>
-                <span class="npl-mini-stat-note">Best individual innings</span>
-            </div>
-
-            <div class="npl-mini-stat">
-                <span class="npl-mini-stat-label">Wickets</span>
-                <strong class="npl-mini-stat-value">{{ $totalWickets }}</strong>
-                <span class="npl-mini-stat-note">Wickets taken</span>
-            </div>
-
-            <div class="npl-mini-stat">
-                <span class="npl-mini-stat-label">Strike Rate</span>
-                <strong class="npl-mini-stat-value">{{ $formatNumber($strikeRate) }}</strong>
-                <span class="npl-mini-stat-note">Runs per 100 balls</span>
-            </div>
+        {{-- Highlight stats --}}
+        <section class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+            @foreach ([
+                ['Total runs', $value($battingStats, 'runs'), 'Batting'],
+                ['Highest score', $value($battingStats, 'highest_score'), 'Best innings'],
+                ['Wickets', $value($bowlingStats, 'wickets'), 'Bowling'],
+                ['Strike rate', $number($value($battingStats, 'strike_rate', '—')), 'Runs per 100 balls'],
+            ] as $stat)
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        {{ $stat[0] }}
+                    </p>
+                    <p class="mt-3 break-words text-3xl font-black tracking-tight text-[#101b32]">
+                        {{ $stat[1] }}
+                    </p>
+                    <p class="mt-1 text-xs text-slate-400">{{ $stat[2] }}</p>
+                </div>
+            @endforeach
         </section>
 
-        {{-- Batting statistics --}}
-        <section class="player-section">
-            <div class="player-section-heading">
+        {{-- Batting --}}
+        <section class="mt-10">
+            <div class="mb-5 flex items-end justify-between gap-3">
                 <div>
-                    <h2>Batting Statistics</h2>
-                    <p>Season batting performance</p>
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-600">01 / Batting</p>
+                    <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Batting statistics</h2>
+                    <p class="mt-1 text-sm text-slate-500">Recorded batting performance.</p>
                 </div>
             </div>
 
-            <div class="player-stats">
-                @foreach ($battingCards as $stat)
-                    <div class="player-stat">
-                        <span class="player-stat-label">{{ $stat[0] }}</span>
-                        <strong class="player-stat-value">{{ $stat[1] }}</strong>
-                        <span class="player-stat-note">{{ $stat[2] }}</span>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                @foreach ($batting as $stat)
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                        <p class="text-xs font-semibold text-slate-500">{{ $stat[0] }}</p>
+                        <p class="mt-3 break-words text-2xl font-black text-slate-900">{{ $stat[1] }}</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-400">{{ $stat[2] }}</p>
                     </div>
                 @endforeach
             </div>
         </section>
 
-        {{-- Bowling statistics --}}
-        <section class="player-section">
-            <div class="player-section-heading">
-                <div>
-                    <h2>Bowling Statistics</h2>
-                    <p>Season bowling performance</p>
-                </div>
+        {{-- Bowling --}}
+        <section class="mt-10">
+            <div class="mb-5">
+                <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-600">02 / Bowling</p>
+                <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Bowling statistics</h2>
+                <p class="mt-1 text-sm text-slate-500">Recorded bowling performance.</p>
             </div>
 
-            <div class="player-stats">
-                @foreach ($bowlingCards as $stat)
-                    <div class="player-stat">
-                        <span class="player-stat-label">{{ $stat[0] }}</span>
-                        <strong class="player-stat-value">{{ $stat[1] }}</strong>
-                        <span class="player-stat-note">{{ $stat[2] }}</span>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                @foreach ($bowling as $stat)
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                        <p class="text-xs font-semibold text-slate-500">{{ $stat[0] }}</p>
+                        <p class="mt-3 break-words text-2xl font-black text-slate-900">{{ $stat[1] }}</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-400">{{ $stat[2] }}</p>
                     </div>
                 @endforeach
             </div>
         </section>
 
         {{-- Match history --}}
-        <section class="player-section">
-            <div class="player-section-heading">
+        <section class="mt-10">
+            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2>Match History</h2>
-                    <p>See the opponent and this player's batting and bowling performance.</p>
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-600">03 / Match centre</p>
+                    <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Match history</h2>
+                    <p class="mt-1 text-sm text-slate-500">The teams involved and the player's recorded performance.</p>
                 </div>
 
-                <span class="player-count">
-                    {{ $performancesCollection->count() }}
-                    {{ \Illuminate\Support\Str::plural('record', $performancesCollection->count()) }}
+                <span class="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">
+                    {{ $matchRows->count() }} {{ Str::plural('record', $matchRows->count()) }}
                 </span>
             </div>
 
-            <div class="player-table-panel">
-                <div class="player-table-heading">
-                    <div>
-                        <h3>NPL Season 3 Matches</h3>
-                        <p>Match-by-match performance and available team totals</p>
-                    </div>
+            @if ($matchRows->isNotEmpty())
+                <div class="space-y-4">
+                    @foreach ($matchRows as $match)
+                        <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
+                                <div>
+                                    <p class="text-sm font-extrabold text-slate-900">
+                                        Match {{ $match['match_number'] ?? $match['fixture_id'] ?? '—' }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $match['date'] }}</p>
+                                </div>
+
+                                @if ($match['fixture_id'] && \Illuminate\Support\Facades\Route::has('fixtures.show'))
+                                    <a
+                                        href="{{ route('fixtures.show', $match['fixture_id']) }}"
+                                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-rose-300 hover:text-rose-600"
+                                    >
+                                        View match <span>→</span>
+                                    </a>
+                                @endif
+                            </div>
+
+                            <div class="grid gap-4 p-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:p-5">
+
+                                {{-- Player's team --}}
+                                <div class="flex min-w-0 items-center gap-3 rounded-xl bg-slate-50 p-3">
+                                    @if ($match['my_team_logo'])
+                                        <img
+                                            src="{{ $match['my_team_logo'] }}"
+                                            alt="{{ $match['my_team'] }} logo"
+                                            class="h-12 w-12 shrink-0 rounded-xl border border-slate-200 bg-white p-1 object-contain"
+                                            loading="lazy"
+                                        >
+                                    @else
+                                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#101b32] text-xs font-black text-white">
+                                            {{ Str::upper(Str::substr($match['my_team'], 0, 3)) }}
+                                        </div>
+                                    @endif
+
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Player's team</p>
+                                        <p class="mt-1 break-words text-sm font-extrabold text-slate-900">
+                                            {{ $match['my_team'] }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-center">
+                                    <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black tracking-widest text-slate-400">
+                                        VS
+                                    </span>
+                                </div>
+
+                                {{-- Opponent --}}
+                                <div class="flex min-w-0 items-center gap-3 rounded-xl border border-rose-100 bg-rose-50/50 p-3">
+                                    @if ($match['opponent_logo'])
+                                        <img
+                                            src="{{ $match['opponent_logo'] }}"
+                                            alt="{{ $match['opponent'] }} logo"
+                                            class="h-12 w-12 shrink-0 rounded-xl border border-slate-200 bg-white p-1 object-contain"
+                                            loading="lazy"
+                                        >
+                                    @else
+                                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-black text-rose-600 ring-1 ring-rose-100">
+                                            {{ Str::upper(Str::substr($match['opponent'], 0, 3)) }}
+                                        </div>
+                                    @endif
+
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-rose-500">Opponent · VS</p>
+                                        <p class="mt-1 break-words text-sm font-extrabold text-slate-900">
+                                            {{ $match['opponent'] }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 sm:grid-cols-4">
+                                <div class="bg-white p-4">
+                                    <p class="text-xs font-semibold text-slate-500">Batting</p>
+                                    <p class="mt-2 text-xl font-black text-slate-900">
+                                        {{ $match['runs'] }}
+                                        <span class="text-sm font-semibold text-slate-400">({{ $match['balls'] }})</span>
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        {{ $match['fours'] }} fours · {{ $match['sixes'] }} sixes
+                                    </p>
+                                </div>
+
+                                <div class="bg-white p-4">
+                                    <p class="text-xs font-semibold text-slate-500">Bowling</p>
+                                    <p class="mt-2 text-xl font-black text-slate-900">
+                                        {{ $match['wickets'] }}/{{ $match['bowling_runs'] }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        {{ $match['overs'] }} overs
+                                    </p>
+                                </div>
+
+                                <div class="bg-white p-4">
+                                    <p class="text-xs font-semibold text-slate-500">Economy</p>
+                                    <p class="mt-2 text-xl font-black text-slate-900">
+                                        {{ $number($match['economy']) }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-400">Runs per over</p>
+                                </div>
+
+                                <div class="bg-white p-4">
+                                    <p class="text-xs font-semibold text-slate-500">Dismissal</p>
+                                    <p class="mt-2 break-words text-sm font-bold text-slate-800">
+                                        {{ $match['dismissal'] ?: '—' }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-400">Batting record</p>
+                                </div>
+                            </div>
+                        </article>
+                    @endforeach
                 </div>
-
-                @if ($performancesCollection->isNotEmpty())
-                    <div class="player-table-wrap">
-                        <table class="player-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Match</th>
-                                    <th>Player's Team</th>
-                                    <th>Opponent</th>
-                                    <th>Match Score</th>
-                                    <th>Batting</th>
-                                    <th>Bowling</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                @foreach ($performancesCollection as $performance)
-                                    @php
-                                        $fixture = data_get($performance, 'fixture');
-
-                                        $fixtureId = $getValue(
-                                            $performance,
-                                            'fixture_id',
-                                            $getValue($fixture, 'id', null)
-                                        );
-
-                                        $matchDate = $getValue(
-                                            $fixture,
-                                            'scheduled_at',
-                                            $getValue(
-                                                $fixture,
-                                                'match_date',
-                                                $getValue($performance, 'match_date', null)
-                                            )
-                                        );
-
-                                        $battingTeam = data_get($performance, 'batting_team');
-                                        $bowlingTeam = data_get($performance, 'bowling_team');
-
-                                        $battingTeamName = $teamName($battingTeam);
-                                        $battingTeamLogo = $teamLogo($battingTeam);
-
-                                        $fixtureHome = data_get($fixture, 'homeTeam');
-                                        $fixtureAway = data_get($fixture, 'awayTeam');
-
-                                        $battingTeamId = data_get($performance, 'batting_team_id')
-                                            ?? data_get($battingTeam, 'id');
-
-                                        if (!$battingTeamId && is_string($battingTeam)) {
-                                            $battingTeamId = null;
-                                        }
-
-                                        $opponent = $bowlingTeam;
-
-                                        if (!$opponent && $battingTeamId) {
-                                            if ((string) data_get($fixture, 'home_team_id') === (string) $battingTeamId) {
-                                                $opponent = $fixtureAway;
-                                            } elseif ((string) data_get($fixture, 'away_team_id') === (string) $battingTeamId) {
-                                                $opponent = $fixtureHome;
-                                            }
-                                        }
-
-                                        $opponentName = $opponent
-                                            ? $teamName($opponent)
-                                            : 'Opponent unavailable';
-
-                                        $opponentLogo = $teamLogo($opponent);
-
-                                        $batter = data_get($performance, 'batter');
-                                        $bowler = data_get($performance, 'bowler');
-
-                                        $batRuns = $getValue($batter, 'runs', 0);
-                                        $batBalls = $getValue($batter, 'balls', 0);
-                                        $batSR = $getValue($batter, 'strike_rate', '—');
-                                        $batFours = $getValue($batter, 'fours', 0);
-                                        $batSixes = $getValue($batter, 'sixes', 0);
-                                        $dismissal = $getValue($batter, 'dismissal', '—');
-
-                                        $bowlOvers = $getValue($bowler, 'overs', 0);
-                                        $bowlMaidens = $getValue($bowler, 'maidens', 0);
-                                        $bowlRuns = $getValue($bowler, 'runs', 0);
-                                        $bowlWickets = $getValue($bowler, 'wickets', 0);
-                                        $bowlEconomy = $getValue($bowler, 'economy', '—');
-
-                                        /*
-                                         * The controller may pass manual_scorecards
-                                         * as a relation or loaded attribute. No live
-                                         * score data is used here.
-                                         */
-                                        $manualCards = collect(
-                                            data_get($fixture, 'manual_scorecards', [])
-                                        );
-
-                                        $homeTeamId = data_get($fixture, 'home_team_id');
-                                        $awayTeamId = data_get($fixture, 'away_team_id');
-
-                                        $homeScorecard = $manualCards->first(
-                                            fn ($card) => (string) data_get($card, 'batting_team_id') === (string) $homeTeamId
-                                        );
-
-                                        $awayScorecard = $manualCards->first(
-                                            fn ($card) => (string) data_get($card, 'batting_team_id') === (string) $awayTeamId
-                                        );
-
-                                        $homeScore = $homeScorecard
-                                            ? data_get($homeScorecard, 'total_runs') . '/' . data_get($homeScorecard, 'wickets', 0)
-                                            : null;
-
-                                        $awayScore = $awayScorecard
-                                            ? data_get($awayScorecard, 'total_runs') . '/' . data_get($awayScorecard, 'wickets', 0)
-                                            : null;
-
-                                        $homeOvers = $homeScorecard
-                                            ? data_get($homeScorecard, 'overs')
-                                            : null;
-
-                                        $awayOvers = $awayScorecard
-                                            ? data_get($awayScorecard, 'overs')
-                                            : null;
-
-                                        $scoreSummary = $homeScore && $awayScore
-                                            ? $homeScore . ' · ' . $awayScore
-                                            : null;
-                                    @endphp
-
-                                    <tr>
-                                        <td>{{ $formatDate($matchDate) }}</td>
-
-                                        <td>
-                                            @if ($fixtureId && \Illuminate\Support\Facades\Route::has('fixtures.show'))
-                                                <a
-                                                    href="{{ route('fixtures.show', $fixtureId) }}"
-                                                    class="player-match-link"
-                                                >
-                                                    Match #{{ $fixtureId }}
-                                                </a>
-                                            @else
-                                                Match #{{ $fixtureId ?? '—' }}
-                                            @endif
-                                        </td>
-
-                                        <td>
-                                            <div class="player-team">
-                                                @if ($battingTeamLogo)
-                                                    <img
-                                                        src="{{ $battingTeamLogo }}"
-                                                        alt="{{ $battingTeamName }}"
-                                                        class="player-team-logo"
-                                                        loading="lazy"
-                                                    >
-                                                @endif
-                                                <span>{{ $battingTeamName }}</span>
-                                            </div>
-                                        </td>
-
-                                        <td>
-                                            <div class="player-opponent">
-                                                @if ($opponentLogo)
-                                                    <img
-                                                        src="{{ $opponentLogo }}"
-                                                        alt="{{ $opponentName }}"
-                                                        class="player-team-logo"
-                                                        loading="lazy"
-                                                    >
-                                                @endif
-                                                <span class="player-opponent-name">{{ $opponentName }}</span>
-                                            </div>
-                                        </td>
-
-                                        <td>
-                                            @if ($scoreSummary)
-                                                <span class="player-score">{{ $scoreSummary }}</span>
-                                                <div class="player-secondary">
-                                                    {{ $homeOvers !== null ? $homeOvers . ' ov' : '' }}
-                                                    {{ $homeOvers !== null && $awayOvers !== null ? ' · ' : '' }}
-                                                    {{ $awayOvers !== null ? $awayOvers . ' ov' : '' }}
-                                                </div>
-                                            @else
-                                                <span class="player-score-unavailable">Score unavailable</span>
-                                            @endif
-                                        </td>
-
-                                        <td>
-                                            <span class="player-highlight">{{ $batRuns }}</span>
-                                            <span> off {{ $batBalls }} balls</span>
-
-                                            <div class="player-secondary">
-                                                SR {{ $formatNumber($batSR) }}
-                                                · 4s {{ $batFours }}
-                                                · 6s {{ $batSixes }}
-                                            </div>
-
-                                            @if ($dismissal !== '—')
-                                                <div class="player-secondary">{{ $dismissal }}</div>
-                                            @endif
-                                        </td>
-
-                                        <td>
-                                            <span class="player-highlight">{{ $bowlWickets }} W</span>
-                                            <span> · {{ $bowlRuns }} runs</span>
-
-                                            <div class="player-secondary">
-                                                {{ $bowlOvers }} overs
-                                                · {{ $bowlMaidens }} maidens
-                                                · ECO {{ $formatNumber($bowlEconomy) }}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+            @else
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-500">
+                        🏏
                     </div>
-                @else
-                    <div class="player-empty">
-                        <div class="player-empty-mark">↗</div>
-                        <h3>No match records available</h3>
-                        <p>
-                            Individual match performances will appear here when
-                            records are available for this player.
-                        </p>
-                    </div>
-                @endif
-            </div>
 
-            <p class="player-note">
-                Player statistics are based on application records. Match totals
-                are displayed only when manual scorecard data is available.
-            </p>
+                    <h3 class="mt-4 text-lg font-extrabold text-slate-900">
+                        No match records yet
+                    </h3>
+
+                    <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                        This player's match history will appear here when a matching batting or bowling entry is saved in the scorecards.
+                    </p>
+
+                    @if ($teamLogo)
+                        <div class="mt-5 flex justify-center">
+                            <img
+                                src="{{ $teamLogo }}"
+                                alt="{{ $teamName }} logo"
+                                class="h-16 w-16 rounded-xl border border-slate-200 bg-white p-2 object-contain"
+                            >
+                        </div>
+                        <p class="mt-2 text-sm font-bold text-slate-600">{{ $teamName }}</p>
+                    @endif
+                </div>
+            @endif
         </section>
 
-    </div>
+        {{-- Footer --}}
+        <div class="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+            <
+
+            <a
+                href="{{ route('teams.index') }}"
+                class="inline-flex items-center gap-2 rounded-xl bg-[#101b32] px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-600"
+            >
+                ← All teams
+            </a>
+        </div>
+
+    </main>
 </div>
 @endsection

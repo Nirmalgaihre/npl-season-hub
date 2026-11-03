@@ -1,0 +1,39 @@
+> @php artisan package:discover --ansi
+
+   INFO  Discovering packages.  
+
+  laravel/pail ................................................................................................................................ DONE
+  laravel/pao ................................................................................................................................. DONE
+  laravel/tinker .............................................................................................................................. DONE
+  nesbot/carbon ............................................................................................................................... DONE
+  nunomaduro/collision ........................................................................................................................ DONE
+  nunomaduro/termwind ......................................................................................................................... DONE
+
+Generated optimized autoload files containing 6984 classes
+
+   INFO  Clearing cached bootstrap files.  
+
+  config ............................................................................................................................... 3.21ms DONE
+  cache .............................................................................................................................. 104.51ms DONE
+  compiled ............................................................................................................................. 1.25ms DONE
+  events ............................................................................................................................... 0.98ms DONE
+  routes ............................................................................................................................... 0.88ms DONE
+  views ................................................................................................................................ 9.96ms DONE
+
+
+  GET|HEAD        admin/players .................................................................................. admin.players.index › Admin\PlayerController@index
+  POST            admin/players .................................................................................. admin.players.store › Admin\PlayerController@store
+  GET|HEAD        admin/players/create ......................................................................... admin.players.create › Admin\PlayerController@create
+  PUT|PATCH       admin/players/{player} ....................................................................... admin.players.update › Admin\PlayerController@update
+  DELETE          admin/players/{player} ..................................................................... admin.players.destroy › Admin\PlayerController@destroy
+  GET|HEAD        admin/players/{player}/edit ...................................................................... admin.players.edit › Admin\PlayerController@edit
+  GET|HEAD        fixtures/{fixture}/players/{player} ............................................... fixtures.players.show › PublicMatchController@playerPerformance
+  GET|HEAD        players/performance/{playerName} .................................................... players.performance › PublicMatchController@playerPerformance
+  GET|HEAD        players/{player:slug} ................................................................................. players.show › PlayerProfileController@show
+
+                                                                                                                                                   Showing [9] routes
+
+                                                                                                                                                                       
+┌──(cipher㉿Nirmal)-[/opt/lampp/htdocs/npl-season-hub]
+└─$ 
+sed -n '/public function playerPerformance/,/^    }/p' app/Http/Controllers/PublicMatchController.php

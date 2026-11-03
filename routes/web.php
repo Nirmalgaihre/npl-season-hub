@@ -104,14 +104,12 @@ Route::get('/teams/{team:slug}', [
 |--------------------------------------------------------------------------
 */
 
-Route::get('/players/performance/{playerName}', [
+Route::get('/fixtures/{fixture}/players/{player}', [
     PublicMatchController::class,
     'playerPerformance',
-])->name('players.performance');
-
-Route::get('/players/{player:slug}', [PlayerProfileController::class, 'show'])
-    ->name('players.show');
-
+])->whereNumber('fixture')
+    ->whereNumber('player')
+    ->name('fixtures.players.show');
 /*
 |--------------------------------------------------------------------------
 | Public Players Performance

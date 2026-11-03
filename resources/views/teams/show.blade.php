@@ -201,7 +201,11 @@ $teamLogo = !empty($team->logo)
                 : null;
 
                 // Link to the player's performance page.
-$playerUrl = route('players.show', ['player' => $player->slug]);                @endphp
+                // Link to the player's profile page.
+                $playerUrl = route('players.performance', [
+    'playerName' => $playerName,
+]);
+                @endphp
 
                 {{-- Clickable player card --}}
                 <a href="{{ $playerUrl }}"

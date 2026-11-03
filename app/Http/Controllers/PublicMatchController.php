@@ -342,7 +342,9 @@ public function playerPerformance(string $playerName): \Illuminate\View\View
         ]);
     }
 
-    abort_if($performances->isEmpty(), 404, 'Player performance not found.');
+    // Players without recorded performances can still view their page.
+    // Keep the initialized batting and bowling statistics at zero.
+
 
     $battingStats = [
         'innings' => 0,
