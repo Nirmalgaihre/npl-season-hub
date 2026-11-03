@@ -1,4 +1,3 @@
-
 @extends('layouts.app')
 
 @section('title', ($playerName ?? 'Player') . ' - Player Performance | NPL Season Hub')
@@ -156,13 +155,29 @@
 @endphp
 
 <style>
+    /* ─────────────────────────────────────────────
+       NPL Player Performance – refined design system
+       ───────────────────────────────────────────── */
     .player-page {
-        --npl-navy: #101a31;
-        --npl-red: #e52d3a;
-        --npl-muted: #778196;
-        padding: 28px 0 56px;
-        color: #20283a;
-        background: #f5f7fb;
+        --npl-navy: #0b1424;
+        --npl-navy-mid: #152238;
+        --npl-red: #e11d2e;
+        --npl-red-soft: #ff4d5e;
+        --npl-muted: #6b7a90;
+        --npl-border: #e2e8f0;
+        --npl-surface: #ffffff;
+        --npl-bg: #f4f6fa;
+        --radius-lg: 18px;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        --shadow-sm: 0 1px 3px rgba(11, 20, 36, 0.04);
+        --shadow-md: 0 8px 24px rgba(11, 20, 36, 0.07);
+        --shadow-lg: 0 20px 48px rgba(11, 20, 36, 0.1);
+
+        padding: 32px 0 72px;
+        color: #1a2332;
+        background: var(--npl-bg);
+        font-feature-settings: "tnum" 1;
     }
 
     .player-page,
@@ -171,7 +186,7 @@
     }
 
     .player-page .player-container {
-        width: min(1180px, calc(100% - 36px));
+        width: min(1160px, calc(100% - 40px));
         margin: 0 auto;
     }
 
@@ -180,31 +195,34 @@
         text-decoration: none;
     }
 
+    /* ── Back link ── */
     .player-back {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 22px;
-        color: #586277 !important;
+        margin-bottom: 24px;
+        color: var(--npl-muted) !important;
         font-size: 13px;
-        font-weight: 700;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        transition: color 0.15s ease;
     }
 
     .player-back:hover {
         color: var(--npl-red) !important;
     }
 
-    /* NPL player card */
+    /* ── Hero player card ── */
     .npl-player-card {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 300px;
-        min-height: 365px;
+        grid-template-columns: minmax(0, 1fr) 290px;
+        min-height: 380px;
         overflow: hidden;
-        margin-bottom: 20px;
-        border: 1px solid #e1e6ef;
-        border-radius: 17px;
-        background: #fff;
-        box-shadow: 0 12px 34px rgba(16, 26, 49, .08);
+        margin-bottom: 28px;
+        border-radius: var(--radius-lg);
+        background: var(--npl-surface);
+        box-shadow: var(--shadow-lg);
+        border: 1px solid rgba(11, 20, 36, 0.06);
     }
 
     .npl-card-main {
@@ -214,21 +232,30 @@
         flex-direction: column;
         justify-content: space-between;
         min-width: 0;
-        padding: 28px 32px 22px;
+        padding: 32px 36px 26px;
         overflow: hidden;
         color: #fff;
         background:
-            radial-gradient(ellipse at 90% 10%, rgba(229, 45, 58, .24), transparent 38%),
-            linear-gradient(125deg, #101a31, #172746 68%, #263750);
+            radial-gradient(ellipse 80% 60% at 92% 8%, rgba(225, 29, 46, 0.28), transparent 50%),
+            linear-gradient(145deg, #0b1424 0%, #121f35 55%, #1a2d4a 100%);
+    }
+
+    .npl-card-main::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        opacity: 0.7;
+        pointer-events: none;
     }
 
     .npl-card-main::after {
         position: absolute;
-        right: -140px;
-        bottom: -230px;
-        width: 420px;
-        height: 420px;
-        border: 42px solid rgba(255, 255, 255, .045);
+        right: -160px;
+        bottom: -200px;
+        width: 440px;
+        height: 440px;
+        border: 48px solid rgba(255, 255, 255, 0.04);
         border-radius: 50%;
         content: "";
         pointer-events: none;
@@ -245,74 +272,79 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 15px;
+        gap: 16px;
     }
 
     .npl-brand {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
         min-width: 0;
     }
 
     .npl-brand-logo {
-        width: 52px;
-        height: 52px;
-        flex: 0 0 52px;
-        padding: 4px;
-        border-radius: 11px;
+        width: 50px;
+        height: 50px;
+        flex: 0 0 50px;
+        padding: 5px;
+        border-radius: 12px;
         background: #fff;
         object-fit: contain;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .npl-brand-title {
         margin: 0;
         color: #fff;
-        font-size: 15px;
-        font-weight: 900;
-        letter-spacing: 1.2px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 1.4px;
+        line-height: 1.2;
     }
 
     .npl-brand-subtitle {
-        margin-top: 5px;
-        color: #b9c6da;
+        margin-top: 4px;
+        color: rgba(185, 198, 218, 0.9);
         font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 2px;
+        font-weight: 700;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
     }
 
     .npl-season-tag {
-        padding: 8px 10px;
-        border: 1px solid rgba(255, 255, 255, .24);
-        border-radius: 5px;
+        padding: 7px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
         color: #fff;
         font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 1px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
         white-space: nowrap;
+        backdrop-filter: blur(4px);
     }
 
     .npl-card-player {
-        padding: 36px 0 28px;
+        padding: 40px 0 32px;
     }
 
     .npl-card-eyebrow {
-        margin-bottom: 10px;
-        color: #ff727d;
+        margin-bottom: 12px;
+        color: var(--npl-red-soft);
         font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 2.5px;
+        font-weight: 800;
+        letter-spacing: 2.2px;
         text-transform: uppercase;
     }
 
     .npl-card-name {
-        max-width: 680px;
+        max-width: 640px;
         margin: 0;
         color: #fff;
-        font-size: clamp(30px, 4.2vw, 53px);
+        font-size: clamp(28px, 4vw, 48px);
         font-weight: 900;
-        letter-spacing: -1.5px;
-        line-height: 1.06;
+        letter-spacing: -1.2px;
+        line-height: 1.08;
         overflow-wrap: anywhere;
         text-transform: uppercase;
     }
@@ -320,28 +352,29 @@
     .npl-card-role {
         display: inline-flex;
         align-items: center;
-        margin-top: 17px;
-        padding: 9px 12px;
-        border-radius: 5px;
+        margin-top: 18px;
+        padding: 8px 14px;
+        border-radius: 6px;
         background: var(--npl-red);
         color: #fff;
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 1.1px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1px;
         text-transform: uppercase;
+        box-shadow: 0 4px 14px rgba(225, 29, 46, 0.35);
     }
 
     .npl-card-footer {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 9px 20px;
-        padding-top: 17px;
-        border-top: 1px solid rgba(255, 255, 255, .15);
-        color: #c7d1e0;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .8px;
+        gap: 10px 24px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(199, 209, 224, 0.95);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
         text-transform: uppercase;
     }
 
@@ -352,13 +385,15 @@
     }
 
     .npl-card-footer span::before {
-        width: 6px;
-        height: 6px;
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
-        background: #ff6973;
+        background: var(--npl-red-soft);
         content: "";
+        flex-shrink: 0;
     }
 
+    /* Portrait side */
     .npl-card-portrait {
         position: relative;
         display: flex;
@@ -367,16 +402,16 @@
         min-width: 0;
         overflow: hidden;
         background:
-            radial-gradient(ellipse at 50% 25%, #fff, #eef1f6 62%, #dce2eb);
+            radial-gradient(ellipse at 50% 20%, #ffffff 0%, #eef2f7 55%, #d8e0eb 100%);
     }
 
     .npl-card-portrait::before {
         position: absolute;
-        top: 34px;
+        top: 28px;
         left: 50%;
-        width: 230px;
-        height: 230px;
-        border: 1px solid rgba(16, 26, 49, .1);
+        width: 220px;
+        height: 220px;
+        border: 1px solid rgba(11, 20, 36, 0.08);
         border-radius: 50%;
         content: "";
         transform: translateX(-50%);
@@ -388,8 +423,8 @@
         display: block;
         width: 100%;
         height: 100%;
-        min-height: 365px;
-        max-height: 430px;
+        min-height: 380px;
+        max-height: 440px;
         object-fit: cover;
         object-position: center top;
     }
@@ -401,15 +436,15 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 160px;
-        height: 160px;
-        border: 8px solid rgba(255, 255, 255, .8);
+        width: 150px;
+        height: 150px;
+        border: 6px solid rgba(255, 255, 255, 0.85);
         border-radius: 50%;
         background: var(--npl-navy);
         color: #fff;
-        font-size: 68px;
+        font-size: 64px;
         font-weight: 900;
-        box-shadow: 0 15px 35px rgba(16, 26, 49, .18);
+        box-shadow: 0 12px 32px rgba(11, 20, 36, 0.2);
     }
 
     .npl-card-number {
@@ -417,46 +452,47 @@
         right: 14px;
         bottom: 14px;
         z-index: 3;
-        padding: 8px 10px;
-        border-radius: 5px;
+        padding: 7px 11px;
+        border-radius: 6px;
         background: var(--npl-red);
         color: #fff;
         font-size: 10px;
-        font-weight: 900;
+        font-weight: 800;
         letter-spacing: 1px;
+        box-shadow: 0 4px 12px rgba(225, 29, 46, 0.4);
     }
 
-    /* Quick stats */
+    /* ── Quick highlight stats ── */
     .npl-card-stats {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 13px;
-        margin-bottom: 34px;
+        gap: 14px;
+        margin-bottom: 40px;
     }
 
     .npl-mini-stat {
         min-width: 0;
-        padding: 18px;
-        border: 1px solid #e3e8f0;
-        border-radius: 10px;
-        background: #fff;
-        box-shadow: 0 3px 10px rgba(16, 26, 49, .025);
-        transition: transform .2s, box-shadow .2s, border-color .2s;
+        padding: 20px 18px;
+        border: 1px solid var(--npl-border);
+        border-radius: var(--radius-md);
+        background: var(--npl-surface);
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
 
     .npl-mini-stat:hover {
-        transform: translateY(-2px);
-        border-color: #f1a2a8;
-        box-shadow: 0 8px 20px rgba(16, 26, 49, .06);
+        transform: translateY(-3px);
+        border-color: #f5b0b6;
+        box-shadow: var(--shadow-md);
     }
 
     .npl-mini-stat-label {
         display: block;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         color: var(--npl-muted);
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 1px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
         text-transform: uppercase;
     }
 
@@ -464,110 +500,116 @@
         display: block;
         color: var(--npl-navy);
         font-size: 28px;
-        font-weight: 900;
+        font-weight: 800;
         line-height: 1.15;
         overflow-wrap: anywhere;
-        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.5px;
     }
 
     .npl-mini-stat-note {
         display: block;
-        margin-top: 7px;
-        color: #8a93a3;
-        font-size: 11px;
+        margin-top: 6px;
+        color: #8a94a6;
+        font-size: 12px;
+        line-height: 1.4;
     }
 
-    /* Sections */
+    /* ── Section blocks ── */
     .player-section {
-        margin-top: 34px;
+        margin-top: 44px;
     }
 
     .player-section-heading {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 16px;
+        margin-bottom: 18px;
     }
 
     .player-section-heading h2 {
         margin: 0;
-        color: #172238;
-        font-size: 21px;
-        font-weight: 850;
-        letter-spacing: -.4px;
+        color: #0f1a2c;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.4px;
+        line-height: 1.25;
     }
 
     .player-section-heading p {
-        margin: 5px 0 0;
-        color: #7b8495;
-        font-size: 13px;
+        margin: 6px 0 0;
+        color: var(--npl-muted);
+        font-size: 14px;
+        line-height: 1.5;
     }
 
     .player-count {
-        padding: 7px 10px;
-        border: 1px solid #e0e5ed;
-        border-radius: 6px;
-        background: #fff;
-        color: #586277;
-        font-size: 11px;
-        font-weight: 800;
+        padding: 7px 12px;
+        border: 1px solid var(--npl-border);
+        border-radius: 8px;
+        background: var(--npl-surface);
+        color: #4a5568;
+        font-size: 12px;
+        font-weight: 700;
         white-space: nowrap;
+        box-shadow: var(--shadow-sm);
     }
 
+    /* Stats grid */
     .player-stats {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 13px;
+        gap: 14px;
     }
 
     .player-stat {
         min-width: 0;
-        padding: 18px;
-        border: 1px solid #e2e7ef;
-        border-radius: 9px;
-        background: #fff;
-        transition: border-color .2s, transform .2s;
+        padding: 20px 18px;
+        border: 1px solid var(--npl-border);
+        border-radius: var(--radius-md);
+        background: var(--npl-surface);
+        transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
     }
 
     .player-stat:hover {
         transform: translateY(-2px);
-        border-color: #c9d2e0;
+        border-color: #cdd5e0;
+        box-shadow: var(--shadow-sm);
     }
 
     .player-stat-label {
         display: block;
-        margin-bottom: 12px;
-        color: #778196;
+        margin-bottom: 10px;
+        color: var(--npl-muted);
         font-size: 12px;
-        font-weight: 650;
+        font-weight: 600;
     }
 
     .player-stat-value {
         display: block;
-        color: #172238;
+        color: #0f1a2c;
         font-size: 26px;
-        font-weight: 850;
+        font-weight: 800;
         line-height: 1.2;
         overflow-wrap: anywhere;
-        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.4px;
     }
 
     .player-stat-note {
         display: block;
-        margin-top: 7px;
-        color: #929aaa;
-        font-size: 11px;
-        line-height: 1.5;
+        margin-top: 6px;
+        color: #8a94a6;
+        font-size: 12px;
+        line-height: 1.45;
     }
 
-    /* Match history */
+    /* ── Match history table ── */
     .player-table-panel {
         overflow: hidden;
-        border: 1px solid #e0e5ed;
-        border-radius: 11px;
-        background: #fff;
-        box-shadow: 0 5px 18px rgba(16, 26, 49, .035);
+        border: 1px solid var(--npl-border);
+        border-radius: var(--radius-md);
+        background: var(--npl-surface);
+        box-shadow: var(--shadow-sm);
     }
 
     .player-table-heading {
@@ -575,27 +617,28 @@
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 18px 20px;
-        border-bottom: 1px solid #e8ecf2;
-        background: #fff;
+        padding: 20px 22px;
+        border-bottom: 1px solid #edf1f6;
+        background: #fafbfc;
     }
 
     .player-table-heading h3 {
         margin: 0;
-        color: #172238;
+        color: #0f1a2c;
         font-size: 15px;
-        font-weight: 850;
+        font-weight: 750;
     }
 
     .player-table-heading p {
         margin: 5px 0 0;
-        color: #7b8495;
-        font-size: 12px;
+        color: var(--npl-muted);
+        font-size: 13px;
     }
 
     .player-table-wrap {
         width: 100%;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .player-table {
@@ -605,22 +648,22 @@
     }
 
     .player-table th {
-        padding: 13px 15px;
-        border-bottom: 1px solid #e4e8ef;
+        padding: 14px 16px;
+        border-bottom: 1px solid #e8ecf2;
         background: #f7f9fc;
-        color: #687286;
-        font-size: 10px;
-        font-weight: 900;
+        color: #5a6578;
+        font-size: 11px;
+        font-weight: 700;
         text-align: left;
         text-transform: uppercase;
-        letter-spacing: .7px;
+        letter-spacing: 0.6px;
     }
 
     .player-table td {
-        padding: 15px;
-        border-bottom: 1px solid #edf0f5;
-        color: #3e485b;
-        font-size: 12px;
+        padding: 16px;
+        border-bottom: 1px solid #f0f3f7;
+        color: #2d3748;
+        font-size: 13px;
         vertical-align: middle;
     }
 
@@ -629,74 +672,77 @@
     }
 
     .player-table tbody tr:hover {
-        background: #fafbfe;
+        background: #f8fafc;
     }
 
     .player-match-link {
-        color: #d92332 !important;
-        font-weight: 850;
+        color: var(--npl-red) !important;
+        font-weight: 700;
+        transition: opacity 0.15s ease;
     }
 
     .player-match-link:hover {
+        opacity: 0.8;
         text-decoration: underline;
     }
 
     .player-team {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 9px;
     }
 
     .player-team-logo {
-        width: 29px;
-        height: 29px;
+        width: 28px;
+        height: 28px;
         border: 1px solid #e8ebf1;
         border-radius: 50%;
         object-fit: contain;
         background: #fff;
+        flex-shrink: 0;
     }
 
     .player-highlight {
-        color: #d92332;
-        font-weight: 900;
+        color: var(--npl-red);
+        font-weight: 800;
     }
 
     .player-secondary {
-        margin-top: 5px;
-        color: #8a93a3;
-        font-size: 10px;
-        line-height: 1.7;
+        margin-top: 4px;
+        color: #8a94a6;
+        font-size: 11px;
+        line-height: 1.55;
     }
 
     .player-opponent {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 9px;
     }
 
     .player-opponent-name {
-        color: #293449;
-        font-weight: 750;
+        color: #1a2332;
+        font-weight: 650;
     }
 
     .player-score {
         display: inline-block;
-        padding: 6px 8px;
-        border-radius: 5px;
+        padding: 5px 9px;
+        border-radius: 6px;
         background: #f0f3f8;
-        color: #172238;
+        color: #0f1a2c;
         font-size: 12px;
-        font-weight: 900;
-        font-variant-numeric: tabular-nums;
+        font-weight: 750;
     }
 
     .player-score-unavailable {
-        color: #929aaa;
-        font-size: 11px;
+        color: #8a94a6;
+        font-size: 12px;
     }
 
+    /* Empty state */
     .player-empty {
-        padding: 42px 18px;
+        padding: 56px 24px;
         text-align: center;
     }
 
@@ -704,45 +750,46 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 48px;
-        height: 48px;
-        margin: 0 auto 13px;
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 16px;
         border-radius: 50%;
         background: #f0f3f8;
-        color: #69758a;
+        color: #6b7a90;
         font-size: 22px;
-        font-weight: 900;
+        font-weight: 800;
     }
 
     .player-empty h3 {
         margin: 0 0 8px;
-        color: #202b40;
-        font-size: 16px;
-        font-weight: 850;
+        color: #1a2332;
+        font-size: 17px;
+        font-weight: 750;
     }
 
     .player-empty p {
-        max-width: 420px;
+        max-width: 400px;
         margin: 0 auto;
-        color: #7b8495;
-        font-size: 12px;
-        line-height: 1.8;
+        color: var(--npl-muted);
+        font-size: 14px;
+        line-height: 1.65;
     }
 
     .player-note {
-        margin-top: 13px;
-        color: #8a93a3;
-        font-size: 11px;
-        line-height: 1.7;
+        margin-top: 16px;
+        color: #8a94a6;
+        font-size: 12px;
+        line-height: 1.6;
     }
 
-    @media (max-width: 900px) {
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
         .npl-player-card {
-            grid-template-columns: minmax(0, 1fr) 240px;
+            grid-template-columns: minmax(0, 1fr) 250px;
         }
 
         .npl-card-main {
-            padding: 24px;
+            padding: 28px 26px;
         }
 
         .npl-card-stats,
@@ -751,125 +798,147 @@
         }
     }
 
-    @media (max-width: 620px) {
+    @media (max-width: 640px) {
         .player-page {
-            padding-top: 18px;
+            padding-top: 20px;
+            padding-bottom: 56px;
         }
 
         .player-page .player-container {
-            width: calc(100% - 24px);
+            width: calc(100% - 28px);
         }
 
         .npl-player-card {
-            grid-template-columns: minmax(0, 1fr);
+            grid-template-columns: 1fr;
         }
 
         .npl-card-main {
             min-height: 300px;
-            padding: 21px 18px;
+            padding: 24px 20px;
         }
 
         .npl-card-portrait {
-            min-height: 270px;
+            min-height: 280px;
             max-height: 340px;
         }
 
         .npl-player-photo {
-            min-height: 270px;
+            min-height: 280px;
             max-height: 340px;
-            object-position: center 25%;
+            object-position: center 22%;
         }
 
         .npl-card-portrait::before {
-            top: 25px;
+            top: 22px;
             width: 180px;
             height: 180px;
         }
 
         .npl-player-fallback {
-            width: 125px;
-            height: 125px;
-            font-size: 52px;
+            width: 120px;
+            height: 120px;
+            font-size: 50px;
         }
 
         .npl-card-player {
-            padding: 30px 0;
+            padding: 28px 0 24px;
         }
 
         .npl-card-name {
-            font-size: clamp(28px, 8vw, 42px);
+            font-size: clamp(26px, 7.5vw, 38px);
         }
 
         .npl-card-stats {
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 32px;
         }
 
         .npl-mini-stat,
         .player-stat {
-            padding: 15px;
+            padding: 16px 14px;
         }
 
         .npl-mini-stat-value,
         .player-stat-value {
-            font-size: 23px;
+            font-size: 24px;
+        }
+
+        .player-section {
+            margin-top: 36px;
         }
 
         .player-section-heading h2 {
             font-size: 19px;
         }
+
+        .player-section-heading p {
+            font-size: 13px;
+        }
+
+        .player-table-heading {
+            padding: 16px 18px;
+        }
+
+        .player-table th,
+        .player-table td {
+            padding: 12px 14px;
+        }
     }
 
-    @media (max-width: 380px) {
+    @media (max-width: 400px) {
         .npl-card-top {
             align-items: flex-start;
+            flex-wrap: wrap;
         }
 
         .npl-brand {
-            gap: 8px;
+            gap: 10px;
         }
 
         .npl-brand-logo {
-            width: 38px;
-            height: 38px;
-            flex-basis: 38px;
+            width: 42px;
+            height: 42px;
+            flex-basis: 42px;
         }
 
         .npl-brand-title {
-            font-size: 11px;
-            letter-spacing: .5px;
+            font-size: 12px;
+            letter-spacing: 0.8px;
         }
 
         .npl-brand-subtitle {
-            font-size: 8px;
-            letter-spacing: 1px;
+            font-size: 9px;
+            letter-spacing: 1.2px;
         }
 
         .npl-season-tag {
-            padding: 7px;
-            font-size: 8px;
+            padding: 6px 9px;
+            font-size: 9px;
         }
 
         .npl-card-main {
-            padding: 17px 14px;
+            padding: 20px 16px;
         }
 
         .npl-card-stats,
         .player-stats {
-            gap: 8px;
+            gap: 10px;
         }
 
         .npl-mini-stat,
         .player-stat {
-            padding: 12px;
+            padding: 14px 12px;
         }
 
         .npl-mini-stat-value,
         .player-stat-value {
-            font-size: 21px;
+            font-size: 22px;
         }
 
         .player-section-heading {
+            flex-direction: column;
             align-items: flex-start;
+            gap: 10px;
         }
     }
 </style>

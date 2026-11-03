@@ -17,6 +17,7 @@ use App\Http\Controllers\LiveScoreController;
 use App\Http\Controllers\PublicMatchController;
 use App\Http\Controllers\PublicNewsController;
 use App\Http\Controllers\PublicPointTableController; // Added import
+use App\Http\Controllers\PlayerProfileController;
 use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
 use App\Http\Controllers\SeoController;
@@ -96,6 +97,21 @@ Route::get('/teams/{team:slug}', [
     'show',
 ])->name('teams.show');
 
+
+/*
+|--------------------------------------------------------------------------
+| Public Players Performance
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/players/performance/{playerName}', [
+    PublicMatchController::class,
+    'playerPerformance',
+])->name('players.performance');
+
+Route::get('/players/{player:slug}', [PlayerProfileController::class, 'show'])
+    ->name('players.show');
+
 /*
 |--------------------------------------------------------------------------
 | Public Players Performance
@@ -142,6 +158,9 @@ Route::get('/fixtures/{fixture}/live', [
     'show',
 ])->whereNumber('fixture')
     ->name('live.show');
+
+
+    
 
 /*
 |--------------------------------------------------------------------------

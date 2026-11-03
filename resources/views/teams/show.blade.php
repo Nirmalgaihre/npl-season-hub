@@ -199,10 +199,13 @@ $teamLogo = !empty($team->logo)
                 $playerPhoto = !empty($player->photo_path)
                 ? asset('storage/' . $player->photo_path)
                 : null;
-                @endphp
 
-                <article
-                    class="group relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+                // Link to the player's performance page.
+$playerUrl = route('players.show', ['player' => $player->slug]);                @endphp
+
+                {{-- Clickable player card --}}
+                <a href="{{ $playerUrl }}"
+                    class="group relative isolate block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F06445]/40 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F06445] focus-visible:ring-offset-2">
 
                     {{-- Player portrait --}}
                     <div class="relative h-52 overflow-hidden bg-[#102052] sm:h-60">
@@ -254,6 +257,12 @@ $teamLogo = !empty($team->logo)
                             {{ $team->short_name ?: Str::upper(Str::substr($team->name, 0, 3)) }}
                         </div>
 
+                        {{-- "View performance" hint on hover --}}
+                        <div
+                            class="absolute right-3 top-3 z-[4] flex items-center gap-1 rounded-md border border-white/25 bg-black/25 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
+                            View stats →
+                        </div>
+
                         {{-- Full role badge: stays inside portrait --}}
                         <div class="absolute inset-x-2 bottom-2 z-[5] flex justify-center">
                             <span
@@ -267,7 +276,7 @@ $teamLogo = !empty($team->logo)
                     {{-- Player details --}}
                     <div class="relative px-2 pb-4 pt-4 text-center sm:px-3">
 
-                        <h3 class="break-words text-sm font-black leading-5 text-[#172554] sm:text-base">
+                        <h3 class="break-words text-sm font-black leading-5 text-[#172554] transition-colors group-hover:text-[#F06445] sm:text-base">
                             {{ $playerName }}
                         </h3>
 
@@ -293,7 +302,7 @@ $teamLogo = !empty($team->logo)
                         </p>
                     </div>
 
-                </article>
+                </a>
                 @endforeach
 
             </div>
