@@ -34,6 +34,10 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'recaptcha' => [
+    'site_key' => env('RECAPTCHA_SITE_KEY'),
+    'secret_key' => env('RECAPTCHA_SECRET_KEY'),
+],
     'formspree' => [
     'form_id' => env('FORMSPREE_FORM_ID'),
 ],

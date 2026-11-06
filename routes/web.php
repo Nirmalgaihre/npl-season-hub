@@ -1,3 +1,4 @@
+
 <?php
 
 use App\Http\Controllers\StaticPageController;
@@ -6,23 +7,20 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\MatchController;
 use App\Http\Controllers\Admin\PlayerController;
-use App\Http\Controllers\Admin\PointTableController; // Added import
+use App\Http\Controllers\Admin\PointTableController;
 use App\Http\Controllers\Admin\ScorecardController;
 use App\Http\Controllers\Admin\SeasonController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\LiveScoreController;
 use App\Http\Controllers\PublicMatchController;
 use App\Http\Controllers\PublicNewsController;
-use App\Http\Controllers\PublicPointTableController; // Added import
-use App\Http\Controllers\PlayerProfileController;
+use App\Http\Controllers\PublicPointTableController;
 use App\Http\Controllers\PublicSeasonController;
 use App\Http\Controllers\PublicTeamController;
 use App\Http\Controllers\SeoController;
 use Illuminate\Support\Facades\Route;
-
 
 /*
 |--------------------------------------------------------------------------
@@ -35,7 +33,7 @@ Route::get('/', [HomeController::class, 'index'])
 
 /*
 |--------------------------------------------------------------------------
-| SEO (Sitemap & Robots)
+| SEO: Sitemap and Robots
 |--------------------------------------------------------------------------
 */
 
@@ -97,12 +95,14 @@ Route::get('/teams/{team:slug}', [
     'show',
 ])->name('teams.show');
 
-
 /*
 |--------------------------------------------------------------------------
-| Public Players Performance
+| Public Fixtures and Results
 |--------------------------------------------------------------------------
 */
+
+Route::get('/fixtures', [PublicMatchController::class, 'index'])
+    ->name('fixtures.index');
 
 Route::get('/fixtures/{fixture}/players/{player}', [
     PublicMatchController::class,
@@ -110,9 +110,16 @@ Route::get('/fixtures/{fixture}/players/{player}', [
 ])->whereNumber('fixture')
     ->whereNumber('player')
     ->name('fixtures.players.show');
+
+Route::get('/fixtures/{fixture}', [
+    PublicMatchController::class,
+    'show',
+])->whereNumber('fixture')
+    ->name('fixtures.show');
+
 /*
 |--------------------------------------------------------------------------
-| Public Players Performance
+| Public Player Performance
 |--------------------------------------------------------------------------
 */
 
@@ -123,46 +130,7 @@ Route::get('/players/performance/{playerName}', [
 
 /*
 |--------------------------------------------------------------------------
-| Public Fixtures & Results
-|--------------------------------------------------------------------------
-*/
-
-Route::get('/fixtures', [PublicMatchController::class, 'index'])
-    ->name('fixtures.index');
-
-Route::get('/fixtures/{fixture}', [
-    PublicMatchController::class,
-    'show',
-])->whereNumber('fixture')
-    ->name('fixtures.show');
-
-  
-
-Route::get('/fixtures/{fixture}/players/{player}', [
-    PublicMatchController::class,
-    'playerPerformance',
-])->whereNumber('fixture')
-    ->whereNumber('player')
-    ->name('fixtures.players.show');
-
-/*
-|--------------------------------------------------------------------------
-| Public Live Match
-|--------------------------------------------------------------------------
-*/
-
-Route::get('/fixtures/{fixture}/live', [
-    LiveScoreController::class,
-    'show',
-])->whereNumber('fixture')
-    ->name('live.show');
-
-
-    
-
-/*
-|--------------------------------------------------------------------------
-| Public Point Table
+| Public Points Table
 |--------------------------------------------------------------------------
 */
 
@@ -175,7 +143,6 @@ Route::get('/pointtable', [PublicPointTableController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 
-// Login (Protected with rate limiting throttle for security against brute-force attacks)
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])
         ->name('login');
@@ -185,7 +152,6 @@ Route::middleware('guest')->group(function () {
         ->name('login.store');
 });
 
-// Logout
 Route::post('/logout', [LoginController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
@@ -195,8 +161,7 @@ Route::post('/logout', [LoginController::class, 'destroy'])
 | Protected Admin Management
 |--------------------------------------------------------------------------
 |
-| All routes in this group require authentication and the
-| manage-seasons authorization ability.
+| All routes require authentication and the manage-seasons ability.
 |
 */
 
@@ -207,7 +172,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Dashboard (First entry after login)
+        | Dashboard
         |--------------------------------------------------------------------------
         */
 
@@ -216,19 +181,22 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Fixtures
+        | Fixtures and Results Management
         |--------------------------------------------------------------------------
         */
 
         Route::resource('fixtures', MatchController::class)
             ->except(['show']);
 
-        Route::post('/fixtures/{fixture}/verify', [MatchController::class, 'verify'])
+        Route::post('/fixtures/{fixture}/verify', [
+            MatchController::class,
+            'verify',
+        ])->whereNumber('fixture')
             ->name('fixtures.verify');
 
         /*
         |--------------------------------------------------------------------------
-        | Seasons
+        | Seasons Management
         |--------------------------------------------------------------------------
         */
 
@@ -236,7 +204,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Teams
+        | Teams Management
         |--------------------------------------------------------------------------
         */
 
@@ -245,7 +213,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Players
+        | Players Management
         |--------------------------------------------------------------------------
         */
 
@@ -254,7 +222,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Articles / News Management
+        | Articles and News Management
         |--------------------------------------------------------------------------
         */
 
@@ -263,63 +231,28 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Point Table Management
+        | Points Table Management
         |--------------------------------------------------------------------------
         */
 
-        Route::get('/pointtable', [PointTableController::class, 'index'])
-            ->name('pointtable.index');
-
-        Route::put('/pointtable', [PointTableController::class, 'update'])
-            ->name('pointtable.update');
-
-        /*
-        |--------------------------------------------------------------------------
-        | Live Match Scoring
-        |--------------------------------------------------------------------------
-        */
-
-        Route::get('/live', [
-            LiveScoreController::class,
+        Route::get('/pointtable', [
+            PointTableController::class,
             'index',
-        ])->name('live.index');
+        ])->name('pointtable.index');
 
-        Route::post('/fixtures/{fixture}/live-score/toss', [
-            LiveScoreController::class,
-            'saveToss',
-        ])->whereNumber('fixture')
-            ->name('live.toss');
-
-        Route::get('/fixtures/{fixture}/live-score', [
-            LiveScoreController::class,
-            'admin',
-        ])->whereNumber('fixture')
-            ->name('live.admin');
-
-        Route::post('/fixtures/{fixture}/live-score/innings', [
-            LiveScoreController::class,
-            'startInnings',
-        ])->whereNumber('fixture')
-            ->name('live.start');
-
-        Route::post('/fixtures/{fixture}/live-score/ball', [
-            LiveScoreController::class,
-            'ball',
-        ])->whereNumber('fixture')
-            ->name('live.ball');
-
-        Route::delete('/fixtures/{fixture}/live-score/{delivery}', [
-            LiveScoreController::class,
-            'undo',
-        ])->whereNumber('fixture')
-            ->whereNumber('delivery')
-            ->name('live.undo');
-            
+        Route::put('/pointtable', [
+            PointTableController::class,
+            'update',
+        ])->name('pointtable.update');
 
         /*
         |--------------------------------------------------------------------------
-        | Scorecards Management
+        | Manual Scorecards Management
         |--------------------------------------------------------------------------
+        |
+        | This is the retained scorecard system.
+        | It is independent of the retired live-scoring routes.
+        |
         */
 
         Route::get('/scorecards', [
@@ -341,7 +274,7 @@ Route::middleware(['auth', 'can:manage-seasons'])
 
         /*
         |--------------------------------------------------------------------------
-        | Categories
+        | Categories Management
         |--------------------------------------------------------------------------
         */
 
@@ -358,16 +291,18 @@ Route::middleware(['auth', 'can:manage-seasons'])
         Route::put('/categories/{category}', [
             CategoryController::class,
             'update',
-        ])->name('categories.update');
+        ])->whereNumber('category')
+            ->name('categories.update');
 
         Route::delete('/categories/{category}', [
             CategoryController::class,
             'destroy',
-        ])->name('categories.destroy');
+        ])->whereNumber('category')
+            ->name('categories.destroy');
 
         /*
         |--------------------------------------------------------------------------
-        | Tags
+        | Tags Management
         |--------------------------------------------------------------------------
         */
 
@@ -384,14 +319,27 @@ Route::middleware(['auth', 'can:manage-seasons'])
         Route::delete('/tags/{tag}', [
             TagController::class,
             'destroy',
-        ])->name('tags.destroy');
+        ])->whereNumber('tag')
+            ->name('tags.destroy');
     });
 
-// Public information pages
-Route::get('/about', [StaticPageController::class, 'about'])->name('about');
-Route::get('/contact', [StaticPageController::class, 'contact'])->name('contact');
+/*
+|--------------------------------------------------------------------------
+| Public Information Pages
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/about', [StaticPageController::class, 'about'])
+    ->name('about');
+
+Route::get('/contact', [StaticPageController::class, 'contact'])
+    ->name('contact');
+
 Route::post('/contact', [StaticPageController::class, 'sendContact'])
     ->middleware('throttle:5,1')
     ->name('contact.send');
-Route::get('/privacy-policy', [StaticPageController::class, 'privacyPolicy'])
-    ->name('privacy-policy');
+
+Route::get('/privacy-policy', [
+    StaticPageController::class,
+    'privacyPolicy',
+])->name('privacy-policy');
