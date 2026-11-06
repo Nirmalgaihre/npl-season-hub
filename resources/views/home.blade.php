@@ -1,1577 +1,1947 @@
 @extends('layouts.app')
 
-@section('title', 'NPL Season Hub | Nepal Premier League')
+@section('title', 'Nepal Premier League | Official Website')
 
 @section('content')
 @php
-    use Illuminate\Support\Carbon;
-    use Illuminate\Support\Facades\Route;
-
-    $teams = collect($teams ?? []);
-    $liveMatches = collect($liveMatches ?? []);
-    $recentResults = collect($recentResults ?? []);
-    $latestNews = collect($latestNews ?? []);
-    $liveScoreByFixture = $liveScoreByFixture ?? collect();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Image paths
-    |--------------------------------------------------------------------------
-    | Supports full URLs, storage paths, and filenames.
-    */
-
-    $imageUrl = function ($path, $folder = null) {
-        if (blank($path)) {
-            return null;
-        }
-
-        $path = trim((string) $path);
-
-        if (
-            filter_var($path, FILTER_VALIDATE_URL) ||
-            str_starts_with($path, 'data:image/')
-        ) {
-            return $path;
-        }
-
-        $path = ltrim($path, '/');
-
-        if (str_starts_with($path, 'public/')) {
-            $path = substr($path, 7);
-        }
-
-        if (str_starts_with($path, 'storage/')) {
-            return asset($path);
-        }
-
-        if ($folder && !str_starts_with($path, $folder . '/')) {
-            $path = $folder . '/' . $path;
-        }
-
-        return asset('storage/' . $path);
-    };
-
-    $teamLogo = function ($team) use ($imageUrl) {
-        return $imageUrl(data_get($team, 'logo'), 'teams');
-    };
-
-    $teamName = function ($team, $fallback = 'Team') {
-        return data_get($team, 'name') ?: $fallback;
-    };
-
-    $teamShortName = function ($team) use ($teamName) {
-        return data_get($team, 'short_name')
-            ?: data_get($team, 'short_code')
-            ?: strtoupper(substr($teamName($team), 0, 3));
-    };
-
-    /*
-    |--------------------------------------------------------------------------
-    | Match helpers
-    |--------------------------------------------------------------------------
-    */
-
-    $matchDate = function ($match) {
-        $date = data_get($match, 'scheduled_at')
-            ?? data_get($match, 'match_date')
-            ?? data_get($match, 'start_time')
-            ?? data_get($match, 'date');
-
-        if (!$date) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($date);
-        } catch (\Throwable $e) {
-            return null;
-        }
-    };
-
-    $formatDate = function ($match) use ($matchDate) {
-        $date = $matchDate($match);
-
-        return $date ? $date->format('d M Y') : 'Date to be announced';
-    };
-
-    $formatTime = function ($match) use ($matchDate) {
-        $date = $matchDate($match);
-
-        return $date ? $date->format('h:i A') : 'Time to be announced';
-    };
-
-    $isFinished = function ($match) {
-        $status = strtolower((string) (
-            data_get($match, 'status')
-            ?? data_get($match, 'match_status')
-            ?? ''
-        ));
-
-        return in_array($status, [
-            'completed',
-            'complete',
-            'finished',
-            'result',
-            'abandoned',
-            'no_result',
-            'no result',
-        ], true);
-    };
-
-    $isLive = function ($match) use ($isFinished) {
-        if ($isFinished($match)) {
-            return false;
-        }
-
-        $status = strtolower((string) (
-            data_get($match, 'status')
-            ?? data_get($match, 'match_status')
-            ?? ''
-        ));
-
-        return in_array($status, [
-            'live',
-            'in_progress',
-            'in progress',
-            'innings_break',
-            'innings break',
-            'break',
-        ], true);
-    };
-
-    $isUpcoming = function ($match) use ($isFinished, $isLive) {
-        if ($isFinished($match) || $isLive($match)) {
-            return false;
-        }
-
-        $status = strtolower((string) (
-            data_get($match, 'status')
-            ?? data_get($match, 'match_status')
-            ?? ''
-        ));
-
-        return in_array($status, [
-            'scheduled',
-            'upcoming',
-            'pending',
-            'fixture',
-            'not_started',
-            'not started',
-        ], true);
-    };
-
-    /*
-    |--------------------------------------------------------------------------
-    | Cricket score helpers
-    |--------------------------------------------------------------------------
-    */
-
-    $inningsFor = function ($match) use ($liveScoreByFixture) {
-        $fixtureId = data_get($match, 'id');
-
-        $innings = $liveScoreByFixture instanceof \Illuminate\Support\Collection
-            ? $liveScoreByFixture->get($fixtureId, collect())
-            : ($liveScoreByFixture[$fixtureId] ?? collect());
-
-        return collect($innings ?? [])
-            ->sortBy('innings_number')
-            ->values();
-    };
-
-    $scoreFor = function ($match, $team = null) use ($inningsFor) {
-        $innings = $inningsFor($match);
-
-        if ($team) {
-            $teamId = data_get($team, 'id');
-
-            $innings = $innings->filter(function ($inning) use ($teamId) {
-                $battingTeamId = data_get($inning, 'batting_team_id')
-                    ?? data_get($inning, 'team_id')
-                    ?? data_get($inning, 'battingTeam.id');
-
-                return (string) $battingTeamId === (string) $teamId;
-            });
-        }
-
-        $inning = $innings->sortByDesc(function ($item) {
-            return (int) (
-                data_get($item, 'is_current', false) ? 100000 : 0
-            ) + (int) data_get($item, 'innings_number', 0);
-        })->first();
-
-        if (!$inning) {
-            return null;
-        }
-
-        $runs = data_get($inning, 'total_runs', 0);
-        $wickets = data_get($inning, 'wickets', 0);
-        $legalBalls = (int) data_get($inning, 'legal_balls', 0);
-
-        $overs = intdiv($legalBalls, 6)
-            . '.'
-            . ($legalBalls % 6);
-
-        return [
-            'runs' => $runs,
-            'wickets' => $wickets,
-            'overs' => $overs,
-            'score' => $runs . '/' . $wickets,
-            'inning' => $inning,
-        ];
-    };
-
-    $matchStatusLabel = function ($match) use ($isLive, $isFinished, $isUpcoming) {
-        if ($isLive($match)) {
-            return 'LIVE';
-        }
-
-        if ($isFinished($match)) {
-            return 'RESULT';
-        }
-
-        if ($isUpcoming($match)) {
-            return 'UPCOMING';
-        }
-
-        return strtoupper(str_replace('_', ' ', (string) (
-            data_get($match, 'status') ?? 'MATCH'
-        )));
-    };
-
-    /*
-    |--------------------------------------------------------------------------
-    | Homepage data
-    |--------------------------------------------------------------------------
-    */
-
-    $liveMatches = $liveMatches
-        ->filter(fn ($match) => $isLive($match))
-        ->values();
-
-    $liveMatch = $liveMatches->first();
-
-    $upcomingMatches = collect();
-
-    if (isset($nextMatch) && $nextMatch) {
-        $upcomingMatches->push($nextMatch);
-    }
-
-    $upcomingMatches = $upcomingMatches
-        ->merge(
-            $liveMatches->isNotEmpty()
-                ? collect()
-                : collect()
-        )
-        ->filter(fn ($match) => $isUpcoming($match))
-        ->unique('id')
-        ->values();
-
-    $featuredMatch = $liveMatch ?: $upcomingMatches->first();
-
-    if (!$featuredMatch) {
-        $featuredMatch = $recentResults->first();
-    }
-
-    $homeTeam = $featuredMatch
-        ? (data_get($featuredMatch, 'homeTeam')
-            ?? data_get($featuredMatch, 'home_team'))
-        : null;
-
-    $awayTeam = $featuredMatch
-        ? (data_get($featuredMatch, 'awayTeam')
-            ?? data_get($featuredMatch, 'away_team'))
-        : null;
-
-    $homeScore = $featuredMatch
-        ? $scoreFor($featuredMatch, $homeTeam)
-        : null;
-
-    $awayScore = $featuredMatch
-        ? $scoreFor($featuredMatch, $awayTeam)
-        : null;
-
-    $featuredIsLive = $featuredMatch && $isLive($featuredMatch);
-    $featuredIsFinished = $featuredMatch && $isFinished($featuredMatch);
-
-    $featuredResult = $featuredMatch
-        ? (
-            data_get($featuredMatch, 'result')
-            ?? data_get($featuredMatch, 'result_summary')
-            ?? data_get($featuredMatch, 'status_text')
-        )
-        : null;
-
-    $fixtureCount = $liveMatches->count()
-        + $recentResults->count()
-        + $upcomingMatches->count();
-
-    $fixtureUrl = function ($match) {
-        if (!$match) {
-            return '#';
-        }
-
-        return Route::has('fixtures.show')
-            ? route('fixtures.show', $match)
-            : '#';
-    };
-
-    $teamUrl = function ($team) {
-        if (!$team) {
-            return '#';
-        }
-
-        return Route::has('teams.show')
-            ? route('teams.show', $team)
-            : '#';
-    };
-
-    $newsUrl = function ($article) {
-        if (!$article) {
-            return '#';
-        }
-
-        return Route::has('news.show')
-            ? route('news.show', $article)
-            : '#';
-    };
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
+
+$teams = collect($teams ?? []);
+$liveMatches = collect($liveMatches ?? []);
+$recentResults = collect($recentResults ?? []);
+$latestNews = collect($latestNews ?? []);
+$liveScoreByFixture = $liveScoreByFixture ?? collect();
+$standings = collect($standings ?? []);
+$featuredPlayers = collect($featuredPlayers ?? []);
+$sponsors = collect($sponsors ?? []);
+
+$imageUrl = function ($path, $folder = null) {
+if (blank($path)) return null;
+$path = trim((string) $path);
+if (filter_var($path, FILTER_VALIDATE_URL) || str_starts_with($path, 'data:image/')) return $path;
+$path = ltrim($path, '/');
+if (str_starts_with($path, 'public/')) $path = substr($path, 7);
+if (str_starts_with($path, 'storage/')) return asset($path);
+if ($folder && !str_starts_with($path, $folder . '/')) $path = $folder . '/' . $path;
+return asset('storage/' . $path);
+};
+
+$teamLogo = fn ($team) => $imageUrl(data_get($team, 'logo'), 'teams');
+$teamName = fn ($team, $fallback = 'Team') => data_get($team, 'name') ?: $fallback;
+$teamShortName = fn ($team) => data_get($team, 'short_name')
+?: data_get($team, 'short_code')
+?: strtoupper(substr($teamName($team), 0, 3));
+
+$matchDate = function ($match) {
+$date = data_get($match, 'scheduled_at') ?? data_get($match, 'match_date')
+?? data_get($match, 'start_time') ?? data_get($match, 'date');
+if (!$date) return null;
+try { return Carbon::parse($date); } catch (\Throwable $e) { return null; }
+};
+$formatDate = fn ($m) => ($d = $matchDate($m)) ? $d->format('d M Y') : 'TBA';
+$formatTime = fn ($m) => ($d = $matchDate($m)) ? $d->format('h:i A') : 'TBA';
+
+$isFinished = function ($match) {
+$status = strtolower((string) (data_get($match, 'status') ?? data_get($match, 'match_status') ?? ''));
+return in_array($status, ['completed','complete','finished','result','abandoned','no_result','no result'], true);
+};
+$isLive = function ($match) use ($isFinished) {
+if ($isFinished($match)) return false;
+$status = strtolower((string) (data_get($match, 'status') ?? data_get($match, 'match_status') ?? ''));
+return in_array($status, ['live','in_progress','in progress','innings_break','innings break','break'], true);
+};
+$isUpcoming = function ($match) use ($isFinished, $isLive) {
+if ($isFinished($match) || $isLive($match)) return false;
+$status = strtolower((string) (data_get($match, 'status') ?? data_get($match, 'match_status') ?? ''));
+return in_array($status, ['scheduled','upcoming','pending','fixture','not_started','not started'], true);
+};
+
+$inningsFor = function ($match) use ($liveScoreByFixture) {
+$id = data_get($match, 'id');
+$innings = $liveScoreByFixture instanceof \Illuminate\Support\Collection
+? $liveScoreByFixture->get($id, collect())
+: ($liveScoreByFixture[$id] ?? collect());
+return collect($innings ?? [])->sortBy('innings_number')->values();
+};
+
+$scoreFor = function ($match, $team = null) use ($inningsFor) {
+$innings = $inningsFor($match);
+if ($team) {
+$teamId = data_get($team, 'id');
+$innings = $innings->filter(function ($i) use ($teamId) {
+$battingTeamId = data_get($i, 'batting_team_id') ?? data_get($i, 'team_id') ?? data_get($i, 'battingTeam.id');
+return (string) $battingTeamId === (string) $teamId;
+});
+}
+$inning = $innings->sortByDesc(fn ($i) => (int) (data_get($i, 'is_current', false) ? 100000 : 0) + (int) data_get($i,
+'innings_number', 0))->first();
+if (!$inning) return null;
+$runs = data_get($inning, 'total_runs', 0);
+$wickets = data_get($inning, 'wickets', 0);
+$legalBalls = (int) data_get($inning, 'legal_balls', 0);
+$overs = intdiv($legalBalls, 6) . '.' . ($legalBalls % 6);
+return ['runs' => $runs, 'wickets' => $wickets, 'overs' => $overs, 'score' => $runs . '/' . $wickets, 'inning' =>
+$inning];
+};
+
+$matchStatusLabel = function ($match) use ($isLive, $isFinished, $isUpcoming) {
+if ($isLive($match)) return 'LIVE';
+if ($isFinished($match)) return 'RESULT';
+if ($isUpcoming($match)) return 'UPCOMING';
+return strtoupper(str_replace('_', ' ', (string) (data_get($match, 'status') ?? 'MATCH')));
+};
+
+$liveMatches = $liveMatches->filter(fn ($m) => $isLive($m))->values();
+$liveMatch = $liveMatches->first();
+
+$upcomingMatches = collect();
+if (isset($nextMatch) && $nextMatch) $upcomingMatches->push($nextMatch);
+$upcomingMatches = $upcomingMatches->filter(fn ($m) => $isUpcoming($m))->unique('id')->values();
+
+$featuredMatch = $liveMatch ?: $upcomingMatches->first() ?: $recentResults->first();
+
+$homeTeam = $featuredMatch ? (data_get($featuredMatch, 'homeTeam') ?? data_get($featuredMatch, 'home_team')) : null;
+$awayTeam = $featuredMatch ? (data_get($featuredMatch, 'awayTeam') ?? data_get($featuredMatch, 'away_team')) : null;
+$homeScore = $featuredMatch ? $scoreFor($featuredMatch, $homeTeam) : null;
+$awayScore = $featuredMatch ? $scoreFor($featuredMatch, $awayTeam) : null;
+$featuredIsLive = $featuredMatch && $isLive($featuredMatch);
+$featuredIsFinished = $featuredMatch && $isFinished($featuredMatch);
+$featuredResult = $featuredMatch ? (data_get($featuredMatch, 'result') ?? data_get($featuredMatch, 'result_summary') ??
+data_get($featuredMatch, 'status_text')) : null;
+
+$fixtureUrl = fn ($m) => $m && Route::has('fixtures.show') ? route('fixtures.show', $m) : '#';
+$teamUrl = fn ($t) => $t && Route::has('teams.show') ? route('teams.show', $t) : '#';
+$newsUrl = fn ($a) => $a && Route::has('news.show') ? route('news.show', $a) : '#';
 @endphp
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
 <style>
-    .npl-home {
-        --npl-navy: #101c30;
-        --npl-navy-light: #192941;
-        --npl-red: #c6283d;
-        --npl-red-dark: #a91e31;
-        --npl-gold: #e4b85c;
-        --npl-text: #172033;
-        --npl-muted: #6b7280;
-        --npl-border: #e5e7eb;
-        color: var(--npl-text);
-        background: #fff;
-        font-family: inherit;
+.npl-home {
+    --npl-navy: #0b1526;
+    --npl-navy-2: #122036;
+    --npl-navy-3: #1a2c47;
+    --npl-red: #d81f39;
+    --npl-red-dark: #b0172d;
+    --npl-gold: #f0c75e;
+    --npl-gold-dark: #d4a933;
+    --npl-text: #16202f;
+    --npl-muted: #6b7280;
+    --npl-border: #e6e8ee;
+    --npl-bg-soft: #f6f7fa;
+    color: var(--npl-text);
+    background: #fff;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.npl-home *,
+.npl-home *::before,
+.npl-home *::after {
+    box-sizing: border-box;
+}
+
+.npl-home h1,
+.npl-home h2,
+.npl-home h3,
+.npl-display {
+    font-family: 'Barlow Condensed', 'Inter', sans-serif;
+}
+
+.npl-container {
+    width: min(1240px, calc(100% - 40px));
+    margin: 0 auto;
+}
+
+.npl-section {
+    padding: 56px 0;
+}
+
+.npl-section-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 26px;
+}
+
+.npl-section-heading h2 {
+    margin: 0;
+    color: var(--npl-navy);
+    font-size: clamp(28px, 3.4vw, 40px);
+    font-weight: 900;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.npl-section-heading h2 span {
+    color: var(--npl-red);
+}
+
+.npl-section-heading p {
+    margin: 8px 0 0;
+    color: var(--npl-muted);
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--npl-red);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-eyebrow::before {
+    content: "";
+    width: 26px;
+    height: 2px;
+    background: var(--npl-red);
+}
+
+.npl-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--npl-red);
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-link:hover {
+    color: var(--npl-red-dark);
+}
+
+.npl-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    padding: 12px 24px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: var(--npl-red);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all .2s ease;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-button:hover {
+    background: var(--npl-red-dark);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.npl-button-gold {
+    background: var(--npl-gold);
+    color: var(--npl-navy);
+}
+
+.npl-button-gold:hover {
+    background: #fff;
+    color: var(--npl-navy);
+}
+
+.npl-button-outline {
+    border-color: rgba(255, 255, 255, .5);
+    background: transparent;
+    color: #fff;
+}
+
+.npl-button-outline:hover {
+    background: rgba(255, 255, 255, .12);
+}
+
+/* HERO */
+.npl-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--npl-navy);
+    color: #fff;
+    min-height: 620px;
+    display: flex;
+    align-items: center;
+}
+
+.npl-hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+}
+
+.npl-hero-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 35%;
+}
+
+.npl-hero-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(100deg, rgba(8, 16, 30, .96) 0%, rgba(10, 20, 37, .85) 45%, rgba(10, 20, 37, .35) 100%), radial-gradient(circle at 80% 20%, rgba(216, 31, 57, .35), transparent 55%);
+}
+
+.npl-hero-inner {
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    align-items: center;
+    gap: 48px;
+    padding: 70px 0;
+    width: 100%;
+}
+
+.npl-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    border: 1px solid rgba(240, 199, 94, .4);
+    border-radius: 100px;
+    background: rgba(240, 199, 94, .08);
+    color: var(--npl-gold);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-hero-badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--npl-red);
+    box-shadow: 0 0 0 4px rgba(216, 31, 57, .25);
+    animation: nplPulse 1.6s infinite;
+}
+
+@keyframes nplPulse {
+
+    0%,
+    100% {
+        opacity: 1;
     }
+
+    50% {
+        opacity: .35;
+    }
+}
+
+.npl-hero h1 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(44px, 6.4vw, 88px);
+    font-weight: 900;
+    line-height: .95;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+
+.npl-hero h1 .gold {
+    color: var(--npl-gold);
+    display: block;
+}
+
+.npl-hero h1 .outline {
+    color: transparent;
+    -webkit-text-stroke: 2px rgba(255, 255, 255, .55);
+}
+
+.npl-hero-copy {
+    max-width: 520px;
+    margin: 22px 0 28px;
+    color: #c6d0de;
+    font-size: 15.5px;
+    line-height: 1.8;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.npl-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    margin-top: 38px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+}
+
+.npl-hero-stat strong {
+    display: block;
+    color: var(--npl-gold);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.npl-hero-stat span {
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+/* FEATURED MATCH CARD */
+.npl-match-card {
+    overflow: hidden;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--npl-text);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.npl-match-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(90deg, var(--npl-navy), var(--npl-navy-3));
+    color: #fff;
+}
+
+.npl-match-top strong {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .14);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-status-live {
+    background: var(--npl-red);
+}
+
+.npl-status-live::before {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    content: "";
+    animation: nplPulse 1.4s infinite;
+}
+
+.npl-match-body {
+    padding: 26px 22px 20px;
+}
+
+.npl-match-teams {
+    display: grid;
+    grid-template-columns: 1fr 46px 1fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.npl-match-team {
+    min-width: 0;
+    text-align: center;
+}
+
+.npl-team-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 82px;
+    height: 82px;
+    margin: 0 auto 12px;
+    overflow: hidden;
+    border: 2px solid var(--npl-border);
+    border-radius: 50%;
+    background: #fafbfc;
+}
+
+.npl-team-logo img {
+    width: 100%;
+    height: 100%;
+    padding: 8px;
+    object-fit: contain;
+}
+
+.npl-team-placeholder {
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+}
+
+.npl-match-team h3 {
+    margin: 0;
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.15;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.npl-team-short {
+    margin-top: 4px;
+    color: var(--npl-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-team-score {
+    margin-top: 10px;
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: .5px;
+    line-height: 1;
+}
+
+.npl-team-overs {
+    margin-top: 3px;
+    color: var(--npl-muted);
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-versus {
+    color: #b8c0cc;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+    text-align: center;
+}
+
+.npl-match-info {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--npl-border);
+    color: var(--npl-muted);
+    font-size: 12px;
+    line-height: 1.7;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-match-footer {
+    padding: 0 22px 22px;
+}
+
+.npl-match-footer .npl-button {
+    width: 100%;
+}
+
+.npl-empty-match {
+    padding: 34px 22px;
+    text-align: center;
+}
+
+.npl-empty-match h3 {
+    margin: 0 0 8px;
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 26px;
+    text-transform: uppercase;
+}
+
+.npl-empty-match p {
+    margin: 0 0 18px;
+    color: var(--npl-muted);
+    font-size: 14px;
+    line-height: 1.7;
+    font-family: 'Inter', sans-serif;
+}
+
+/* SPONSOR STRIP */
+.npl-sponsor-strip {
+    background: #fff;
+    border-bottom: 1px solid var(--npl-border);
+}
+
+.npl-sponsor-inner {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    padding: 18px 0;
+}
+
+.npl-sponsor-label {
+    flex-shrink: 0;
+    color: var(--npl-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-sponsor-logos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px 34px;
+    flex: 1;
+}
+
+.npl-sponsor-logos img {
+    max-height: 30px;
+    width: auto;
+    opacity: .75;
+    filter: grayscale(1);
+    transition: all .2s ease;
+}
+
+.npl-sponsor-logos img:hover {
+    opacity: 1;
+    filter: grayscale(0);
+}
+
+.npl-sponsor-logos span {
+    color: #b9c0ca;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+/* TICKER */
+.npl-ticker {
+    background: var(--npl-navy);
+    color: #fff;
+}
+
+.npl-ticker-inner {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 52px;
+}
+
+.npl-ticker-label {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: var(--npl-red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-ticker-label::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    content: "";
+    animation: nplPulse 1.4s infinite;
+}
+
+.npl-ticker-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    padding: 11px 0;
+}
+
+.npl-ticker-items a {
+    color: #dbe3ee;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-ticker-items a:hover {
+    color: var(--npl-gold);
+}
+
+/* RESULTS */
+.npl-results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.npl-result-card {
+    overflow: hidden;
+    border: 1px solid var(--npl-border);
+    border-radius: 8px;
+    background: #fff;
+    transition: all .2s ease;
+}
+
+.npl-result-card:hover {
+    border-color: #c3c9d4;
+    box-shadow: 0 14px 30px rgba(16, 28, 48, .08);
+}
+
+.npl-result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 13px 16px;
+    border-bottom: 1px solid #eef0f4;
+    background: var(--npl-bg-soft);
+    color: var(--npl-muted);
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-result-header strong {
+    color: #374151;
+    font-weight: 800;
+}
+
+.npl-result-header span {
+    font-weight: 800;
+    letter-spacing: .8px;
+    color: var(--npl-red);
+}
+
+.npl-result-teams {
+    padding: 12px 16px;
+}
+
+.npl-result-team {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 0;
+}
+
+.npl-result-team+.npl-result-team {
+    border-top: 1px solid #f1f2f5;
+}
+
+.npl-result-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    overflow: hidden;
+    border: 1px solid var(--npl-border);
+    border-radius: 50%;
+    background: #fff;
+}
+
+.npl-result-logo img {
+    width: 100%;
+    height: 100%;
+    padding: 3px;
+    object-fit: contain;
+}
+
+.npl-result-logo span {
+    color: var(--npl-navy);
+    font-size: 10px;
+    font-weight: 900;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+
+.npl-result-team-name {
+    color: #374151;
+    font-size: 12.5px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-result-score {
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.npl-result-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #eef0f4;
+    color: var(--npl-muted);
+    font-size: 12px;
+    line-height: 1.6;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-result-footer a {
+    color: var(--npl-red);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+/* STANDINGS */
+.npl-standings-section {
+    background: var(--npl-bg-soft);
+}
+
+.npl-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--npl-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.npl-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 620px;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-table thead th {
+    padding: 13px 12px;
+    background: var(--npl-navy);
+    color: #c8d2df;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.npl-table thead th:first-child {
+    text-align: left;
+    padding-left: 16px;
+}
+
+.npl-table tbody td {
+    padding: 12px;
+    border-top: 1px solid #eef0f4;
+    color: #374151;
+    font-size: 13px;
+    text-align: center;
+}
+
+.npl-table tbody td:first-child {
+    text-align: left;
+    padding-left: 16px;
+}
+
+.npl-table tbody tr:hover {
+    background: #fafbfc;
+}
+
+.npl-pos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: #eef1f6;
+    color: #4b5563;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.npl-pos-top {
+    background: var(--npl-gold);
+    color: var(--npl-navy);
+}
+
+.npl-table-team {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 170px;
+}
+
+.npl-table-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid var(--npl-border);
+    border-radius: 50%;
+    background: #fff;
+}
+
+.npl-table-logo img {
+    width: 100%;
+    height: 100%;
+    padding: 2px;
+    object-fit: contain;
+}
+
+.npl-table-logo span {
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+}
+
+.npl-table-name {
+    font-weight: 700;
+    color: var(--npl-navy);
+    font-size: 13px;
+}
+
+.npl-table-pts {
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 900;
+}
+
+.npl-table-form {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.npl-form-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 900;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-form-w {
+    background: #16a34a;
+}
+
+.npl-form-l {
+    background: var(--npl-red);
+}
+
+.npl-form-n {
+    background: #94a3b8;
+}
+
+/* TEAMS */
+.npl-teams-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.npl-team-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 178px;
+    padding: 22px 14px;
+    border: 1px solid var(--npl-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--npl-text);
+    text-align: center;
+    text-decoration: none;
+    overflow: hidden;
+    transition: all .25s ease;
+}
+
+.npl-team-card::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--npl-red);
+    content: "";
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .25s ease;
+}
+
+.npl-team-card:hover {
+    transform: translateY(-4px);
+    border-color: #cbd5e1;
+    box-shadow: 0 18px 36px rgba(16, 28, 48, .1);
+}
+
+.npl-team-card:hover::before {
+    transform: scaleX(1);
+}
+
+.npl-team-card .npl-team-logo {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 12px;
+}
+
+.npl-team-card h3 {
+    margin: 0;
+    color: var(--npl-navy);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.15;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.npl-team-card small {
+    margin-top: 5px;
+    color: var(--npl-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    font-family: 'Inter', sans-serif;
+}
+
+/* NEWS */
+.npl-news-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+}
+
+.npl-news-card {
+    overflow: hidden;
+    border: 1px solid var(--npl-border);
+    border-radius: 8px;
+    background: #fff;
+    transition: all .25s ease;
+}
+
+.npl-news-card:hover {
+    border-color: #c3c9d4;
+    box-shadow: 0 18px 36px rgba(16, 28, 48, .1);
+    transform: translateY(-3px);
+}
+
+.npl-news-image {
+    display: block;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    background: #eef0f4;
+}
+
+.npl-news-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform .35s ease;
+}
+
+.npl-news-card:hover .npl-news-image img {
+    transform: scale(1.04);
+}
+
+.npl-news-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #9ca3af;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+.npl-news-content {
+    padding: 18px;
+}
+
+.npl-news-date {
+    color: var(--npl-red);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-news-content h3 {
+    margin: 9px 0;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.npl-news-content h3 a {
+    color: var(--npl-navy);
+    text-decoration: none;
+}
+
+.npl-news-content h3 a:hover {
+    color: var(--npl-red);
+}
+
+.npl-news-content p {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0 0 14px;
+    color: var(--npl-muted);
+    font-size: 13px;
+    line-height: 1.7;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-family: 'Inter', sans-serif;
+}
+
+/* PLAYERS */
+.npl-players-section {
+    background: linear-gradient(180deg, var(--npl-navy), var(--npl-navy-2));
+    color: #fff;
+}
+
+.npl-players-section .npl-section-heading h2 {
+    color: #fff;
+}
+
+.npl-players-section .npl-section-heading p {
+    color: #94a3b8;
+}
+
+.npl-players-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.npl-player-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .1);
+    transition: all .25s ease;
+}
+
+.npl-player-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(240, 199, 94, .5);
+}
+
+.npl-player-image {
+    aspect-ratio: 4/5;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.npl-player-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+}
+
+.npl-player-initials {
+    color: rgba(255, 255, 255, .16);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 64px;
+    font-weight: 900;
+}
+
+.npl-player-info {
+    padding: 14px 16px 16px;
+}
+
+.npl-player-role {
+    color: var(--npl-gold);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-player-info h3 {
+    margin: 6px 0 0;
+    color: #fff;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 1.1;
+}
+
+.npl-player-team {
+    margin-top: 6px;
+    color: #94a3b8;
+    font-size: 11.5px;
+    font-family: 'Inter', sans-serif;
+}
+
+/* NEWSLETTER */
+.npl-newsletter {
+    background: var(--npl-red);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+
+.npl-newsletter::after {
+    content: "";
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 260px;
+    height: 260px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 50%;
+}
+
+.npl-newsletter-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 30px;
+    padding: 44px 0;
+}
+
+.npl-newsletter h2 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(26px, 3.6vw, 40px);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.npl-newsletter p {
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, .85);
+    font-size: 14px;
+    line-height: 1.7;
+    font-family: 'Inter', sans-serif;
+}
+
+.npl-newsletter-form {
+    display: flex;
+    gap: 10px;
+}
+
+.npl-newsletter-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 16px;
+    border: 0;
+    border-radius: 4px;
+    background: #fff;
+    color: var(--npl-navy);
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+}
+
+.npl-newsletter-form button {
+    padding: 13px 22px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--npl-navy);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: background .2s ease;
+}
+
+.npl-newsletter-form button:hover {
+    background: #000;
+}
+
+/* EMPTY */
+.npl-empty {
+    grid-column: 1 / -1;
+    padding: 30px 20px;
+    border: 1px dashed #d1d5db;
+    border-radius: 8px;
+    color: var(--npl-muted);
+    font-size: 14px;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+    .npl-hero-inner {
+        grid-template-columns: 1fr;
+        gap: 34px;
+        padding: 50px 0;
+    }
+
+    .npl-hero {
+        min-height: 0;
+    }
+
+    .npl-match-card {
+        max-width: 600px;
+    }
+
+    .npl-teams-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .npl-players-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .npl-results-grid,
+    .npl-news-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .npl-newsletter-inner {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .npl-container {
+        width: calc(100% - 28px);
+    }
+
+    .npl-section {
+        padding: 38px 0;
+    }
+
+    .npl-hero h1 {
+        font-size: clamp(38px, 12vw, 56px);
+    }
+
+    .npl-hero-copy {
+        font-size: 14px;
+    }
+
+    .npl-hero-stats {
+        gap: 20px;
+    }
+
+    .npl-hero-stat strong {
+        font-size: 26px;
+    }
+
+    .npl-section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .npl-section-heading h2 {
+        font-size: 28px;
+    }
+
+    .npl-results-grid,
+    .npl-news-grid,
+    .npl-players-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .npl-teams-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .npl-team-card {
+        min-height: 150px;
+    }
+
+    .npl-match-teams {
+        grid-template-columns: 1fr 34px 1fr;
+    }
+
+    .npl-team-logo {
+        width: 64px;
+        height: 64px;
+    }
+
+    .npl-match-team h3 {
+        font-size: 16px;
+    }
+
+    .npl-team-score {
+        font-size: 24px;
+    }
+
+    .npl-ticker-inner {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .npl-ticker-label {
+        margin-top: 12px;
+    }
+
+    .npl-newsletter-form {
+        flex-direction: column;
+    }
+
+    .npl-sponsor-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
 
     .npl-home *,
     .npl-home *::before,
     .npl-home *::after {
-        box-sizing: border-box;
+        transition: none !important;
+        animation: none !important;
     }
-
-    .npl-container {
-        width: min(1180px, calc(100% - 36px));
-        margin: 0 auto;
-    }
-
-    .npl-section {
-        padding: 42px 0;
-    }
-
-    .npl-section-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 22px;
-    }
-
-    .npl-section-heading h2 {
-        margin: 0;
-        color: var(--npl-navy);
-        font-size: clamp(21px, 3vw, 28px);
-        font-weight: 800;
-        letter-spacing: -.5px;
-    }
-
-    .npl-section-heading p {
-        margin: 6px 0 0;
-        color: var(--npl-muted);
-        font-size: 14px;
-    }
-
-    .npl-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        color: var(--npl-red);
-        font-size: 14px;
-        font-weight: 700;
-        text-decoration: none;
-        white-space: nowrap;
-    }
-
-    .npl-link:hover {
-        color: var(--npl-red-dark);
-    }
-
-    .npl-button {
-        display: inline-flex;
-        justify-content: center;
-        align-items: center;
-        gap: 9px;
-        min-height: 43px;
-        padding: 11px 18px;
-        border: 1px solid transparent;
-        border-radius: 5px;
-        background: var(--npl-red);
-        color: #fff;
-        font-size: 14px;
-        font-weight: 700;
-        text-decoration: none;
-        transition: background .2s ease;
-    }
-
-    .npl-button:hover {
-        background: var(--npl-red-dark);
-        color: #fff;
-    }
-
-    .npl-button-outline {
-        border-color: rgba(255,255,255,.45);
-        background: transparent;
-    }
-
-    .npl-button-outline:hover {
-        background: rgba(255,255,255,.1);
-    }
-
-    /* Main introduction */
-
-    .npl-hero {
-        position: relative;
-        overflow: hidden;
-        background: var(--npl-navy);
-        color: #fff;
-    }
-
-    .npl-hero::after {
-        position: absolute;
-        top: -100px;
-        right: -90px;
-        width: 360px;
-        height: 360px;
-        border: 1px solid rgba(255,255,255,.08);
-        border-radius: 50%;
-        content: "";
-        pointer-events: none;
-    }
-
-    .npl-hero-inner {
-        position: relative;
-        z-index: 1;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        align-items: center;
-        gap: 42px;
-        padding-top: 45px;
-        padding-bottom: 45px;
-    }
-
-    .npl-kicker {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        margin-bottom: 15px;
-        color: var(--npl-gold);
-        font-size: 12px;
-        font-weight: 800;
-        letter-spacing: 1.7px;
-        text-transform: uppercase;
-    }
-
-    .npl-kicker::before {
-        width: 24px;
-        height: 2px;
-        background: var(--npl-gold);
-        content: "";
-    }
-
-    .npl-hero h1 {
-        max-width: 560px;
-        margin: 0;
-        color: #fff;
-        font-size: clamp(32px, 5vw, 54px);
-        font-weight: 900;
-        line-height: 1.08;
-        letter-spacing: -1.4px;
-    }
-
-    .npl-hero h1 span {
-        color: var(--npl-gold);
-    }
-
-    .npl-hero-copy {
-        max-width: 480px;
-        margin: 18px 0 23px;
-        color: #d1d9e6;
-        font-size: 15px;
-        line-height: 1.8;
-    }
-
-    .npl-hero-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    .npl-hero-note {
-        margin-top: 24px;
-        color: #aeb9ca;
-        font-size: 12px;
-    }
-
-    /* Featured match */
-
-    .npl-match-card {
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,.14);
-        border-radius: 8px;
-        background: #fff;
-        color: var(--npl-text);
-        box-shadow: 0 15px 35px rgba(0,0,0,.15);
-    }
-
-    .npl-match-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 15px 18px;
-        border-bottom: 1px solid var(--npl-border);
-    }
-
-    .npl-match-top strong {
-        color: var(--npl-navy);
-        font-size: 12px;
-        font-weight: 800;
-        letter-spacing: .5px;
-        text-transform: uppercase;
-    }
-
-    .npl-status {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 6px 9px;
-        border-radius: 4px;
-        background: #f3f4f6;
-        color: #4b5563;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .6px;
-    }
-
-    .npl-status-live {
-        background: #fff0f0;
-        color: #bb1e32;
-    }
-
-    .npl-status-live::before {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #c6283d;
-        content: "";
-    }
-
-    .npl-match-body {
-        padding: 24px 18px 19px;
-    }
-
-    .npl-match-teams {
-        display: grid;
-        grid-template-columns: 1fr 40px 1fr;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .npl-match-team {
-        min-width: 0;
-        text-align: center;
-    }
-
-    .npl-team-logo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 74px;
-        height: 74px;
-        margin: 0 auto 12px;
-        overflow: hidden;
-        border: 1px solid var(--npl-border);
-        border-radius: 50%;
-        background: #f9fafb;
-    }
-
-    .npl-team-logo img {
-        width: 100%;
-        height: 100%;
-        padding: 7px;
-        object-fit: contain;
-    }
-
-    .npl-team-placeholder {
-        color: var(--npl-navy);
-        font-size: 20px;
-        font-weight: 900;
-    }
-
-    .npl-match-team h3 {
-        margin: 0;
-        color: var(--npl-navy);
-        font-size: 14px;
-        font-weight: 800;
-        line-height: 1.4;
-        overflow-wrap: anywhere;
-    }
-
-    .npl-team-short {
-        margin-top: 5px;
-        color: var(--npl-muted);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: .7px;
-    }
-
-    .npl-team-score {
-        margin-top: 9px;
-        color: var(--npl-navy);
-        font-size: 23px;
-        font-weight: 900;
-        letter-spacing: -.6px;
-    }
-
-    .npl-team-overs {
-        margin-top: 2px;
-        color: var(--npl-muted);
-        font-size: 11px;
-    }
-
-    .npl-versus {
-        color: #9ca3af;
-        font-size: 12px;
-        font-weight: 900;
-        text-align: center;
-    }
-
-    .npl-match-info {
-        margin-top: 22px;
-        padding-top: 15px;
-        border-top: 1px solid var(--npl-border);
-        color: var(--npl-muted);
-        font-size: 12px;
-        line-height: 1.8;
-        text-align: center;
-    }
-
-    .npl-match-footer {
-        padding: 0 18px 18px;
-    }
-
-    .npl-match-footer .npl-button {
-        width: 100%;
-    }
-
-    .npl-empty-match {
-        padding: 28px 20px;
-        text-align: center;
-    }
-
-    .npl-empty-match h3 {
-        margin: 0 0 8px;
-        color: var(--npl-navy);
-        font-size: 19px;
-    }
-
-    .npl-empty-match p {
-        margin: 0 0 18px;
-        color: var(--npl-muted);
-        font-size: 14px;
-        line-height: 1.7;
-    }
-
-    /* Live ticker */
-
-    .npl-ticker {
-        border-bottom: 1px solid #e8eaf0;
-        background: #f8f9fb;
-    }
-
-    .npl-ticker-inner {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        min-height: 48px;
-    }
-
-    .npl-ticker-label {
-        flex-shrink: 0;
-        color: var(--npl-red);
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: .8px;
-        text-transform: uppercase;
-    }
-
-    .npl-ticker-items {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 9px 20px;
-        padding: 10px 0;
-    }
-
-    .npl-ticker-items a {
-        color: #374151;
-        font-size: 12px;
-        font-weight: 600;
-        text-decoration: none;
-    }
-
-    .npl-ticker-items a:hover {
-        color: var(--npl-red);
-    }
-
-    /* Results */
-
-    .npl-results-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 18px;
-    }
-
-    .npl-result-card {
-        overflow: hidden;
-        border: 1px solid var(--npl-border);
-        border-radius: 6px;
-        background: #fff;
-        transition: border-color .2s ease;
-    }
-
-    .npl-result-card:hover {
-        border-color: #cbd5e1;
-    }
-
-    .npl-result-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 13px 15px;
-        border-bottom: 1px solid #eef0f4;
-        background: #fafbfc;
-        color: var(--npl-muted);
-        font-size: 11px;
-    }
-
-    .npl-result-header strong {
-        color: #4b5563;
-        font-weight: 800;
-    }
-
-    .npl-result-teams {
-        padding: 13px 15px;
-    }
-
-    .npl-result-team {
-        display: grid;
-        grid-template-columns: 35px minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 0;
-    }
-
-    .npl-result-team + .npl-result-team {
-        border-top: 1px solid #f1f2f5;
-    }
-
-    .npl-result-logo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 34px;
-        height: 34px;
-        overflow: hidden;
-        border: 1px solid var(--npl-border);
-        border-radius: 50%;
-        background: #fff;
-    }
-
-    .npl-result-logo img {
-        width: 100%;
-        height: 100%;
-        padding: 3px;
-        object-fit: contain;
-    }
-
-    .npl-result-logo span {
-        color: var(--npl-navy);
-        font-size: 10px;
-        font-weight: 900;
-    }
-
-    .npl-result-team-name {
-        color: #374151;
-        font-size: 12px;
-        font-weight: 700;
-        overflow-wrap: anywhere;
-    }
-
-    .npl-result-score {
-        color: var(--npl-navy);
-        font-size: 13px;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
-    .npl-result-footer {
-        padding: 12px 15px;
-        border-top: 1px solid #eef0f4;
-        color: var(--npl-muted);
-        font-size: 12px;
-        line-height: 1.6;
-    }
-
-    .npl-result-footer a {
-        color: var(--npl-red);
-        font-weight: 700;
-        text-decoration: none;
-    }
-
-    /* Teams */
-
-    .npl-teams-section {
-        background: #f7f8fa;
-    }
-
-    .npl-teams-grid {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 14px;
-    }
-
-    .npl-team-card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-width: 0;
-        min-height: 160px;
-        padding: 19px 12px;
-        border: 1px solid var(--npl-border);
-        border-radius: 6px;
-        background: #fff;
-        color: var(--npl-text);
-        text-align: center;
-        text-decoration: none;
-        transition: border-color .2s ease, transform .2s ease;
-    }
-
-    .npl-team-card:hover {
-        transform: translateY(-2px);
-        border-color: #cbd5e1;
-        color: var(--npl-text);
-    }
-
-    .npl-team-card .npl-team-logo {
-        width: 66px;
-        height: 66px;
-        margin-bottom: 12px;
-    }
-
-    .npl-team-card h3 {
-        margin: 0;
-        color: var(--npl-navy);
-        font-size: 13px;
-        font-weight: 800;
-        line-height: 1.45;
-        overflow-wrap: anywhere;
-    }
-
-    .npl-team-card small {
-        margin-top: 5px;
-        color: var(--npl-muted);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: .6px;
-    }
-
-    /* News */
-
-    .npl-news-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 20px;
-    }
-
-    .npl-news-card {
-        overflow: hidden;
-        border: 1px solid var(--npl-border);
-        border-radius: 6px;
-        background: #fff;
-        transition: border-color .2s ease;
-    }
-
-    .npl-news-card:hover {
-        border-color: #cbd5e1;
-    }
-
-    .npl-news-image {
-        display: block;
-        aspect-ratio: 16 / 9;
-        overflow: hidden;
-        background: #eef0f4;
-    }
-
-    .npl-news-image img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform .25s ease;
-    }
-
-    .npl-news-card:hover .npl-news-image img {
-        transform: scale(1.025);
-    }
-
-    .npl-news-placeholder {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        color: #9ca3af;
-        font-size: 13px;
-        font-weight: 700;
-    }
-
-    .npl-news-content {
-        padding: 17px;
-    }
-
-    .npl-news-date {
-        color: var(--npl-red);
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: .3px;
-        text-transform: uppercase;
-    }
-
-    .npl-news-content h3 {
-        margin: 9px 0;
-        font-size: 17px;
-        font-weight: 800;
-        line-height: 1.45;
-    }
-
-    .npl-news-content h3 a {
-        color: var(--npl-navy);
-        text-decoration: none;
-    }
-
-    .npl-news-content h3 a:hover {
-        color: var(--npl-red);
-    }
-
-    .npl-news-content p {
-        display: -webkit-box;
-        overflow: hidden;
-        margin: 0 0 14px;
-        color: var(--npl-muted);
-        font-size: 13px;
-        line-height: 1.7;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
-    }
-
-    /* Empty states */
-
-    .npl-empty {
-        grid-column: 1 / -1;
-        padding: 28px 20px;
-        border: 1px dashed #d1d5db;
-        border-radius: 6px;
-        color: var(--npl-muted);
-        font-size: 14px;
-        text-align: center;
-    }
-
-    /* Responsive */
-
-    @media (max-width: 900px) {
-        .npl-hero-inner {
-            grid-template-columns: 1fr;
-            gap: 30px;
-        }
-
-        .npl-hero-copy {
-            max-width: 620px;
-        }
-
-        .npl-match-card {
-            max-width: 580px;
-            width: 100%;
-        }
-
-        .npl-teams-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
-
-        .npl-results-grid,
-        .npl-news-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 600px) {
-        .npl-container {
-            width: min(100% - 26px, 1180px);
-        }
-
-        .npl-section {
-            padding: 30px 0;
-        }
-
-        .npl-hero-inner {
-            padding-top: 32px;
-            padding-bottom: 32px;
-        }
-
-        .npl-hero h1 {
-            font-size: 36px;
-        }
-
-        .npl-hero-copy {
-            font-size: 14px;
-        }
-
-        .npl-section-heading {
-            align-items: flex-start;
-        }
-
-        .npl-section-heading h2 {
-            font-size: 22px;
-        }
-
-        .npl-section-heading p {
-            font-size: 12px;
-        }
-
-        .npl-link {
-            margin-top: 4px;
-            font-size: 12px;
-        }
-
-        .npl-match-body {
-            padding: 20px 12px 15px;
-        }
-
-        .npl-team-logo {
-            width: 60px;
-            height: 60px;
-        }
-
-        .npl-match-team h3 {
-            font-size: 12px;
-        }
-
-        .npl-team-score {
-            font-size: 20px;
-        }
-
-        .npl-ticker-inner {
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        .npl-ticker-label {
-            padding-top: 13px;
-        }
-
-        .npl-ticker-items {
-            gap: 8px 14px;
-        }
-
-        .npl-results-grid,
-        .npl-news-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .npl-teams-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .npl-team-card {
-            min-height: 145px;
-        }
-
-        .npl-news-content h3 {
-            font-size: 16px;
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .npl-home *,
-        .npl-home *::before,
-        .npl-home *::after {
-            scroll-behavior: auto !important;
-            transition: none !important;
-        }
-    }
+}
 </style>
 
 <div class="npl-home">
 
-    {{-- Featured section --}}
+    {{-- HERO --}}
     <section class="npl-hero">
-        <div class="npl-container npl-hero-inner">
+        <div class="npl-hero-bg">
+            <img src="https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=1920&q=80"
+                alt="Cricket stadium under floodlights">
+        </div>
+        <div class="npl-hero-overlay"></div>
 
+        <div class="npl-container npl-hero-inner">
             <div>
-                <div class="npl-kicker">Nepal Premier League</div>
+                <div class="npl-hero-badge">
+                    <span class="dot"></span>
+                    Fan  Website of the Nepal Premier League
+                </div>
 
                 <h1>
-                    All the action.<br>
-                    <span>One destination.</span>
+                    Nepal Premier
+                    <span class="gold">League</span>
+                    <span class="outline">2026</span>
                 </h1>
 
                 <p class="npl-hero-copy">
-                    Follow the Nepal Premier League with match scores,
-                    fixtures, team information, results and the latest cricket news.
+                    The biggest names in Nepali cricket. The loudest crowds in the Himalayas.
+                    Follow every six, every wicket and every moment of the NPL season — live.
                 </p>
 
                 <div class="npl-hero-actions">
                     @if(Route::has('fixtures.index'))
-                        <a href="{{ route('fixtures.index') }}" class="npl-button">
-                            View Fixtures
-                        </a>
+                    <a href="{{ route('fixtures.index') }}" class="npl-button">View Fixtures</a>
                     @endif
-
                     @if(Route::has('teams.index'))
-                        <a href="{{ route('teams.index') }}" class="npl-button npl-button-outline">
-                            Explore Teams
-                        </a>
+                    <a href="{{ route('teams.index') }}" class="npl-button npl-button-outline">Explore Teams</a>
                     @endif
                 </div>
 
-                <div class="npl-hero-note">
-                    Match information and scores are displayed from available site data.
+                <div class="npl-hero-stats">
+                    <div class="npl-hero-stat">
+                        <strong>{{ $teams->count() ?: 8 }}</strong>
+                        <span>Franchises</span>
+                    </div>
+                    <div class="npl-hero-stat">
+                        <strong>{{ $liveMatches->count() + $recentResults->count() + $upcomingMatches->count() }}</strong>
+                        <span>Matches</span>
+                    </div>
+                    <div class="npl-hero-stat">
+                        <strong>{{ $latestNews->count() }}</strong>
+                        <span>News Stories</span>
+                    </div>
                 </div>
             </div>
 
             <div>
                 <div class="npl-match-card">
-
                     @if($featuredMatch)
-                        <div class="npl-match-top">
-                            <strong>
-                                @if($featuredIsLive)
-                                    Live Match Centre
-                                @elseif($featuredIsFinished)
-                                    Latest Match Result
-                                @else
-                                    Featured Fixture
+                    <div class="npl-match-top">
+                        <strong>
+                            @if($featuredIsLive) Live Match Centre
+                            @elseif($featuredIsFinished) Latest Result
+                            @else Featured Fixture @endif
+                        </strong>
+                        <span class="npl-status {{ $featuredIsLive ? 'npl-status-live' : '' }}">
+                            {{ $matchStatusLabel($featuredMatch) }}
+                        </span>
+                    </div>
+
+                    <div class="npl-match-body">
+                        <div class="npl-match-teams">
+                            <div class="npl-match-team">
+                                <div class="npl-team-logo">
+                                    @if($teamLogo($homeTeam))
+                                    <img src="{{ $teamLogo($homeTeam) }}" alt="{{ $teamName($homeTeam, 'Home Team') }}"
+                                        loading="lazy">
+                                    @else
+                                    <span class="npl-team-placeholder">{{ $teamShortName($homeTeam) }}</span>
+                                    @endif
+                                </div>
+                                <h3>{{ $teamName($homeTeam, 'Home Team') }}</h3>
+                                <div class="npl-team-short">{{ $teamShortName($homeTeam) }}</div>
+                                @if($homeScore)
+                                <div class="npl-team-score">{{ $homeScore['score'] }}</div>
+                                <div class="npl-team-overs">Overs {{ $homeScore['overs'] }}</div>
                                 @endif
-                            </strong>
-
-                            <span class="npl-status {{ $featuredIsLive ? 'npl-status-live' : '' }}">
-                                {{ $matchStatusLabel($featuredMatch) }}
-                            </span>
-                        </div>
-
-                        <div class="npl-match-body">
-                            <div class="npl-match-teams">
-
-                                <div class="npl-match-team">
-                                    <div class="npl-team-logo">
-                                        @if($teamLogo($homeTeam))
-                                            <img
-                                                src="{{ $teamLogo($homeTeam) }}"
-                                                alt="{{ $teamName($homeTeam, 'Home Team') }}"
-                                                loading="lazy"
-                                            >
-                                        @else
-                                            <span class="npl-team-placeholder">
-                                                {{ $teamShortName($homeTeam) }}
-                                            </span>
-                                        @endif
-                                    </div>
-
-                                    <h3>{{ $teamName($homeTeam, 'Home Team') }}</h3>
-
-                                    <div class="npl-team-short">
-                                        {{ $teamShortName($homeTeam) }}
-                                    </div>
-
-                                    @if($homeScore)
-                                        <div class="npl-team-score">
-                                            {{ $homeScore['score'] }}
-                                        </div>
-                                        <div class="npl-team-overs">
-                                            Overs {{ $homeScore['overs'] }}
-                                        </div>
-                                    @endif
-                                </div>
-
-                                <div class="npl-versus">VS</div>
-
-                                <div class="npl-match-team">
-                                    <div class="npl-team-logo">
-                                        @if($teamLogo($awayTeam))
-                                            <img
-                                                src="{{ $teamLogo($awayTeam) }}"
-                                                alt="{{ $teamName($awayTeam, 'Away Team') }}"
-                                                loading="lazy"
-                                            >
-                                        @else
-                                            <span class="npl-team-placeholder">
-                                                {{ $teamShortName($awayTeam) }}
-                                            </span>
-                                        @endif
-                                    </div>
-
-                                    <h3>{{ $teamName($awayTeam, 'Away Team') }}</h3>
-
-                                    <div class="npl-team-short">
-                                        {{ $teamShortName($awayTeam) }}
-                                    </div>
-
-                                    @if($awayScore)
-                                        <div class="npl-team-score">
-                                            {{ $awayScore['score'] }}
-                                        </div>
-                                        <div class="npl-team-overs">
-                                            Overs {{ $awayScore['overs'] }}
-                                        </div>
-                                    @endif
-                                </div>
-
                             </div>
 
-                            <div class="npl-match-info">
-                                <div>
-                                    {{ $formatDate($featuredMatch) }}
-                                    &nbsp;·&nbsp;
-                                    {{ $formatTime($featuredMatch) }}
-                                </div>
+                            <div class="npl-versus">VS</div>
 
-                                @if($featuredResult)
-                                    <div>{{ $featuredResult }}</div>
-                                @elseif($featuredIsLive)
-                                    <div>Follow the match for the latest available score.</div>
-                                @elseif(!$featuredIsFinished)
-                                    <div>Match details and updates</div>
+                            <div class="npl-match-team">
+                                <div class="npl-team-logo">
+                                    @if($teamLogo($awayTeam))
+                                    <img src="{{ $teamLogo($awayTeam) }}" alt="{{ $teamName($awayTeam, 'Away Team') }}"
+                                        loading="lazy">
+                                    @else
+                                    <span class="npl-team-placeholder">{{ $teamShortName($awayTeam) }}</span>
+                                    @endif
+                                </div>
+                                <h3>{{ $teamName($awayTeam, 'Away Team') }}</h3>
+                                <div class="npl-team-short">{{ $teamShortName($awayTeam) }}</div>
+                                @if($awayScore)
+                                <div class="npl-team-score">{{ $awayScore['score'] }}</div>
+                                <div class="npl-team-overs">Overs {{ $awayScore['overs'] }}</div>
                                 @endif
                             </div>
                         </div>
 
-                        <div class="npl-match-footer">
-                            <a href="{{ $fixtureUrl($featuredMatch) }}" class="npl-button">
-                                {{ $featuredIsLive ? 'Open Live Match' : ($featuredIsFinished ? 'View Scorecard' : 'View Match Details') }}
-                            </a>
-                        </div>
-                    @else
-                        <div class="npl-empty-match">
-                            <h3>No Featured Match</h3>
-                            <p>
-                                There is no live match or upcoming fixture available to display right now.
-                                Check the fixtures page for match information.
-                            </p>
-
-                            @if(Route::has('fixtures.index'))
-                                <a href="{{ route('fixtures.index') }}" class="npl-button">
-                                    View All Fixtures
-                                </a>
+                        <div class="npl-match-info">
+                            <div>{{ $formatDate($featuredMatch) }} &nbsp;·&nbsp; {{ $formatTime($featuredMatch) }}</div>
+                            @if($featuredResult)
+                            <div>{{ $featuredResult }}</div>
+                            @elseif($featuredIsLive)
+                            <div>Follow the match for the latest available score.</div>
+                            @elseif(!$featuredIsFinished)
+                            <div>Match details and updates</div>
                             @endif
                         </div>
-                    @endif
+                    </div>
 
+                    <div class="npl-match-footer">
+                        <a href="{{ $fixtureUrl($featuredMatch) }}" class="npl-button">
+                            {{ $featuredIsLive ? 'Open Live Match' : ($featuredIsFinished ? 'View Scorecard' : 'View Match Details') }}
+                        </a>
+                    </div>
+                    @else
+                    <div class="npl-empty-match">
+                        <h3>No Featured Match</h3>
+                        <p>There is no live match or upcoming fixture available to display right now.</p>
+                        @if(Route::has('fixtures.index'))
+                        <a href="{{ route('fixtures.index') }}" class="npl-button">View All Fixtures</a>
+                        @endif
+                    </div>
+                    @endif
                 </div>
             </div>
-
         </div>
     </section>
 
-    {{-- Quick match links --}}
-    @if($liveMatches->isNotEmpty() || $upcomingMatches->isNotEmpty())
-        <section class="npl-ticker">
-            <div class="npl-container npl-ticker-inner">
-                <div class="npl-ticker-label">
-                    {{ $liveMatches->isNotEmpty() ? 'Match Updates' : 'Upcoming' }}
-                </div>
-
-                <div class="npl-ticker-items">
-                    @foreach($liveMatches->take(3) as $match)
-                        @php
-                            $tickerHome = data_get($match, 'homeTeam')
-                                ?? data_get($match, 'home_team');
-
-                            $tickerAway = data_get($match, 'awayTeam')
-                                ?? data_get($match, 'away_team');
-                        @endphp
-
-                        <a href="{{ $fixtureUrl($match) }}">
-                            <span style="color:#c6283d;font-weight:800;">LIVE</span>
-                            &nbsp;{{ $teamShortName($tickerHome) }}
-                            vs {{ $teamShortName($tickerAway) }}
-                        </a>
-                    @endforeach
-
-                    @foreach($upcomingMatches->take(3) as $match)
-                        @php
-                            $tickerHome = data_get($match, 'homeTeam')
-                                ?? data_get($match, 'home_team');
-
-                            $tickerAway = data_get($match, 'awayTeam')
-                                ?? data_get($match, 'away_team');
-                        @endphp
-
-                        <a href="{{ $fixtureUrl($match) }}">
-                            {{ $teamShortName($tickerHome) }}
-                            vs {{ $teamShortName($tickerAway) }}
-                            · {{ $formatDate($match) }}
-                        </a>
-                    @endforeach
-                </div>
+    {{-- SPONSOR STRIP --}}
+    <div class="npl-sponsor-strip">
+        <div class="npl-container npl-sponsor-inner">
+            <div class="npl-sponsor-label">Official Partners</div>
+            <div class="npl-sponsor-logos">
+                @forelse($sponsors as $sponsor)
+                <img src="{{ $imageUrl(data_get($sponsor, 'logo'), 'sponsors') }}"
+                    alt="{{ data_get($sponsor, 'name', 'Sponsor') }}" loading="lazy">
+                @empty
+                <span>Title Sponsor</span>
+                <span>Broadcast Partner</span>
+                <span>Official Kit</span>
+                <span>Hydration Partner</span>
+                <span>Travel Partner</span>
+                @endforelse
             </div>
-        </section>
+        </div>
+    </div>
+
+    {{-- TICKER --}}
+    @if($liveMatches->isNotEmpty() || $upcomingMatches->isNotEmpty())
+    <section class="npl-ticker">
+        <div class="npl-container npl-ticker-inner">
+            <div class="npl-ticker-label">{{ $liveMatches->isNotEmpty() ? 'Live Now' : 'Upcoming' }}</div>
+            <div class="npl-ticker-items">
+                @foreach($liveMatches->take(3) as $match)
+                @php
+                $th = data_get($match, 'homeTeam') ?? data_get($match, 'home_team');
+                $ta = data_get($match, 'awayTeam') ?? data_get($match, 'away_team');
+                @endphp
+                <a href="{{ $fixtureUrl($match) }}">
+                    <span style="color:#f0c75e;font-weight:800;">LIVE</span>
+                    &nbsp;{{ $teamShortName($th) }} vs {{ $teamShortName($ta) }}
+                </a>
+                @endforeach
+                @foreach($upcomingMatches->take(3) as $match)
+                @php
+                $th = data_get($match, 'homeTeam') ?? data_get($match, 'home_team');
+                $ta = data_get($match, 'awayTeam') ?? data_get($match, 'away_team');
+                @endphp
+                <a href="{{ $fixtureUrl($match) }}">
+                    {{ $teamShortName($th) }} vs {{ $teamShortName($ta) }} · {{ $formatDate($match) }}
+                </a>
+                @endforeach
+            </div>
+        </div>
+    </section>
     @endif
 
-    {{-- Recent results --}}
+    {{-- RESULTS --}}
     <section class="npl-section">
         <div class="npl-container">
-
             <div class="npl-section-heading">
                 <div>
-                    <h2>Recent Results</h2>
+                    <div class="npl-eyebrow">Match Centre</div>
+                    <h2>Recent <span>Results</span></h2>
                     <p>Scores and outcomes from completed matches.</p>
                 </div>
-
                 @if(Route::has('fixtures.index'))
-                    <a class="npl-link" href="{{ route('fixtures.index') }}">
-                        All Fixtures <span aria-hidden="true">→</span>
-                    </a>
+                <a class="npl-link" href="{{ route('fixtures.index') }}">All Fixtures →</a>
                 @endif
             </div>
 
             <div class="npl-results-grid">
                 @forelse($recentResults->take(3) as $match)
-                    @php
-                        $resultHome = data_get($match, 'homeTeam')
-                            ?? data_get($match, 'home_team');
-
-                        $resultAway = data_get($match, 'awayTeam')
-                            ?? data_get($match, 'away_team');
-
-                        $resultHomeScore = $scoreFor($match, $resultHome);
-                        $resultAwayScore = $scoreFor($match, $resultAway);
-
-                        $resultText = data_get($match, 'result')
-                            ?? data_get($match, 'result_summary')
-                            ?? data_get($match, 'status_text');
-                    @endphp
-
-                    <article class="npl-result-card">
-                        <div class="npl-result-header">
-                            <strong>{{ $formatDate($match) }}</strong>
-                            <span>FINAL RESULT</span>
-                        </div>
-
-                        <div class="npl-result-teams">
-                            <div class="npl-result-team">
-                                <div class="npl-result-logo">
-                                    @if($teamLogo($resultHome))
-                                        <img
-                                            src="{{ $teamLogo($resultHome) }}"
-                                            alt="{{ $teamName($resultHome) }}"
-                                            loading="lazy"
-                                        >
-                                    @else
-                                        <span>{{ $teamShortName($resultHome) }}</span>
-                                    @endif
-                                </div>
-
-                                <div class="npl-result-team-name">
-                                    {{ $teamName($resultHome, 'Home Team') }}
-                                </div>
-
-                                <div class="npl-result-score">
-                                    {{ $resultHomeScore['score'] ?? '—' }}
-                                </div>
-                            </div>
-
-                            <div class="npl-result-team">
-                                <div class="npl-result-logo">
-                                    @if($teamLogo($resultAway))
-                                        <img
-                                            src="{{ $teamLogo($resultAway) }}"
-                                            alt="{{ $teamName($resultAway) }}"
-                                            loading="lazy"
-                                        >
-                                    @else
-                                        <span>{{ $teamShortName($resultAway) }}</span>
-                                    @endif
-                                </div>
-
-                                <div class="npl-result-team-name">
-                                    {{ $teamName($resultAway, 'Away Team') }}
-                                </div>
-
-                                <div class="npl-result-score">
-                                    {{ $resultAwayScore['score'] ?? '—' }}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="npl-result-footer">
-                            @if($resultText)
-                                {{ $resultText }}
-                            @else
-                                <a href="{{ $fixtureUrl($match) }}">View match scorecard →</a>
-                            @endif
-                        </div>
-                    </article>
-                @empty
-                    <div class="npl-empty">
-                        No completed match results are available yet.
+                @php
+                $rh = data_get($match, 'homeTeam') ?? data_get($match, 'home_team');
+                $ra = data_get($match, 'awayTeam') ?? data_get($match, 'away_team');
+                $rhs = $scoreFor($match, $rh);
+                $ras = $scoreFor($match, $ra);
+                $resultText = data_get($match, 'result') ?? data_get($match, 'result_summary') ?? data_get($match,
+                'status_text');
+                @endphp
+                <article class="npl-result-card">
+                    <div class="npl-result-header">
+                        <strong>{{ $formatDate($match) }}</strong>
+                        <span>FINAL</span>
                     </div>
+                    <div class="npl-result-teams">
+                        <div class="npl-result-team">
+                            <div class="npl-result-logo">
+                                @if($teamLogo($rh))
+                                <img src="{{ $teamLogo($rh) }}" alt="{{ $teamName($rh) }}" loading="lazy">
+                                @else
+                                <span>{{ $teamShortName($rh) }}</span>
+                                @endif
+                            </div>
+                            <div class="npl-result-team-name">{{ $teamName($rh, 'Home Team') }}</div>
+                            <div class="npl-result-score">{{ $rhs['score'] ?? '—' }}</div>
+                        </div>
+                        <div class="npl-result-team">
+                            <div class="npl-result-logo">
+                                @if($teamLogo($ra))
+                                <img src="{{ $teamLogo($ra) }}" alt="{{ $teamName($ra) }}" loading="lazy">
+                                @else
+                                <span>{{ $teamShortName($ra) }}</span>
+                                @endif
+                            </div>
+                            <div class="npl-result-team-name">{{ $teamName($ra, 'Away Team') }}</div>
+                            <div class="npl-result-score">{{ $ras['score'] ?? '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="npl-result-footer">
+                        @if($resultText)
+                        {{ $resultText }}
+                        @else
+                        <a href="{{ $fixtureUrl($match) }}">View match scorecard →</a>
+                        @endif
+                    </div>
+                </article>
+                @empty
+                <div class="npl-empty">No completed match results are available yet.</div>
                 @endforelse
             </div>
-
         </div>
     </section>
 
-    @include('components.player-statistics')
-
-    {{-- Teams --}}
-    <section class="npl-section npl-teams-section">
+    {{-- STANDINGS --}}
+    @if($standings->isNotEmpty())
+    <section class="npl-section npl-standings-section">
         <div class="npl-container">
-
             <div class="npl-section-heading">
                 <div>
-                    <h2>Teams</h2>
-                    <p>Meet the teams competing in the league.</p>
+                    <div class="npl-eyebrow">League Table</div>
+                    <h2>NPL <span>Standings</span></h2>
+                    <p>Points table and recent form of every franchise.</p>
                 </div>
+                @if(Route::has('standings.index'))
+                <a class="npl-link" href="{{ route('standings.index') }}">Full Table →</a>
+                @endif
+            </div>
 
+            <div class="npl-table-wrap">
+                <table class="npl-table">
+                    <thead>
+                        <tr>
+                            <th>Pos</th>
+                            <th>Team</th>
+                            <th>P</th>
+                            <th>W</th>
+                            <th>L</th>
+                            <th>NR</th>
+                            <th>Pts</th>
+                            <th>NRR</th>
+                            <th>Form</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($standings->take(8) as $row)
+                        @php
+                        $rowTeam = data_get($row, 'team');
+                        $form = collect(data_get($row, 'form', []))->takeLast(5);
+                        @endphp
+                        <tr>
+                            <td><span
+                                    class="npl-pos {{ $loop->index < 4 ? 'npl-pos-top' : '' }}">{{ $loop->iteration }}</span>
+                            </td>
+                            <td>
+                                <div class="npl-table-team">
+                                    <div class="npl-table-logo">
+                                        @if($teamLogo($rowTeam))
+                                        <img src="{{ $teamLogo($rowTeam) }}" alt="{{ $teamName($rowTeam) }}"
+                                            loading="lazy">
+                                        @else
+                                        <span>{{ $teamShortName($rowTeam) }}</span>
+                                        @endif
+                                    </div>
+                                    <span class="npl-table-name">{{ $teamName($rowTeam) }}</span>
+                                </div>
+                            </td>
+                            <td>{{ data_get($row, 'played', 0) }}</td>
+                            <td>{{ data_get($row, 'won', 0) }}</td>
+                            <td>{{ data_get($row, 'lost', 0) }}</td>
+                            <td>{{ data_get($row, 'no_result', 0) }}</td>
+                            <td class="npl-table-pts">{{ data_get($row, 'points', 0) }}</td>
+                            <td>{{ data_get($row, 'nrr', '0.000') }}</td>
+                            <td>
+                                <span class="npl-table-form">
+                                    @forelse($form as $f)
+                                    @php
+                                    $fl = strtolower((string) $f);
+                                    $cls = $fl === 'w' ? 'npl-form-w' : ($fl === 'l' ? 'npl-form-l' : 'npl-form-n');
+                                    @endphp
+                                    <span class="npl-form-badge {{ $cls }}">{{ strtoupper($fl) }}</span>
+                                    @empty
+                                    <span style="color:#9ca3af;">—</span>
+                                    @endforelse
+                                </span>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    @endif
+
+    @include('components.player-statistics')
+
+    {{-- TEAMS --}}
+    <section class="npl-section">
+        <div class="npl-container">
+            <div class="npl-section-heading">
+                <div>
+                    <div class="npl-eyebrow">Franchises</div>
+                    <h2>Meet the <span>Teams</span></h2>
+                    <p>Eight cities. One trophy. Pick your side.</p>
+                </div>
                 @if(Route::has('teams.index'))
-                    <a class="npl-link" href="{{ route('teams.index') }}">
-                        All Teams <span aria-hidden="true">→</span>
-                    </a>
+                <a class="npl-link" href="{{ route('teams.index') }}">All Teams →</a>
                 @endif
             </div>
 
             <div class="npl-teams-grid">
                 @forelse($teams->take(10) as $team)
-                    <a href="{{ $teamUrl($team) }}" class="npl-team-card">
-                        <div class="npl-team-logo">
-                            @if($teamLogo($team))
-                                <img
-                                    src="{{ $teamLogo($team) }}"
-                                    alt="{{ $teamName($team) }} logo"
-                                    loading="lazy"
-                                >
-                            @else
-                                <span class="npl-team-placeholder">
-                                    {{ $teamShortName($team) }}
-                                </span>
-                            @endif
-                        </div>
-
-                        <h3>{{ $teamName($team) }}</h3>
-
-                        <small>{{ $teamShortName($team) }}</small>
-                    </a>
-                @empty
-                    <div class="npl-empty">
-                        Team information will appear here when available.
+                <a href="{{ $teamUrl($team) }}" class="npl-team-card">
+                    <div class="npl-team-logo">
+                        @if($teamLogo($team))
+                        <img src="{{ $teamLogo($team) }}" alt="{{ $teamName($team) }} logo" loading="lazy">
+                        @else
+                        <span class="npl-team-placeholder">{{ $teamShortName($team) }}</span>
+                        @endif
                     </div>
+                    <h3>{{ $teamName($team) }}</h3>
+                    <small>{{ $teamShortName($team) }}</small>
+                </a>
+                @empty
+                <div class="npl-empty">Team information will appear here when available.</div>
                 @endforelse
             </div>
-
         </div>
     </section>
 
-    {{-- Latest news --}}
-    <section class="npl-section">
+    {{-- NEWS --}}
+    <section class="npl-section" style="background: var(--npl-bg-soft);">
         <div class="npl-container">
-
             <div class="npl-section-heading">
                 <div>
-                    <h2>Latest Cricket News</h2>
-                    <p>News, match reports and updates from the NPL.</p>
+                    <div class="npl-eyebrow">Newsroom</div>
+                    <h2>Latest <span>News</span></h2>
+                    <p>Match reports, interviews and everything NPL.</p>
                 </div>
-
                 @if(Route::has('news.index'))
-                    <a class="npl-link" href="{{ route('news.index') }}">
-                        All News <span aria-hidden="true">→</span>
-                    </a>
+                <a class="npl-link" href="{{ route('news.index') }}">All News →</a>
                 @endif
             </div>
 
             <div class="npl-news-grid">
                 @forelse($latestNews->take(3) as $article)
-                    @php
-                        $articleImage = $imageUrl(
-                            data_get($article, 'featured_image')
-                                ?? data_get($article, 'thumbnail')
-                                ?? data_get($article, 'image')
-                                ?? data_get($article, 'image_path')
-                        );
+                @php
+                $articleImage = $imageUrl(
+                data_get($article, 'featured_image')
+                ?? data_get($article, 'thumbnail')
+                ?? data_get($article, 'image')
+                ?? data_get($article, 'image_path')
+                );
+                $articleTitle = data_get($article, 'title') ?? 'NPL News';
+                $articleExcerpt = data_get($article, 'excerpt')
+                ?? data_get($article, 'description')
+                ?? data_get($article, 'meta_description');
+                $articleDate = data_get($article, 'published_at') ?? data_get($article, 'created_at');
+                @endphp
 
-                        $articleTitle = data_get($article, 'title')
-                            ?? 'NPL News';
-
-                        $articleExcerpt = data_get($article, 'excerpt')
-                            ?? data_get($article, 'description')
-                            ?? data_get($article, 'meta_description');
-
-                        $articleDate = data_get($article, 'published_at')
-                            ?? data_get($article, 'created_at');
-                    @endphp
-
-                    <article class="npl-news-card">
-                        <a href="{{ $newsUrl($article) }}" class="npl-news-image">
-                            @if($articleImage)
-                                <img
-                                    src="{{ $articleImage }}"
-                                    alt="{{ $articleTitle }}"
-                                    loading="lazy"
-                                >
+                <article class="npl-news-card">
+                    <a href="{{ $newsUrl($article) }}" class="npl-news-image">
+                        @if($articleImage)
+                        <img src="{{ $articleImage }}" alt="{{ $articleTitle }}" loading="lazy">
+                        @else
+                        <div class="npl-news-placeholder">NPL NEWS</div>
+                        @endif
+                    </a>
+                    <div class="npl-news-content">
+                        <div class="npl-news-date">
+                            @if($articleDate)
+                            {{ \Illuminate\Support\Carbon::parse($articleDate)->format('d M Y') }}
                             @else
-                                <div class="npl-news-placeholder">
-                                    NPL NEWS
-                                </div>
+                            NPL News
                             @endif
-                        </a>
-
-                        <div class="npl-news-content">
-                            <div class="npl-news-date">
-                                @if($articleDate)
-                                    {{ \Illuminate\Support\Carbon::parse($articleDate)->format('d M Y') }}
-                                @else
-                                    NPL News
-                                @endif
-                            </div>
-
-                            <h3>
-                                <a href="{{ $newsUrl($article) }}">
-                                    {{ $articleTitle }}
-                                </a>
-                            </h3>
-
-                            @if($articleExcerpt)
-                                <p>{{ \Illuminate\Support\Str::limit(strip_tags($articleExcerpt), 150) }}</p>
-                            @endif
-
-                            <a class="npl-link" href="{{ $newsUrl($article) }}">
-                                Read Article <span aria-hidden="true">→</span>
-                            </a>
                         </div>
-                    </article>
-                @empty
-                    <div class="npl-empty">
-                        No published news articles are available at the moment.
+                        <h3><a href="{{ $newsUrl($article) }}">{{ $articleTitle }}</a></h3>
+                        @if($articleExcerpt)
+                        <p>{{ \Illuminate\Support\Str::limit(strip_tags($articleExcerpt), 150) }}</p>
+                        @endif
+                        <a class="npl-link" href="{{ $newsUrl($article) }}">Read Article →</a>
                     </div>
+                </article>
+                @empty
+                <div class="npl-empty">No published news articles are available at the moment.</div>
                 @endforelse
             </div>
+        </div>
+    </section>
 
+    {{-- PLAYERS --}}
+    @if($featuredPlayers->isNotEmpty())
+    <section class="npl-section npl-players-section">
+        <div class="npl-container">
+            <div class="npl-section-heading">
+                <div>
+                    <div class="npl-eyebrow" style="color: var(--npl-gold);">Stars of the League</div>
+                    <h2>Featured <span style="color: var(--npl-gold);">Players</span></h2>
+                    <p>The names lighting up the NPL this season.</p>
+                </div>
+            </div>
+
+            <div class="npl-players-grid">
+                @foreach($featuredPlayers->take(4) as $player)
+                @php
+                $playerImage = $imageUrl(data_get($player, 'photo') ?? data_get($player, 'image'), 'players');
+                $playerName = data_get($player, 'name') ?? data_get($player, 'full_name') ?? 'Player';
+                $playerTeam = data_get($player, 'team');
+                @endphp
+                <div class="npl-player-card">
+                    <div class="npl-player-image">
+                        @if($playerImage)
+                        <img src="{{ $playerImage }}" alt="{{ $playerName }}" loading="lazy">
+                        @else
+                        <span class="npl-player-initials">{{ strtoupper(substr($playerName, 0, 2)) }}</span>
+                        @endif
+                    </div>
+                    <div class="npl-player-info">
+                        <div class="npl-player-role">{{ data_get($player, 'role', 'All-Rounder') }}</div>
+                        <h3>{{ $playerName }}</h3>
+                        @if($playerTeam)
+                        <div class="npl-player-team">{{ $teamName($playerTeam) }}</div>
+                        @endif
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </section>
+    @endif
+
+    {{-- NEWSLETTER --}}
+    <section class="npl-newsletter">
+        <div class="npl-container npl-newsletter-inner">
+            <div>
+                <h2>Never Miss a Ball</h2>
+                <p>Get NPL match alerts, ticket drops and breaking news delivered to your inbox.</p>
+            </div>
+            <form class="npl-newsletter-form"
+                onsubmit="event.preventDefault(); this.reset(); alert('Thanks for subscribing to NPL updates!');">
+                <input type="email" placeholder="Enter your email address" required>
+                <button type="submit">Subscribe</button>
+            </form>
         </div>
     </section>
 
