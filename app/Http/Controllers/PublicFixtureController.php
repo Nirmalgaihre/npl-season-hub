@@ -42,27 +42,54 @@ class PublicFixtureController extends Controller
     }
 
     public function show(Fixture $fixture): View
-    {
-        abort_unless(
-            in_array($fixture->season->status, ['active', 'completed'], true),
-            404
-        );
+{
+    // Safe season check – prevents "Trying to get property of null"
+    abort_unless(
+        $fixture->season && in_array($fixture->season->status, ['active', 'completed'], true),
+        404
+    );
 
-        $fixture->load(['season', 'homeTeam', 'awayTeam', 'winner']);
+    $fixture->load(['season', 'homeTeam', 'awayTeam', 'winner']);
 
-        // Unverified scores must not be exposed on public pages.
-        if (!$fixture->is_result_verified) {
-            $fixture->setAttribute('home_runs', null);
-            $fixture->setAttribute('home_wickets', null);
-            $fixture->setAttribute('home_overs', null);
-            $fixture->setAttribute('away_runs', null);
-            $fixture->setAttribute('away_wickets', null);
-            $fixture->setAttribute('away_overs', null);
-            $fixture->setAttribute('winner_team_id', null);
-            $fixture->setAttribute('player_of_match', null);
-            $fixture->setAttribute('result_summary', null);
-        }
-
-        return view('fixtures.show', compact('fixture'));
+    // Hide unverified scores on the public site
+    if (!$fixture->is_result_verified) {
+        $fixture->setAttribute('home_runs', null);
+        $fixture->setAttribute('home_wickets', null);
+        $fixture->setAttribute('home_overs', null);
+        $fixture->setAttribute('away_runs', null);
+        $fixture->setAttribute('away_wickets', null);
+        $fixture->setAttribute('away_overs', null);
+        $fixture->setAttribute('winner_team_id', null);
+        $fixture->setAttribute('player_of_match', null);
+        $fixture->setAttribute('result_summary', null);
+        $fixture->setRelation('winner', null);
     }
+
+    // ---------------------------------------------------------------
+    // Load innings data
+    // Prefer live_innings (for live matches), fall back to manual_scorecards
+    // ---------------------------------------------------------------
+    $innings = collect();
+
+    $liveInnings = \Illuminate\Support\Facades\DB::table('live_innings')
+        ->where('fixture_id', $fixture->id)
+        ->orderBy('innings_number')
+        ->get();
+
+    if ($liveInnings->isNotEmpty()) {
+        $innings = $liveInnings;
+    } else {
+        // Completed matches store scores here
+        $innings = \App\Models\ManualScorecard::query()
+            ->where('fixture_id', $fixture->id)
+            ->orderBy('innings_number')
+            ->get();
+    }
+
+    // Detailed player scorecards (the partial expects this)
+    // Leave empty for now – the view already handles the “unavailable” case
+    $scorecards = collect();
+
+    return view('fixtures.show', compact('fixture', 'innings', 'scorecards'));
+}
 }
