@@ -9,13 +9,14 @@ use App\Models\Season;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class MatchController extends Controller
 {
     /**
-     * Display and filter fixtures in the admin panel.
+     * Display and filter fixtures.
      */
     public function index(Request $request): View
     {
@@ -84,8 +85,6 @@ class MatchController extends Controller
             ->get();
 
         $fixture = new Fixture();
-
-        // A new fixture has no saved manual scorecards yet.
         $manualScorecards = collect();
 
         return view('admin.fixtures.create', compact(
@@ -97,7 +96,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Save a new fixture.
+     * Create a fixture.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -115,7 +114,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Show the edit form with manual scoreboard data.
+     * Show the edit form with manual scorecards.
      */
     public function edit(Fixture $fixture): View
     {
@@ -124,11 +123,13 @@ class MatchController extends Controller
             ->get();
 
         $teams = Team::query()
-            ->where('is_active', true)
-            ->orWhereIn('id', [
-                $fixture->home_team_id,
-                $fixture->away_team_id,
-            ])
+            ->where(function ($query) use ($fixture) {
+                $query->where('is_active', true)
+                    ->orWhereIn('id', [
+                        $fixture->home_team_id,
+                        $fixture->away_team_id,
+                    ]);
+            })
             ->orderBy('name')
             ->get();
 
@@ -146,7 +147,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Update a fixture or its result.
+     * Update fixture information and recalculate its result.
      */
     public function update(
         Request $request,
@@ -156,7 +157,11 @@ class MatchController extends Controller
 
         $this->validateFixtureTeams($data);
 
-        $data = $this->prepareResultData($data, $request);
+        $data = $this->prepareResultData(
+            $data,
+            $request,
+            $fixture
+        );
 
         $fixture->update($data);
 
@@ -178,14 +183,12 @@ class MatchController extends Controller
     }
 
     /**
-     * Validate submitted fixture fields.
+     * Validate fixture input.
      */
     private function validateFixture(
         Request $request,
         ?Fixture $fixture = null
     ): array {
-        $fixtureId = $fixture?->id;
-
         return $request->validate([
             'season_id' => [
                 'required',
@@ -202,7 +205,7 @@ class MatchController extends Controller
                         'season_id',
                         $request->input('season_id')
                     ))
-                    ->ignore($fixtureId),
+                    ->ignore($fixture?->id),
             ],
 
             'home_team_id' => [
@@ -316,7 +319,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Ensure selected teams belong to the selected season.
+     * Validate team selection.
      */
     private function validateFixtureTeams(array $data): void
     {
@@ -340,27 +343,23 @@ class MatchController extends Controller
         }
 
         if (! empty($data['winner_team_id'])) {
-            $winnerId = (int) $data['winner_team_id'];
-
-            if (! in_array($winnerId, [
+            if (! in_array((int) $data['winner_team_id'], [
                 (int) $data['home_team_id'],
                 (int) $data['away_team_id'],
             ], true)) {
-                abort(422, 'The winner must be one of the two playing teams.');
+                abort(422, 'The winner must be one of the playing teams.');
             }
         }
 
         if (($data['status'] ?? '') === 'completed') {
-            $requiredScoreFields = [
+            foreach ([
                 'home_runs',
                 'home_wickets',
                 'home_overs',
                 'away_runs',
                 'away_wickets',
                 'away_overs',
-            ];
-
-            foreach ($requiredScoreFields as $field) {
+            ] as $field) {
                 if (
                     ! array_key_exists($field, $data) ||
                     $data[$field] === null ||
@@ -368,61 +367,24 @@ class MatchController extends Controller
                 ) {
                     abort(
                         422,
-                        'Enter both teams’ innings scores and overs before completing the match.'
+                        'Enter both innings scores and overs before completing the match.'
                     );
                 }
             }
         }
     }
-    public function verify(\App\Models\Fixture $fixture)
-{
-    if ($fixture->is_result_verified) {
-        return back()->with('success', 'This result is already verified.');
-    }
-
-    if ($fixture->status !== 'completed') {
-        return back()->with(
-            'error',
-            'Only completed matches can have their results verified.'
-        );
-    }
-
-    $scorecards = \App\Models\ManualScorecard::query()
-        ->where('fixture_id', $fixture->id)
-        ->get();
-
-    $homeInnings = $scorecards->first(
-        fn ($scorecard) =>
-            (int) $scorecard->batting_team_id === (int) $fixture->home_team_id
-    );
-
-    $awayInnings = $scorecards->first(
-        fn ($scorecard) =>
-            (int) $scorecard->batting_team_id === (int) $fixture->away_team_id
-    );
-
-    if (!$homeInnings || !$awayInnings) {
-        return back()->with(
-            'error',
-            'Cannot verify this result. Both teams must have a saved manual scorecard.'
-        );
-    }
-
-    $fixture->is_result_verified = true;
-    $fixture->save();
-
-    return back()->with(
-        'success',
-        'Match result verified successfully.'
-    );
-}
 
     /**
-     * Prepare result verification and audit fields.
+     * Prepare result fields.
+     *
+     * Manual scorecards are authoritative when both innings exist.
+     * A result is not verified automatically just because the match
+     * has been marked completed.
      */
     private function prepareResultData(
         array $data,
-        Request $request
+        Request $request,
+        ?Fixture $fixture = null
     ): array {
         $data['is_result_verified'] = false;
         $data['result_verified_by'] = null;
@@ -435,13 +397,255 @@ class MatchController extends Controller
             return $data;
         }
 
-        $verified = $request->boolean('is_result_verified');
+        $scorecards = $fixture
+            ? ManualScorecard::query()
+                ->where('fixture_id', $fixture->id)
+                ->orderBy('innings_number')
+                ->get()
+            : collect();
 
-        $data['is_result_verified'] = $verified;
-        $data['result_verified_by'] = $verified
-            ? $request->user()?->id
-            : null;
+        $result = $this->calculateManualScorecardResult(
+            $scorecards,
+            (int) $data['home_team_id'],
+            (int) $data['away_team_id']
+        );
 
+        if ($result === null) {
+            // Keep entered scores, but do not announce an unconfirmed winner.
+            $data['winner_team_id'] = null;
+            $data['result_summary'] =
+                'Final result pending valid manual scorecards.';
+
+            return $data;
+        }
+
+        $this->applyCalculatedResult($data, $result);
+
+        // Verification must be an explicit action by an authorized admin.
         return $data;
+    }
+
+    /**
+     * Calculate a result from the two teams' saved manual scorecards.
+     */
+    private function calculateManualScorecardResult(
+        $scorecards,
+        int $homeTeamId,
+        int $awayTeamId
+    ): ?array {
+        $teamInnings = $scorecards
+            ->filter(fn ($card) => in_array(
+                (int) $card->batting_team_id,
+                [$homeTeamId, $awayTeamId],
+                true
+            ))
+            ->sortBy('innings_number')
+            ->values();
+
+        // Exactly one innings for each participating team is expected.
+        if ($teamInnings->count() !== 2) {
+            return null;
+        }
+
+        $first = $teamInnings[0];
+        $second = $teamInnings[1];
+
+        if (
+            (int) $first->batting_team_id ===
+            (int) $second->batting_team_id
+        ) {
+            return null;
+        }
+
+        if (
+            (int) $first->innings_number >=
+            (int) $second->innings_number
+        ) {
+            return null;
+        }
+
+        foreach ([$first, $second] as $innings) {
+            if (
+                $innings->total_runs === null ||
+                $innings->wickets === null ||
+                $innings->overs === null
+            ) {
+                return null;
+            }
+
+            if (
+                (int) $innings->total_runs < 0 ||
+                (int) $innings->wickets < 0 ||
+                (int) $innings->wickets > 10 ||
+                $this->oversToBalls($innings->overs) === null
+            ) {
+                return null;
+            }
+        }
+
+        $firstTeamId = (int) $first->batting_team_id;
+        $secondTeamId = (int) $second->batting_team_id;
+
+        $firstRuns = (int) $first->total_runs;
+        $secondRuns = (int) $second->total_runs;
+
+        $firstTeam = Team::find($firstTeamId);
+        $secondTeam = Team::find($secondTeamId);
+
+        if (! $firstTeam || ! $secondTeam) {
+            return null;
+        }
+
+        $winnerId = null;
+
+        if ($firstRuns > $secondRuns) {
+            $winnerId = $firstTeamId;
+
+            $summary = $firstTeam->name . ' won by '
+                . ($firstRuns - $secondRuns) . ' runs.';
+        } elseif ($secondRuns > $firstRuns) {
+            $winnerId = $secondTeamId;
+
+            $wicketsRemaining = 10 - (int) $second->wickets;
+
+            if ($wicketsRemaining > 0) {
+                $summary = $secondTeam->name . ' won by '
+                    . $wicketsRemaining . ' wickets.';
+            } else {
+                $summary = $secondTeam->name
+                    . ' won after reaching the target with all wickets lost.';
+            }
+        } else {
+            $summary = 'Match tied.';
+        }
+
+        return [
+            'home_runs' => (int) (
+                $firstTeamId === $homeTeamId
+                    ? $first->total_runs
+                    : $second->total_runs
+            ),
+
+            'home_wickets' => (int) (
+                $firstTeamId === $homeTeamId
+                    ? $first->wickets
+                    : $second->wickets
+            ),
+
+            'home_overs' => (
+                $firstTeamId === $homeTeamId
+                    ? $first->overs
+                    : $second->overs
+            ),
+
+            'away_runs' => (int) (
+                $firstTeamId === $awayTeamId
+                    ? $first->total_runs
+                    : $second->total_runs
+            ),
+
+            'away_wickets' => (int) (
+                $firstTeamId === $awayTeamId
+                    ? $first->wickets
+                    : $second->wickets
+            ),
+
+            'away_overs' => (
+                $firstTeamId === $awayTeamId
+                    ? $first->overs
+                    : $second->overs
+            ),
+
+            'winner_team_id' => $winnerId,
+            'result_summary' => $summary,
+        ];
+    }
+
+    /**
+     * Copy calculated values into the fixture data array.
+     */
+    private function applyCalculatedResult(
+        array &$data,
+        array $result
+    ): void {
+        $data['home_runs'] = $result['home_runs'];
+        $data['home_wickets'] = $result['home_wickets'];
+        $data['home_overs'] = $result['home_overs'];
+
+        $data['away_runs'] = $result['away_runs'];
+        $data['away_wickets'] = $result['away_wickets'];
+        $data['away_overs'] = $result['away_overs'];
+
+        $data['winner_team_id'] = $result['winner_team_id'];
+        $data['result_summary'] = $result['result_summary'];
+    }
+
+    /**
+     * Convert cricket overs into legal balls.
+     *
+     * Example: 19.4 means 118 balls, not 19.4 decimal overs.
+     */
+    private function oversToBalls($overs): ?int
+    {
+        $value = trim((string) $overs);
+
+        if (! preg_match('/^(\d{1,2})(?:\.([0-5]))?$/', $value, $matches)) {
+            return null;
+        }
+
+        return ((int) $matches[1] * 6)
+            + (isset($matches[2]) ? (int) $matches[2] : 0);
+    }
+
+    /**
+     * Verify the official result using the saved scorecards.
+     */
+    public function verify(Fixture $fixture): RedirectResponse
+    {
+        if ($fixture->is_result_verified) {
+            return back()->with(
+                'success',
+                'This result is already verified.'
+            );
+        }
+
+        if ($fixture->status !== 'completed') {
+            return back()->with(
+                'error',
+                'Only completed matches can have their results verified.'
+            );
+        }
+
+        $result = $this->calculateManualScorecardResult(
+            ManualScorecard::query()
+                ->where('fixture_id', $fixture->id)
+                ->orderBy('innings_number')
+                ->get(),
+            (int) $fixture->home_team_id,
+            (int) $fixture->away_team_id
+        );
+
+        if ($result === null) {
+            return back()->with(
+                'error',
+                'Cannot verify this result. Both teams must have valid manual scorecards.'
+            );
+        }
+
+        DB::transaction(function () use ($fixture, $result) {
+            $data = [];
+
+            $this->applyCalculatedResult($data, $result);
+
+            $data['is_result_verified'] = true;
+            $data['result_verified_by'] = request()->user()?->id;
+
+            $fixture->update($data);
+        });
+
+        return back()->with(
+            'success',
+            'Official result calculated and verified successfully.'
+        );
     }
 }

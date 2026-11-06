@@ -492,3 +492,120 @@
     </div>
 
 </div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const homeTeam = document.getElementById('home_team_id');
+    const awayTeam = document.getElementById('away_team_id');
+    const homeRuns = document.getElementById('home_runs');
+    const awayRuns = document.getElementById('away_runs');
+    const awayWickets = document.getElementById('away_wickets');
+    const winner = document.getElementById('winner_team_id');
+    const summary = document.getElementById('result_summary');
+    const status = document.getElementById('status');
+
+    if (
+        !homeTeam || !awayTeam ||
+        !homeRuns || !awayRuns ||
+        !awayWickets || !winner || !summary || !status
+    ) {
+        return;
+    }
+
+    let summaryWasEdited = summary.value.trim() !== '';
+
+    function getTeamName(select) {
+        return select.options[select.selectedIndex]?.text
+            .replace(/\s*\([^)]*\)\s*$/, '')
+            .trim() || 'Team';
+    }
+
+    function calculateResult() {
+        // Never announce a winner before the match is completed.
+        if (status.value !== 'completed') {
+            winner.value = '';
+
+            if (!summaryWasEdited) {
+                summary.value = '';
+            }
+
+            return;
+        }
+
+        const home = Number(homeRuns.value);
+        const away = Number(awayRuns.value);
+        const wickets = Number(awayWickets.value);
+
+        const valid =
+            homeTeam.value &&
+            awayTeam.value &&
+            homeTeam.value !== awayTeam.value &&
+            homeRuns.value.trim() !== '' &&
+            awayRuns.value.trim() !== '' &&
+            awayWickets.value.trim() !== '' &&
+            Number.isFinite(home) &&
+            Number.isFinite(away) &&
+            Number.isFinite(wickets) &&
+            home >= 0 &&
+            away >= 0 &&
+            wickets >= 0 &&
+            wickets <= 10;
+
+        if (!valid) {
+            winner.value = '';
+
+            if (!summaryWasEdited) {
+                summary.value = '';
+            }
+
+            return;
+        }
+
+        const homeName = getTeamName(homeTeam);
+        const awayName = getTeamName(awayTeam);
+
+        let winnerId = '';
+        let result = '';
+
+        if (home === away) {
+            result = 'Match tied.';
+        } else if (home > away) {
+            winnerId = homeTeam.value;
+            result = `${homeName} won by ${home - away} runs.`;
+        } else {
+            winnerId = awayTeam.value;
+            result = `${awayName} won by ${10 - wickets} wickets.`;
+        }
+
+        winner.value = winnerId;
+
+        if (!summaryWasEdited) {
+            summary.value = result;
+        }
+    }
+
+    summary.addEventListener('input', function () {
+        summaryWasEdited = summary.value.trim() !== '';
+
+        if (!summaryWasEdited) {
+            calculateResult();
+        }
+    });
+
+    [
+        homeTeam,
+        awayTeam,
+        homeRuns,
+        awayRuns,
+        awayWickets,
+        status
+    ].forEach(function (element) {
+        element.addEventListener('input', calculateResult);
+        element.addEventListener('change', calculateResult);
+    });
+
+    calculateResult();
+});
+</script>
+

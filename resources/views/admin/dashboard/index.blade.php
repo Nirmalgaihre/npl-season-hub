@@ -1,250 +1,389 @@
 
 @extends('layouts.admin')
 
-@section('title', 'Dashboard')
-
+@section('title', 'NPL Admin Dashboard')
 @section('page_heading', 'Dashboard')
 
 @section('content')
-<div class="space-y-6">
+<div class="min-h-screen space-y-7 bg-white pb-10">
 
-    {{-- Welcome section --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <p class="text-sm text-gray-500">NPL Season Hub / Admin</p>
-            <h1 class="mt-1 text-2xl font-bold tracking-tight text-gray-900">
-                Dashboard Overview
-            </h1>
-            <p class="mt-2 text-sm text-gray-500">
-                Monitor fixtures and match activity from one place.
-            </p>
-        </div>
+    {{-- Header --}}
+    <section class="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-xl sm:px-9">
+        <div class="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-red-500/20 blur-3xl"></div>
 
-        <a href="{{ route('admin.fixtures.index') }}"
-           class="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
-            <i class="fa-solid fa-calendar-plus"></i>
-            Manage Fixtures
-        </a>
-    </div>
-
-    {{-- Statistics --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-gray-500">Total Fixtures</div>
-                <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
-                    <i class="fa-solid fa-calendar-days text-lg"></i>
-                </span>
-            </div>
-            <div class="mt-4 text-3xl font-bold text-gray-900">
-                {{ number_format($stats['total_fixtures']) }}
-            </div>
-            <p class="mt-1 text-xs text-gray-500">All recorded fixtures</p>
-        </div>
-
-        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-gray-500">Upcoming</div>
-                <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                    <i class="fa-regular fa-clock text-lg"></i>
-                </span>
-            </div>
-            <div class="mt-4 text-3xl font-bold text-gray-900">
-                {{ number_format($stats['upcoming_fixtures']) }}
-            </div>
-            <p class="mt-1 text-xs text-gray-500">Scheduled fixtures</p>
-        </div>
-
-        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-gray-500">Live Matches</div>
-                <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600">
-                    <span class="relative flex h-2.5 w-2.5">
-                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600"></span>
-                    </span>
-                </span>
-            </div>
-            <div class="mt-4 text-3xl font-bold text-gray-900">
-                {{ number_format($stats['live_fixtures']) }}
-            </div>
-            <p class="mt-1 text-xs text-gray-500">Currently marked live</p>
-        </div>
-
-        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-gray-500">Completed</div>
-                <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                    <i class="fa-solid fa-circle-check text-lg"></i>
-                </span>
-            </div>
-            <div class="mt-4 text-3xl font-bold text-gray-900">
-                {{ number_format($stats['completed_fixtures']) }}
-            </div>
-            <p class="mt-1 text-xs text-gray-500">Finished fixtures</p>
-        </div>
-
-    </div>
-
-    {{-- Quick actions --}}
-    <div>
-        <h2 class="text-lg font-bold text-gray-900">Quick Actions</h2>
-        <p class="mt-1 text-sm text-gray-500">
-            Jump directly to common administration tasks.
-        </p>
-
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-
-            <a href="{{ route('admin.fixtures.index') }}"
-               class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-red-200 hover:shadow-md">
-                <div class="flex items-center gap-4">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-600 transition group-hover:bg-red-100">
-                        <i class="fa-solid fa-list-check text-xl"></i>
-                    </span>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">Manage Fixtures</h3>
-                        <p class="mt-1 text-sm text-gray-500">View and update match schedules.</p>
-                    </div>
-                    <i class="fa-solid fa-arrow-right ml-auto text-gray-400 transition group-hover:translate-x-1 group-hover:text-red-600"></i>
-                </div>
-            </a>
-
-            <a href="{{ route('admin.fixtures.create') }}"
-               class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-red-200 hover:shadow-md">
-                <div class="flex items-center gap-4">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <i class="fa-solid fa-plus text-xl"></i>
-                    </span>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">Create Fixture</h3>
-                        <p class="mt-1 text-sm text-gray-500">Add a new match to the season.</p>
-                    </div>
-                    <i class="fa-solid fa-arrow-right ml-auto text-gray-400 transition group-hover:translate-x-1 group-hover:text-blue-600"></i>
-                </div>
-            </a>
-
-            <a href="{{ route('admin.fixtures.index') }}"
-               class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-red-200 hover:shadow-md">
-                <div class="flex items-center gap-4">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                        <i class="fa-solid fa-chart-line text-xl"></i>
-                    </span>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">Season Activity</h3>
-                        <p class="mt-1 text-sm text-gray-500">Review the current fixture list.</p>
-                    </div>
-                    <i class="fa-solid fa-arrow-right ml-auto text-gray-400 transition group-hover:translate-x-1 group-hover:text-green-600"></i>
-                </div>
-            </a>
-
-        </div>
-    </div>
-
-    {{-- Recent fixtures --}}
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="relative flex flex-col justify-between gap-6 md:flex-row md:items-center">
             <div>
-                <h2 class="font-bold text-gray-900">Recent Fixtures</h2>
-                <p class="mt-1 text-sm text-gray-500">
-                    The latest fixtures added to the system.
+                <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold text-slate-200">
+                    <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
+                    NPL SEASON HUB
+                </span>
+
+                <h2 class="mt-4 text-3xl font-black sm:text-4xl">
+                    Admin <span class="text-red-400">Dashboard</span>
+                </h2>
+
+                <p class="mt-3 max-w-xl text-sm leading-6 text-slate-300">
+                    Monitor tournament activity, manage fixtures, review results,
+                    and keep your match information up to date.
+                </p>
+
+                <p class="mt-4 text-sm text-slate-400">
+                    <i class="far fa-calendar-alt mr-2"></i>
+                    {{ now()->format('l, d F Y') }}
                 </p>
             </div>
 
-            <a href="{{ route('admin.fixtures.index') }}"
-               class="inline-flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700">
-                View all fixtures
-                <i class="fa-solid fa-arrow-right"></i>
-            </a>
-        </div>
+            <div class="flex flex-wrap gap-3">
+                <a href="{{ route('admin.fixtures.index') }}"
+                   class="rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 hover:bg-slate-100">
+                    <i class="fas fa-calendar-alt mr-2"></i>Manage Fixtures
+                </a>
 
-        @if($recentFixtures->isEmpty())
-            <div class="px-5 py-12 text-center">
-                <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-                    <i class="fa-solid fa-calendar-xmark text-xl"></i>
-                </span>
-                <h3 class="mt-4 font-semibold text-gray-900">No fixtures yet</h3>
-                <p class="mt-1 text-sm text-gray-500">
-                    Create a fixture to start building your season schedule.
-                </p>
                 <a href="{{ route('admin.fixtures.create') }}"
-                   class="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-                    <i class="fa-solid fa-plus"></i>
-                    Create Fixture
+                   class="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white hover:bg-red-600">
+                    <i class="fas fa-plus mr-2"></i>Add Fixture
                 </a>
             </div>
-        @else
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Match
-                            </th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Date
-                            </th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Status
-                            </th>
-                            <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
+        </div>
+    </section>
 
-                    <tbody class="divide-y divide-gray-100 bg-white">
-                        @foreach($recentFixtures as $fixture)
-                            <tr class="transition hover:bg-gray-50">
-                                <td class="px-5 py-4">
-                                    <div class="font-semibold text-gray-900">
-                                        {{ $fixture->homeTeam?->name ?? 'Team ' . ($fixture->home_team_id ?? 'TBC') }}
-                                        <span class="mx-1 text-gray-400">vs</span>
-                                        {{ $fixture->awayTeam?->name ?? 'Team ' . ($fixture->away_team_id ?? 'TBC') }}
-                                    </div>
-                                    <div class="mt-1 text-xs text-gray-500">
-                                        Fixture #{{ $fixture->id }}
-                                    </div>
-                                </td>
+    {{-- Statistics --}}
+    <section>
+        <div class="mb-4">
+            <h3 class="text-xl font-black text-slate-900">Tournament Overview</h3>
+            <p class="mt-1 text-sm text-slate-500">Live database statistics</p>
+        </div>
 
-                                <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
-                                    @if($fixture->match_date)
-                                        {{ \Illuminate\Support\Carbon::parse($fixture->match_date)->format('d M Y') }}
-                                    @else
-                                        <span class="text-gray-400">Not scheduled</span>
-                                    @endif
-                                </td>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            @php
+                $cards = [
+                    ['label' => 'Total Fixtures', 'key' => 'total_fixtures', 'description' => 'All recorded fixtures', 'icon' => 'fa-calendar-alt', 'bg' => 'bg-blue-50', 'border' => 'border-blue-100', 'iconBg' => 'bg-blue-600', 'text' => 'text-blue-800'],
+                    ['label' => 'Upcoming Matches', 'key' => 'upcoming_fixtures', 'description' => 'Scheduled matches', 'icon' => 'fa-clock', 'bg' => 'bg-amber-50', 'border' => 'border-amber-100', 'iconBg' => 'bg-amber-500', 'text' => 'text-amber-800'],
+                    ['label' => 'Live Matches', 'key' => 'live_fixtures', 'description' => 'Currently marked live', 'icon' => 'fa-broadcast-tower', 'bg' => 'bg-emerald-50', 'border' => 'border-emerald-100', 'iconBg' => 'bg-emerald-600', 'text' => 'text-emerald-800'],
+                    ['label' => 'Completed Matches', 'key' => 'completed_fixtures', 'description' => 'Marked completed', 'icon' => 'fa-check-circle', 'bg' => 'bg-purple-50', 'border' => 'border-purple-100', 'iconBg' => 'bg-purple-600', 'text' => 'text-purple-800'],
+                    ['label' => 'Registered Teams', 'key' => 'total_teams', 'description' => 'Teams in database', 'icon' => 'fa-shield-alt', 'bg' => 'bg-cyan-50', 'border' => 'border-cyan-100', 'iconBg' => 'bg-cyan-600', 'text' => 'text-cyan-800'],
+                    ['label' => 'Total Seasons', 'key' => 'total_seasons', 'description' => 'Registered seasons', 'icon' => 'fa-trophy', 'bg' => 'bg-indigo-50', 'border' => 'border-indigo-100', 'iconBg' => 'bg-indigo-600', 'text' => 'text-indigo-800'],
+                    ['label' => 'Verified Results', 'key' => 'verified_results', 'description' => 'Confirmed completed results', 'icon' => 'fa-user-check', 'bg' => 'bg-green-50', 'border' => 'border-green-100', 'iconBg' => 'bg-green-600', 'text' => 'text-green-800'],
+                    ['label' => 'Pending Verification', 'key' => 'pending_verification', 'description' => 'Completed results to review', 'icon' => 'fa-exclamation-triangle', 'bg' => 'bg-rose-50', 'border' => 'border-rose-100', 'iconBg' => 'bg-rose-600', 'text' => 'text-rose-800'],
+                    ['label' => 'Abandoned Matches', 'key' => 'abandoned_fixtures', 'description' => 'Marked abandoned', 'icon' => 'fa-ban', 'bg' => 'bg-orange-50', 'border' => 'border-orange-100', 'iconBg' => 'bg-orange-600', 'text' => 'text-orange-800'],
+                    ['label' => 'Postponed Matches', 'key' => 'postponed_fixtures', 'description' => 'Awaiting rescheduling', 'icon' => 'fa-calendar-times', 'bg' => 'bg-slate-100', 'border' => 'border-slate-200', 'iconBg' => 'bg-slate-600', 'text' => 'text-slate-800'],
+                ];
+            @endphp
 
-                                <td class="whitespace-nowrap px-5 py-4">
-                                    @php
-                                        $status = strtolower($fixture->status ?? 'upcoming');
+            @foreach($cards as $card)
+                <div class="group relative overflow-hidden rounded-2xl border {{ $card['border'] }} {{ $card['bg'] }} p-5 transition hover:-translate-y-1 hover:shadow-lg">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-bold {{ $card['text'] }}">{{ $card['label'] }}</p>
+                            <p class="mt-3 text-4xl font-black text-slate-900">
+                                {{ number_format($stats[$card['key']] ?? 0) }}
+                            </p>
+                            <p class="mt-2 text-xs text-slate-600">{{ $card['description'] }}</p>
+                        </div>
 
-                                        $statusClasses = match ($status) {
-                                            'live' => 'bg-red-50 text-red-700 ring-red-600/20',
-                                            'completed' => 'bg-green-50 text-green-700 ring-green-600/20',
-                                            default => 'bg-blue-50 text-blue-700 ring-blue-600/20',
-                                        };
-                                    @endphp
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl {{ $card['iconBg'] }} text-xl text-white shadow-sm">
+                            <i class="fas {{ $card['icon'] }}"></i>
+                        </span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </section>
 
-                                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset {{ $statusClasses }}">
-                                        {{ ucfirst($status) }}
-                                    </span>
-                                </td>
-
-                                <td class="whitespace-nowrap px-5 py-4 text-right">
-                                    <a href="{{ route('admin.fixtures.edit', $fixture->id) }}"
-                                       class="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                        Edit
-                                    </a>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+    {{-- Live Matches --}}
+    @if($liveFixtures->isNotEmpty())
+        <section class="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+            <div class="border-b border-emerald-100 bg-emerald-50 px-5 py-4">
+                <h3 class="text-lg font-black text-slate-900">
+                    <span class="mr-2 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500"></span>
+                    Live Matches
+                </h3>
+                <p class="mt-1 text-sm text-slate-600">Fixtures currently marked live</p>
             </div>
-        @endif
+
+            <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                @foreach($liveFixtures as $fixture)
+                    <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                        <div class="mb-4 flex items-center justify-between">
+                            <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-700">LIVE</span>
+                            <span class="text-xs text-slate-500">
+                                {{ $fixture->scheduled_at ? \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('M d, h:i A') : 'Time not set' }}
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                            @foreach([$fixture->homeTeam, $fixture->awayTeam] as $team)
+                                <div class="min-w-0 text-center">
+                                    @if($team && !empty($teamLogoUrls[$team->id] ?? null))
+                                        <img src="{{ $teamLogoUrls[$team->id] }}"
+                                             alt="{{ $team->name }}"
+                                             class="mx-auto mb-2 h-16 w-16 rounded-full border border-slate-200 bg-white p-1 object-contain"
+                                             loading="lazy">
+                                    @else
+                                        <div class="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                            <i class="fas fa-shield-alt text-2xl"></i>
+                                        </div>
+                                    @endif
+
+                                    <p class="break-words text-sm font-extrabold text-slate-900">
+                                        {{ $team?->name ?? 'Team not assigned' }}
+                                    </p>
+                                </div>
+
+                                @if($loop->first)
+                                    <span class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-black text-white">VS</span>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        <a href="{{ route('admin.fixtures.edit', $fixture) }}"
+                           class="mt-4 block rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-xs font-bold text-white hover:bg-emerald-700">
+                            <i class="fas fa-edit mr-1"></i> Manage Fixture
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
+    {{-- Upcoming and recent matches --}}
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+        {{-- Upcoming --}}
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 bg-amber-50 px-5 py-5">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">
+                        <i class="fas fa-calendar-day mr-2 text-amber-500"></i>Upcoming Matches
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500">Next scheduled fixtures</p>
+                </div>
+                <a href="{{ route('admin.fixtures.index') }}" class="text-sm font-bold text-blue-700">View all →</a>
+            </div>
+
+            <div class="space-y-3 p-4 sm:p-5">
+                @forelse($upcomingFixtures as $fixture)
+                    <div class="rounded-xl border border-slate-200 p-4 transition hover:border-amber-300 hover:bg-amber-50/30">
+                        <div class="mb-4 flex items-center justify-between gap-2">
+                            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Scheduled</span>
+                            <span class="text-right text-xs text-slate-500">
+                                {{ $fixture->scheduled_at ? \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('D, M d · h:i A') : 'Date not set' }}
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                            @foreach([$fixture->homeTeam, $fixture->awayTeam] as $team)
+                                <div class="min-w-0 text-center">
+                                    @if($team && !empty($teamLogoUrls[$team->id] ?? null))
+                                        <img src="{{ $teamLogoUrls[$team->id] }}"
+                                             alt="{{ $team->name }}"
+                                             class="mx-auto mb-2 h-14 w-14 rounded-full border border-slate-200 bg-white p-1 object-contain"
+                                             loading="lazy">
+                                    @else
+                                        <div class="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                            <i class="fas fa-shield-alt text-xl"></i>
+                                        </div>
+                                    @endif
+
+                                    <p class="break-words text-sm font-extrabold text-slate-900">
+                                        {{ $team?->name ?? 'Team not assigned' }}
+                                    </p>
+                                    <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        {{ $loop->first ? 'Home' : 'Away' }}
+                                    </p>
+                                </div>
+
+                                @if($loop->first)
+                                    <span class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-black text-white">VS</span>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        @if($fixture->season?->name)
+                            <p class="mt-3 text-center text-xs text-slate-500">{{ $fixture->season->name }}</p>
+                        @endif
+
+                        <a href="{{ route('admin.fixtures.edit', $fixture) }}"
+                           class="mt-4 block rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700">
+                            Edit Fixture
+                        </a>
+                    </div>
+                @empty
+                    <div class="py-12 text-center">
+                        <i class="fas fa-calendar-check text-3xl text-amber-400"></i>
+                        <p class="mt-3 font-bold text-slate-900">No upcoming matches</p>
+                        <p class="mt-1 text-sm text-slate-500">Create a fixture to see it here.</p>
+                        <a href="{{ route('admin.fixtures.create') }}" class="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Add Fixture</a>
+                    </div>
+                @endforelse
+            </div>
+        </section>
+
+        {{-- Recent matches --}}
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-100 bg-purple-50 px-5 py-5">
+                <h3 class="text-lg font-black text-slate-900">
+                    <i class="fas fa-history mr-2 text-purple-600"></i>Recent Matches
+                </h3>
+                <p class="mt-1 text-sm text-slate-500">Latest completed fixtures</p>
+            </div>
+
+            <div class="space-y-3 p-4 sm:p-5">
+                @forelse($recentMatches as $fixture)
+                    <div class="rounded-xl border border-slate-200 p-4 hover:border-purple-200 hover:bg-purple-50/30">
+                        <div class="mb-4 flex items-center justify-between gap-2">
+                            <span class="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800">Completed</span>
+                            <span class="text-xs text-slate-500">
+                                {{ $fixture->scheduled_at ? \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('M d, Y') : 'Match #' . $fixture->id }}
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                            @foreach([$fixture->homeTeam, $fixture->awayTeam] as $team)
+                                <div class="min-w-0 text-center">
+                                    @if($team && !empty($teamLogoUrls[$team->id] ?? null))
+                                        <img src="{{ $teamLogoUrls[$team->id] }}"
+                                             alt="{{ $team->name }}"
+                                             class="mx-auto mb-2 h-12 w-12 rounded-full border border-slate-200 bg-white p-1 object-contain"
+                                             loading="lazy">
+                                    @else
+                                        <div class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </div>
+                                    @endif
+
+                                    <p class="break-words text-xs font-extrabold text-slate-900">
+                                        {{ $team?->name ?? 'Team not assigned' }}
+                                    </p>
+                                </div>
+
+                                @if($loop->first)
+                                    <span class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-black text-white">VS</span>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                            <span class="text-xs text-slate-500">Result verification</span>
+
+                            @if($fixture->is_result_verified)
+                                <span class="text-xs font-bold text-emerald-700">
+                                    <i class="fas fa-check-circle mr-1"></i>Verified
+                                </span>
+                            @else
+                                <span class="text-xs font-bold text-amber-700">
+                                    <i class="fas fa-exclamation-circle mr-1"></i>Pending
+                                </span>
+                            @endif
+                        </div>
+
+                        <a href="{{ route('admin.fixtures.edit', $fixture) }}"
+                           class="mt-3 block rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-bold text-slate-700 hover:bg-purple-100 hover:text-purple-800">
+                            Review Match
+                        </a>
+                    </div>
+                @empty
+                    <div class="py-12 text-center">
+                        <i class="fas fa-history text-3xl text-purple-400"></i>
+                        <p class="mt-3 font-bold text-slate-900">No completed matches yet</p>
+                    </div>
+                @endforelse
+            </div>
+        </section>
     </div>
+
+    {{-- Recent fixture activity --}}
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 bg-slate-50 px-5 py-5">
+            <h3 class="text-lg font-black text-slate-900">
+                <i class="fas fa-list-alt mr-2 text-blue-600"></i>Recent Fixture Activity
+            </h3>
+            <p class="mt-1 text-sm text-slate-500">Latest fixture records</p>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100">
+                <thead class="bg-white">
+                    <tr>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500">Match</th>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500">Season</th>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500">Scheduled</th>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500">Status</th>
+                        <th class="px-5 py-4 text-right text-xs font-bold uppercase text-slate-500">Action</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-100">
+                    @forelse($recentFixtures as $fixture)
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-5 py-4">
+                                <div class="flex items-center gap-3">
+                                    @foreach([$fixture->homeTeam, $fixture->awayTeam] as $team)
+                                        @if($team && !empty($teamLogoUrls[$team->id] ?? null))
+                                            <img src="{{ $teamLogoUrls[$team->id] }}"
+                                                 alt="{{ $team->name }}"
+                                                 class="h-9 w-9 rounded-full border border-slate-200 bg-white p-1 object-contain"
+                                                 loading="lazy">
+                                        @else
+                                            <span class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                                <i class="fas fa-shield-alt"></i>
+                                            </span>
+                                        @endif
+                                    @endforeach
+
+                                    <div class="min-w-0">
+                                        <p class="max-w-xs truncate text-sm font-bold text-slate-900">
+                                            {{ $fixture->homeTeam?->name ?? 'Home Team' }}
+                                            <span class="text-slate-400">vs</span>
+                                            {{ $fixture->awayTeam?->name ?? 'Away Team' }}
+                                        </p>
+                                        <p class="mt-1 text-xs text-slate-400">Fixture #{{ $fixture->id }}</p>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                                {{ $fixture->season?->name ?? '—' }}
+                            </td>
+
+                            <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                                {{ $fixture->scheduled_at ? \Illuminate\Support\Carbon::parse($fixture->scheduled_at)->format('M d, Y · h:i A') : 'Not set' }}
+                            </td>
+
+                            <td class="whitespace-nowrap px-5 py-4">
+                                @php
+                                    $statusClasses = [
+                                        'scheduled' => 'bg-amber-100 text-amber-800',
+                                        'live' => 'bg-emerald-100 text-emerald-800',
+                                        'completed' => 'bg-purple-100 text-purple-800',
+                                        'abandoned' => 'bg-orange-100 text-orange-800',
+                                        'postponed' => 'bg-slate-200 text-slate-700',
+                                    ];
+                                @endphp
+
+                                <span class="rounded-full px-3 py-1 text-xs font-bold {{ $statusClasses[$fixture->status] ?? 'bg-gray-100 text-gray-700' }}">
+                                    {{ ucfirst($fixture->status ?? 'Unknown') }}
+                                </span>
+                            </td>
+
+                            <td class="whitespace-nowrap px-5 py-4 text-right">
+                                <a href="{{ route('admin.fixtures.edit', $fixture) }}"
+                                   class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-blue-50">
+                                    <i class="fas fa-edit mr-1"></i>Edit
+                                </a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-500">
+                                No fixtures found.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
 
 </div>
 @endsection

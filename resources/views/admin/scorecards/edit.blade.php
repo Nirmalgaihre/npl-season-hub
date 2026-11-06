@@ -881,12 +881,21 @@
 </style>
 
 <script>
+
 document.addEventListener('DOMContentLoaded', function () {
     const optionTemplate = document.getElementById('all-player-options');
     const form = document.getElementById('scorecard-form');
     const secondInningsToggle = document.getElementById('enable-second-innings');
 
     if (!optionTemplate || !form) return;
+
+    const creditedWicketTypes = [
+        'bowled',
+        'caught',
+        'lbw',
+        'stumped',
+        'hit_wicket'
+    ];
 
     function allPlayerOptions() {
         return Array.from(optionTemplate.content.querySelectorAll('option'));
@@ -895,44 +904,55 @@ document.addEventListener('DOMContentLoaded', function () {
     function getNumber(row, field) {
         const input = row.querySelector(`[data-field="${field}"]`);
         const value = Number.parseFloat(input?.value ?? '0');
+
         return Number.isFinite(value) ? value : 0;
     }
 
     function setCalculatedValue(row, field, value) {
         const input = row.querySelector(`[data-field="${field}"]`);
+
         if (!input) return;
 
-        const formatted = Number.isFinite(value) ? value.toFixed(2) : '0.00';
-        input.value = formatted;
+        input.value = Number.isFinite(value) ? value.toFixed(2) : '0.00';
     }
 
     function calculateStrikeRate(row) {
         const runs = getNumber(row, 'runs');
         const balls = getNumber(row, 'balls');
 
-        setCalculatedValue(row, 'strike_rate', balls > 0 ? (runs / balls) * 100 : 0);
+        setCalculatedValue(
+            row,
+            'strike_rate',
+            balls > 0 ? (runs / balls) * 100 : 0
+        );
     }
 
-    // Cricket notation: 3.4 means 3 overs and 4 balls, not 3.4 decimal overs.
+    // Cricket notation: 3.4 = 3 overs and 4 legal balls.
     function oversToBalls(value) {
         const text = String(value ?? '0').trim();
 
         if (!text) return 0;
 
         const match = text.match(/^(\d+)(?:\.(\d+))?$/);
+
         if (!match) return null;
 
         const overs = Number.parseInt(match[1], 10);
         let ballPart = match[2] ?? '0';
 
-        // Accept harmless trailing zeros such as 3.40, but reject 3.45.
+        // Allow trailing zeros, e.g. 3.40, but reject 3.45.
         ballPart = ballPart.replace(/0+$/, '') || '0';
 
         if (ballPart.length !== 1) return null;
 
         const balls = Number.parseInt(ballPart, 10);
 
-        if (!Number.isInteger(overs) || !Number.isInteger(balls) || balls < 0 || balls > 5) {
+        if (
+            !Number.isInteger(overs) ||
+            !Number.isInteger(balls) ||
+            balls < 0 ||
+            balls > 5
+        ) {
             return null;
         }
 
@@ -944,13 +964,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const oversInput = row.querySelector('[data-field="overs"]');
         const legalBalls = oversToBalls(oversInput?.value ?? '0.0');
 
-        // Do not display a misleading value while overs notation is invalid.
         if (legalBalls === null) {
             setCalculatedValue(row, 'economy', 0);
             return;
         }
 
-        setCalculatedValue(row, 'economy', legalBalls > 0 ? (runs * 6) / legalBalls : 0);
+        setCalculatedValue(
+            row,
+            'economy',
+            legalBalls > 0 ? (runs * 6) / legalBalls : 0
+        );
     }
 
     function calculateAllStatistics(section) {
@@ -961,13 +984,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleCustomName(select) {
         const row = select.closest('tr');
         const input = row?.querySelector('.custom-player-name');
+
         if (!input) return;
 
         const isOther = select.value === '__other__';
+
         input.style.display = isOther ? '' : 'none';
         input.required = isOther;
 
-        if (!isOther) input.value = '';
+        if (!isOther) {
+            input.value = '';
+        }
     }
 
     function filterPlayerSelect(select, teamId, savedName = '') {
@@ -986,21 +1013,31 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        const exists = Array.from(select.options).some(option => option.value === currentValue);
+        const exists = Array.from(select.options).some(
+            option => option.value === currentValue
+        );
 
         if (exists) {
             select.value = currentValue;
-        } else if (currentValue) {
+        } else if (currentValue && currentValue !== '__other__') {
             select.value = '__other__';
-            if (custom) custom.value = currentValue;
+
+            if (custom) {
+                custom.value = currentValue;
+            }
         } else {
-            select.value = '';
+            select.value = currentValue === '__other__' ? '__other__' : '';
         }
 
         toggleCustomName(select);
     }
 
-    function filterDismissalSelect(select, teamId, savedName = '', placeholder = 'Select player') {
+    function filterDismissalSelect(
+        select,
+        teamId,
+        savedName = '',
+        placeholder = 'Select player'
+    ) {
         const currentValue = savedName || select.value;
 
         select.replaceChildren();
@@ -1020,7 +1057,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        const exists = Array.from(select.options).some(option => option.value === currentValue);
+        const exists = Array.from(select.options).some(
+            option => option.value === currentValue
+        );
 
         if (currentValue && !exists) {
             const saved = document.createElement('option');
@@ -1034,12 +1073,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function selectOtherTeam(select, excludedId) {
         const option = Array.from(select.options).find(item =>
-            item.value !== '' && item.value !== String(excludedId)
+            item.value !== '' &&
+            item.value !== String(excludedId)
         );
-        if (option) select.value = option.value;
+
+        if (option) {
+            select.value = option.value;
+        }
     }
 
     function toggleDismissalFields(row) {
+        if (!row) return;
+
         const type = row.querySelector('.dismissal-type')?.value || 'not_out';
         const bowler = row.querySelector('.dismissal-bowler');
         const fielder = row.querySelector('.dismissal-fielder');
@@ -1047,12 +1092,22 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!bowler || !fielder) return;
 
         const bowlerNeeded = [
-            'bowled', 'caught', 'lbw', 'stumped', 'hit_wicket',
-            'run_out', 'obstructing_field', 'other'
+            'bowled',
+            'caught',
+            'lbw',
+            'stumped',
+            'hit_wicket',
+            'run_out',
+            'obstructing_field',
+            'other'
         ].includes(type);
 
         const fielderNeeded = [
-            'caught', 'run_out', 'stumped', 'obstructing_field', 'other'
+            'caught',
+            'run_out',
+            'stumped',
+            'obstructing_field',
+            'other'
         ].includes(type);
 
         bowler.disabled = !bowlerNeeded;
@@ -1070,6 +1125,179 @@ document.addEventListener('DOMContentLoaded', function () {
         fielder.classList.toggle('dismissal-not-needed', !fielderNeeded);
     }
 
+    /*
+     * Get the actual player name from a bowling-card row.
+     * Supports registered players and manually entered players.
+     */
+    function getBowlerRowName(row) {
+        const select = row.querySelector('.bowler-player');
+        const custom = row.querySelector('.custom-player-name');
+
+        if (!select) return '';
+
+        if (select.value === '__other__') {
+            return (custom?.value || '').trim();
+        }
+
+        return select.value.trim();
+    }
+
+    /*
+     * Get the bowler's name from a batter dismissal.
+     */
+    function getDismissalBowlerName(row) {
+        const select = row.querySelector('.dismissal-bowler');
+
+        return (select?.value || '').trim();
+    }
+
+    /*
+     * Find an existing bowling row for this player.
+     * Compare names without case sensitivity or extra spaces.
+     */
+    function findBowlerRow(section, playerName) {
+        const targetName = playerName.trim().toLowerCase();
+
+        return Array.from(section.querySelectorAll('.bowler-row')).find(row =>
+            getBowlerRowName(row).toLowerCase() === targetName
+        );
+    }
+
+    /*
+     * Create a bowling row only when the player does not already exist.
+     * The syncing flag prevents refreshInnings() from recursively
+     * creating rows while this function is running.
+     */
+    function ensureBowlerRow(section, playerName) {
+        let row = findBowlerRow(section, playerName);
+
+        if (row) return row;
+
+        addPlayerRow(section, 'bowlers');
+
+        const rows = Array.from(section.querySelectorAll('.bowler-row'));
+        row = rows[rows.length - 1];
+
+        if (!row) return null;
+
+        const select = row.querySelector('.bowler-player');
+        const custom = row.querySelector('.custom-player-name');
+
+        if (!select) return null;
+
+        const matchingOption = Array.from(select.options).find(option =>
+            option.value === playerName
+        );
+
+        if (matchingOption) {
+            select.value = playerName;
+
+            if (custom) {
+                custom.value = '';
+            }
+        } else {
+            select.value = '__other__';
+
+            if (custom) {
+                custom.value = playerName;
+            }
+        }
+
+        toggleCustomName(select);
+
+        return row;
+    }
+
+    /*
+     * Automatically calculate bowler wickets from batter dismissals.
+     *
+     * Credited dismissals:
+     * - Bowled
+     * - Caught
+     * - LBW
+     * - Stumped
+     * - Hit wicket
+     *
+     * Run outs and other non-credited dismissals do not count
+     * toward the bowler's wicket total.
+     */
+    function syncBowlerFromDismissals(section) {
+        if (!section) return;
+
+        // Prevent recursive calls caused by addPlayerRow() refreshing
+        // the innings while a bowler row is being created.
+        if (section.dataset.syncingBowlers === '1') {
+            return;
+        }
+
+        section.dataset.syncingBowlers = '1';
+
+        try {
+            const bowlingTeam = section.querySelector('.bowling-team');
+
+            if (!bowlingTeam) return;
+
+            const bowlingTeamId = bowlingTeam.value;
+            const wicketCounts = new Map();
+
+            section.querySelectorAll('.batter-row').forEach(row => {
+                const dismissalType =
+                    row.querySelector('.dismissal-type')?.value || 'not_out';
+
+                const bowlerName = getDismissalBowlerName(row);
+
+                if (
+                    !creditedWicketTypes.includes(dismissalType) ||
+                    !bowlerName
+                ) {
+                    return;
+                }
+
+                wicketCounts.set(
+                    bowlerName,
+                    (wicketCounts.get(bowlerName) || 0) + 1
+                );
+            });
+
+            // Add missing bowlers first, without duplicating existing rows.
+            wicketCounts.forEach((count, playerName) => {
+                const existingRow = findBowlerRow(section, playerName);
+
+                if (existingRow) return;
+
+                // Only auto-add registered players belonging to the
+                // currently selected bowling team.
+                const registeredPlayer = allPlayerOptions().find(option =>
+                    option.value === playerName &&
+                    String(option.dataset.teamId) === String(bowlingTeamId)
+                );
+
+                if (registeredPlayer) {
+                    ensureBowlerRow(section, playerName);
+                } else {
+                    // A manually entered/saved player can still be added.
+                    ensureBowlerRow(section, playerName);
+                }
+            });
+
+            // Update every bowling row's wicket total.
+            section.querySelectorAll('.bowler-row').forEach(row => {
+                const name = getBowlerRowName(row);
+                const wicketsInput = row.querySelector('[data-field="wickets"]');
+
+                if (!wicketsInput) return;
+
+                wicketsInput.value = String(wicketCounts.get(name) || 0);
+                wicketsInput.readOnly = true;
+                wicketsInput.classList.add('calculated-stat');
+                wicketsInput.title =
+                    'Automatically calculated from batter dismissal records';
+            });
+        } finally {
+            delete section.dataset.syncingBowlers;
+        }
+    }
+
     function refreshInnings(section) {
         const batting = section.querySelector('.batting-team');
         const bowling = section.querySelector('.bowling-team');
@@ -1081,20 +1309,34 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         Array.from(batting.options).forEach(option => {
-            option.disabled = option.value !== '' && option.value === bowling.value;
+            option.disabled =
+                option.value !== '' &&
+                option.value === bowling.value;
         });
 
         Array.from(bowling.options).forEach(option => {
-            option.disabled = option.value !== '' && option.value === batting.value;
+            option.disabled =
+                option.value !== '' &&
+                option.value === batting.value;
         });
 
         section.querySelectorAll('.batter-player').forEach(select => {
-            filterPlayerSelect(select, batting.value, select.dataset.savedName || select.value);
+            filterPlayerSelect(
+                select,
+                batting.value,
+                select.dataset.savedName || select.value
+            );
+
             select.dataset.savedName = '';
         });
 
         section.querySelectorAll('.bowler-player').forEach(select => {
-            filterPlayerSelect(select, bowling.value, select.dataset.savedName || select.value);
+            filterPlayerSelect(
+                select,
+                bowling.value,
+                select.dataset.savedName || select.value
+            );
+
             select.dataset.savedName = '';
         });
 
@@ -1105,6 +1347,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 select.dataset.savedName || select.value,
                 'Select bowler'
             );
+
             select.dataset.savedName = '';
         });
 
@@ -1115,16 +1358,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 select.dataset.savedName || select.value,
                 'Select fielder'
             );
+
             select.dataset.savedName = '';
         });
 
         section.querySelectorAll('.batter-row').forEach(toggleDismissalFields);
+
         calculateAllStatistics(section);
+
+        // Safe because syncBowlerFromDismissals has a recursion guard.
+        syncBowlerFromDismissals(section);
     }
 
     function renumberRows(section, type) {
         const isBatter = type === 'batters';
-        const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
+
+        const list = section.querySelector(
+            isBatter ? '.batter-list' : '.bowler-list'
+        );
+
+        if (!list) return;
+
         const index = section.dataset.inningsIndex;
 
         Array.from(list.querySelectorAll('tr')).forEach((row, rowIndex) => {
@@ -1133,8 +1387,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const select = row.querySelector('.player-select');
             const custom = row.querySelector('.custom-player-name');
 
-            if (select) select.name = `${base}[name]`;
-            if (custom) custom.name = `${base}[custom_name]`;
+            if (select) {
+                select.name = `${base}[name]`;
+            }
+
+            if (custom) {
+                custom.name = `${base}[custom_name]`;
+            }
 
             row.querySelectorAll('[data-field]').forEach(input => {
                 input.name = `${base}[${input.dataset.field}]`;
@@ -1144,26 +1403,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function addPlayerRow(section, type) {
         const isBatter = type === 'batters';
-        const list = section.querySelector(isBatter ? '.batter-list' : '.bowler-list');
+
+        const list = section.querySelector(
+            isBatter ? '.batter-list' : '.bowler-list'
+        );
+
         const template = document.getElementById(
             isBatter ? 'new-batter-template' : 'new-bowler-template'
         );
 
+        if (!list || !template) return;
+
         const row = template.content.firstElementChild.cloneNode(true);
         const select = row.querySelector('.player-select');
 
-        allPlayerOptions().forEach(option => select.appendChild(option.cloneNode(true)));
+        allPlayerOptions().forEach(option => {
+            select.appendChild(option.cloneNode(true));
+        });
 
         list.appendChild(row);
+
         renumberRows(section, type);
         refreshInnings(section);
     }
 
     function updateSecondInningsVisibility() {
-        const second = document.querySelector('.innings-section[data-innings-number="2"]');
+        const second = document.querySelector(
+            '.innings-section[data-innings-number="2"]'
+        );
+
         if (!second || !secondInningsToggle) return;
 
         const enabled = secondInningsToggle.checked;
+
         second.hidden = !enabled;
 
         second.querySelectorAll('input, select, textarea, button').forEach(control => {
@@ -1171,7 +1443,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         if (enabled) {
-            second.querySelectorAll('.team-select, .score-input input, .player-select').forEach(control => {
+            second.querySelectorAll(
+                '.team-select, .score-input input, .player-select'
+            ).forEach(control => {
                 control.disabled = false;
             });
 
@@ -1179,23 +1453,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Live calculation as you type.
+    // Calculate batting strike rate and bowling economy as values change.
     form.addEventListener('input', function (event) {
         const target = event.target;
         const row = target.closest('.batter-row, .bowler-row');
 
         if (!row) return;
 
-        if (row.classList.contains('batter-row')) {
-            if (target.matches('[data-field="runs"], [data-field="balls"]')) {
-                calculateStrikeRate(row);
-            }
+        if (
+            row.classList.contains('batter-row') &&
+            target.matches('[data-field="runs"], [data-field="balls"]')
+        ) {
+            calculateStrikeRate(row);
         }
 
-        if (row.classList.contains('bowler-row')) {
-            if (target.matches('[data-field="runs"], [data-field="overs"]')) {
-                calculateEconomy(row);
-            }
+        if (
+            row.classList.contains('bowler-row') &&
+            target.matches('[data-field="runs"], [data-field="overs"]')
+        ) {
+            calculateEconomy(row);
         }
     });
 
@@ -1203,10 +1479,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const batting = section.querySelector('.batting-team');
         const bowling = section.querySelector('.bowling-team');
 
+        if (!batting || !bowling) return;
+
         batting.addEventListener('change', () => {
             if (batting.value === bowling.value) {
                 selectOtherTeam(bowling, batting.value);
             }
+
             refreshInnings(section);
         });
 
@@ -1214,39 +1493,54 @@ document.addEventListener('DOMContentLoaded', function () {
             if (bowling.value === batting.value) {
                 selectOtherTeam(batting, bowling.value);
             }
+
             refreshInnings(section);
         });
 
-        section.querySelector('.swap-teams').addEventListener('click', () => {
+        section.querySelector('.swap-teams')?.addEventListener('click', () => {
             const previousBatting = batting.value;
+
             batting.value = bowling.value;
             bowling.value = previousBatting;
+
             refreshInnings(section);
         });
 
-        section.querySelector('.add-batter').addEventListener('click', () => {
+        section.querySelector('.add-batter')?.addEventListener('click', () => {
             addPlayerRow(section, 'batters');
         });
 
-        section.querySelector('.add-bowler').addEventListener('click', () => {
+        section.querySelector('.add-bowler')?.addEventListener('click', () => {
             addPlayerRow(section, 'bowlers');
         });
 
         section.addEventListener('change', event => {
-            if (event.target.matches('.player-select')) {
-                toggleCustomName(event.target);
+            const target = event.target;
+
+            if (target.matches('.player-select')) {
+                toggleCustomName(target);
             }
 
-            if (event.target.matches('.dismissal-type')) {
-                toggleDismissalFields(event.target.closest('.batter-row'));
+            if (target.matches('.dismissal-type')) {
+                toggleDismissalFields(target.closest('.batter-row'));
+            }
+
+            if (
+                target.matches(
+                    '.dismissal-type, .dismissal-bowler, .bowling-team, .bowler-player'
+                )
+            ) {
+                syncBowlerFromDismissals(section);
             }
         });
 
         section.addEventListener('click', event => {
             const button = event.target.closest('.remove-row');
+
             if (!button) return;
 
             const row = button.closest('.batter-row, .bowler-row');
+
             if (!row) return;
 
             const isBatter = row.classList.contains('batter-row');
@@ -1257,34 +1551,51 @@ document.addEventListener('DOMContentLoaded', function () {
                 row.remove();
             } else {
                 row.querySelectorAll('input').forEach(input => {
-                    input.value = input.classList.contains('custom-player-name') ? '' : 0;
+                    input.value = input.classList.contains('custom-player-name')
+                        ? ''
+                        : '0';
                 });
 
                 const playerSelect = row.querySelector('.player-select');
+
                 if (playerSelect) {
                     playerSelect.value = '';
                     toggleCustomName(playerSelect);
                 }
 
-                row.querySelectorAll('.dismissal-bowler, .dismissal-fielder').forEach(select => {
+                row.querySelectorAll(
+                    '.dismissal-bowler, .dismissal-fielder'
+                ).forEach(select => {
                     select.value = '';
                 });
 
                 const dismissalType = row.querySelector('.dismissal-type');
-                if (dismissalType) dismissalType.value = 'not_out';
+
+                if (dismissalType) {
+                    dismissalType.value = 'not_out';
+                }
 
                 toggleDismissalFields(row);
             }
 
             renumberRows(section, type);
             calculateAllStatistics(section);
+
+            // If a batter was removed, recalculate credited wickets.
+            // If a bowler was removed but is still assigned a wicket,
+            // the necessary row will be recreated automatically.
+            syncBowlerFromDismissals(section);
         });
 
         refreshInnings(section);
     });
 
     if (secondInningsToggle) {
-        secondInningsToggle.addEventListener('change', updateSecondInningsVisibility);
+        secondInningsToggle.addEventListener(
+            'change',
+            updateSecondInningsVisibility
+        );
+
         updateSecondInningsVisibility();
     }
 
@@ -1298,9 +1609,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (button) {
             button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+            button.innerHTML =
+                '<i class="fas fa-spinner fa-spin"></i> Saving…';
         }
     });
 });
+
 </script>
 @endsection

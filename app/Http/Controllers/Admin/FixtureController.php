@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Fixture;
 use App\Models\Season;
 use App\Models\Team;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,6 +74,7 @@ class FixtureController extends Controller
             'teams' => Team::where('is_active', true)
                 ->orderBy('name')
                 ->get(),
+            'manualScorecards' => collect(),
         ]);
     }
 
@@ -95,16 +95,27 @@ class FixtureController extends Controller
 
     public function edit(Fixture $fixture): View
     {
+        /*
+         * Load manual innings by batting team.
+         * The Blade form uses these values to populate
+         * the home and away innings fields.
+         */
+        $manualScorecards = DB::table('manual_scorecards')
+            ->where('fixture_id', $fixture->id)
+            ->get();
+
         return view('admin.fixtures.edit', [
             'fixture' => $fixture->load([
                 'season',
                 'homeTeam',
                 'awayTeam',
+                'winner',
             ]),
             'seasons' => Season::orderByDesc('season_number')->get(),
             'teams' => Team::where('is_active', true)
                 ->orderBy('name')
                 ->get(),
+            'manualScorecards' => $manualScorecards,
         ]);
     }
 
@@ -116,6 +127,10 @@ class FixtureController extends Controller
 
         $this->validateFixtureTeams($data, $fixture);
 
+        /*
+         * Automatically determine the winner from the scores
+         * before saving the fixture.
+         */
         $data = $this->prepareResultData($request, $data, $fixture);
 
         $fixture->update($data);
@@ -135,7 +150,7 @@ class FixtureController extends Controller
     }
 
     /**
-     * Show a public fixture and its recorded live-scoring innings.
+     * Display a fixture and its existing recorded innings.
      */
     public function show($id): View
     {
@@ -170,6 +185,9 @@ class FixtureController extends Controller
         ));
     }
 
+    /**
+     * Validate the fixture form fields.
+     */
     private function validatedData(
         Request $request,
         ?Fixture $fixture = null
@@ -233,13 +251,47 @@ class FixtureController extends Controller
                 ]),
             ],
 
-            'home_runs' => ['nullable', 'integer', 'min:0', 'max:999'],
-            'home_wickets' => ['nullable', 'integer', 'min:0', 'max:10'],
-            'home_overs' => ['nullable', 'numeric', 'min:0', 'max:50'],
+            'home_runs' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:999',
+            ],
 
-            'away_runs' => ['nullable', 'integer', 'min:0', 'max:999'],
-            'away_wickets' => ['nullable', 'integer', 'min:0', 'max:10'],
-            'away_overs' => ['nullable', 'numeric', 'min:0', 'max:50'],
+            'home_wickets' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:10',
+            ],
+
+            'home_overs' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:50',
+            ],
+
+            'away_runs' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:999',
+            ],
+
+            'away_wickets' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:10',
+            ],
+
+            'away_overs' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:50',
+            ],
 
             'winner_team_id' => [
                 'nullable',
@@ -247,12 +299,28 @@ class FixtureController extends Controller
                 'exists:teams,id',
             ],
 
-            'player_of_match' => ['nullable', 'string', 'max:150'],
-            'result_summary' => ['nullable', 'string', 'max:2000'],
-            'is_result_verified' => ['nullable', 'boolean'],
+            'player_of_match' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+
+            'result_summary' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+
+            'is_result_verified' => [
+                'nullable',
+                'boolean',
+            ],
         ]);
     }
 
+    /**
+     * Validate team participation and cricket overs.
+     */
     private function validateFixtureTeams(
         array $data,
         ?Fixture $fixture = null
@@ -281,22 +349,30 @@ class FixtureController extends Controller
             ]);
         }
 
-        if (
-            !empty($data['winner_team_id'])
-            && !in_array(
-                (int) $data['winner_team_id'],
-                [$homeTeamId, $awayTeamId],
-                true
-            )
-        ) {
-            throw ValidationException::withMessages([
-                'winner_team_id' => 'The winner must be one of the two teams in this fixture.',
-            ]);
+        /*
+         * For a completed match, the winner will be recalculated
+         * from the scores. Do not reject a valid score update
+         * because the previously selected winner is outdated.
+         */
+        if (($data['status'] ?? '') !== 'completed') {
+            if (
+                !empty($data['winner_team_id'])
+                && !in_array(
+                    (int) $data['winner_team_id'],
+                    [$homeTeamId, $awayTeamId],
+                    true
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'winner_team_id' => 'The winner must be one of the two teams in this fixture.',
+                ]);
+            }
         }
 
         foreach (['home_overs', 'away_overs'] as $field) {
             if (isset($data[$field])) {
                 $overs = (float) $data[$field];
+
                 $fraction = (int) round(
                     ($overs - floor($overs)) * 10
                 );
@@ -313,6 +389,9 @@ class FixtureController extends Controller
             }
         }
 
+        /*
+         * A completed match must have both innings' scores.
+         */
         if (($data['status'] ?? '') === 'completed') {
             foreach ([
                 'home_runs',
@@ -322,7 +401,11 @@ class FixtureController extends Controller
                 'away_wickets',
                 'away_overs',
             ] as $field) {
-                if (!isset($data[$field])) {
+                if (
+                    !array_key_exists($field, $data)
+                    || $data[$field] === null
+                    || $data[$field] === ''
+                ) {
                     throw ValidationException::withMessages([
                         $field => 'Enter both teams’ innings scores before marking a match completed.',
                     ]);
@@ -331,20 +414,49 @@ class FixtureController extends Controller
         }
     }
 
+    /**
+     * Prepare result data and calculate the winner automatically.
+     */
     private function prepareResultData(
         Request $request,
         array $data,
         ?Fixture $fixture = null
     ): array {
-        $verified = $request->boolean('is_result_verified');
+        $status = $data['status'] ?? 'scheduled';
 
-        if (($data['status'] ?? '') !== 'completed') {
-            $data['is_result_verified'] = false;
+        /*
+         * A non-completed fixture must not retain a winner or
+         * an official verified-result status.
+         */
+        if ($status !== 'completed') {
             $data['winner_team_id'] = null;
+            $data['is_result_verified'] = false;
             $data['result_verified_by'] = null;
 
             return $data;
         }
+
+        /*
+         * Calculate the winner using the final innings scores.
+         * The submitted winner_team_id is intentionally ignored.
+         */
+        $homeRuns = (int) $data['home_runs'];
+        $awayRuns = (int) $data['away_runs'];
+
+        if ($homeRuns > $awayRuns) {
+            $data['winner_team_id'] = (int) $data['home_team_id'];
+        } elseif ($awayRuns > $homeRuns) {
+            $data['winner_team_id'] = (int) $data['away_team_id'];
+        } else {
+            // A tied score does not automatically identify a winner.
+            $data['winner_team_id'] = null;
+        }
+
+        /*
+         * Verification remains controlled by the admin checkbox.
+         * Calculating a winner does not automatically verify it.
+         */
+        $verified = $request->boolean('is_result_verified');
 
         if ($verified) {
             $data['is_result_verified'] = true;
