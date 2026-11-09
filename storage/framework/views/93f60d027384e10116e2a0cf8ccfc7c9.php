@@ -1,13 +1,11 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', $team->name . ' | NPL Season Hub'); ?>
 
-@section('title', $team->name . ' | NPL Season Hub')
+<?php $__env->startSection('meta_description', 'View the ' . $team->name . ' squad, live innings scores, fixtures and results in the Nepal
+Premier League.'); ?>
 
-@section('meta_description', 'View the ' . $team->name . ' squad, live innings scores, fixtures and results in the Nepal
-Premier League.')
+<?php $__env->startSection('content'); ?>
 
-@section('content')
-
-@php
+<?php
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -59,33 +57,34 @@ $teamNames = $battingTeamIds->isNotEmpty()
 $teamLogo = !empty($team->logo)
 ? asset('storage/' . $team->logo)
 : null;
-@endphp
+?>
 
 <div class="min-h-screen bg-[#F6F8FB] text-[#202766]">
 
-    {{-- Team heading --}}
+    
     <section class="border-b border-slate-200 bg-white">
         <div class="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10">
 
             <nav class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                <a href="{{ route('home') }}" class="transition hover:text-[#F06445]">Home</a>
+                <a href="<?php echo e(route('home')); ?>" class="transition hover:text-[#F06445]">Home</a>
                 <span>/</span>
-                <a href="{{ route('teams.index') }}" class="transition hover:text-[#F06445]">Teams</a>
+                <a href="<?php echo e(route('teams.index')); ?>" class="transition hover:text-[#F06445]">Teams</a>
                 <span>/</span>
-                <span class="font-semibold text-[#202766]">{{ $team->name }}</span>
+                <span class="font-semibold text-[#202766]"><?php echo e($team->name); ?></span>
             </nav>
 
             <div class="mt-7 flex flex-col gap-6 sm:flex-row sm:items-center">
 
                 <div
                     class="flex h-28 w-28 shrink-0 items-center justify-center border border-slate-200 bg-slate-50 p-3 sm:h-32 sm:w-32">
-                    @if ($teamLogo)
-                    <img src="{{ $teamLogo }}" alt="{{ $team->name }} logo" class="h-full w-full object-contain">
-                    @else
+                    <?php if($teamLogo): ?>
+                    <img src="<?php echo e($teamLogo); ?>" alt="<?php echo e($team->name); ?> logo" class="h-full w-full object-contain">
+                    <?php else: ?>
                     <span class="text-2xl font-extrabold">
-                        {{ Str::upper(Str::substr($team->short_name ?: $team->name, 0, 3)) }}
+                        <?php echo e(Str::upper(Str::substr($team->short_name ?: $team->name, 0, 3))); ?>
+
                     </span>
-                    @endif
+                    <?php endif; ?>
                 </div>
 
                 <div class="min-w-0 flex-1">
@@ -94,28 +93,31 @@ $teamLogo = !empty($team->logo)
                     </p>
 
                     <h1 class="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                        {{ $team->name }}
+                        <?php echo e($team->name); ?>
+
                     </h1>
 
-                    @if ($team->short_name)
+                    <?php if($team->short_name): ?>
                     <p class="mt-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                        {{ $team->short_name }}
-                    </p>
-                    @endif
+                        <?php echo e($team->short_name); ?>
 
-                    @if ($team->home_venue)
+                    </p>
+                    <?php endif; ?>
+
+                    <?php if($team->home_venue): ?>
                     <p class="mt-3 text-sm text-slate-600">
                         <span class="font-bold text-slate-800">Home ground:</span>
-                        {{ $team->home_venue }}
-                    </p>
-                    @endif
+                        <?php echo e($team->home_venue); ?>
 
-                    @if ($team->website_url)
-                    <a href="{{ $team->website_url }}" target="_blank" rel="noopener noreferrer"
+                    </p>
+                    <?php endif; ?>
+
+                    <?php if($team->website_url): ?>
+                    <a href="<?php echo e($team->website_url); ?>" target="_blank" rel="noopener noreferrer"
                         class="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#202766] hover:text-[#F06445]">
                         Official website <span aria-hidden="true">↗</span>
                     </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
 
             </div>
@@ -124,32 +126,32 @@ $teamLogo = !empty($team->logo)
 
     <div class="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
 
-        {{-- Team overview --}}
+        
         <section class="grid grid-cols-2 gap-px overflow-hidden border border-slate-200 bg-slate-200 sm:grid-cols-4">
 
             <div class="bg-white p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Squad players</p>
-                <p class="mt-2 text-3xl font-extrabold">{{ $players->count() }}</p>
+                <p class="mt-2 text-3xl font-extrabold"><?php echo e($players->count()); ?></p>
             </div>
 
             <div class="bg-white p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Live matches</p>
-                <p class="mt-2 text-3xl font-extrabold text-red-600">{{ $liveFixtures->count() }}</p>
+                <p class="mt-2 text-3xl font-extrabold text-red-600"><?php echo e($liveFixtures->count()); ?></p>
             </div>
 
             <div class="bg-white p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming</p>
-                <p class="mt-2 text-3xl font-extrabold">{{ $upcomingFixtures->count() }}</p>
+                <p class="mt-2 text-3xl font-extrabold"><?php echo e($upcomingFixtures->count()); ?></p>
             </div>
 
             <div class="bg-white p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</p>
-                <p class="mt-2 text-3xl font-extrabold">{{ $completedFixtures->count() }}</p>
+                <p class="mt-2 text-3xl font-extrabold"><?php echo e($completedFixtures->count()); ?></p>
             </div>
 
         </section>
 
-        {{-- Player squad --}}
+        
         <section id="squad" class="mt-12">
 
             <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
@@ -163,21 +165,22 @@ $teamLogo = !empty($team->logo)
                     </h2>
 
                     <p class="mt-2 text-sm text-slate-500">
-                        Players registered to {{ $team->name }}.
+                        Players registered to <?php echo e($team->name); ?>.
                     </p>
                 </div>
 
                 <span class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#202766]">
-                    {{ $players->count() }} {{ Str::plural('Player', $players->count()) }}
+                    <?php echo e($players->count()); ?> <?php echo e(Str::plural('Player', $players->count())); ?>
+
                 </span>
             </div>
 
-            @if ($players->isNotEmpty())
+            <?php if($players->isNotEmpty()): ?>
 
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
 
-                @foreach ($players as $player)
-                @php
+                <?php $__currentLoopData = $players; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $player): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php
                 $playerName = $player->name ?? 'Player';
                 $playerRole = trim($player->role ?? '');
                 $roleLower = Str::lower($playerRole);
@@ -202,86 +205,91 @@ $teamLogo = !empty($team->logo)
 
                 // Link to the player's performance page.
                 // Link to the player's profile page.
-                $playerUrl = !empty($player->slug)
-                    ? route('players.show', ['player' => $player->slug])
-                    : route('players.performance', ['playerName' => $playerName]);
-                @endphp
+                $playerUrl = route('players.performance', [
+    'playerName' => $playerName,
+]);
+                ?>
 
-                {{-- Clickable player card --}}
-                <a href="{{ $playerUrl }}"
+                
+                <a href="<?php echo e($playerUrl); ?>"
                     class="group relative isolate block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F06445]/40 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F06445] focus-visible:ring-offset-2">
 
-                    {{-- Player portrait --}}
+                    
                     <div class="relative h-52 overflow-hidden bg-[#102052] sm:h-60">
 
-                        {{-- Navy gradient --}}
+                        
                         <div class="absolute inset-0 bg-gradient-to-br from-[#203D88] via-[#14285F] to-[#091538]"></div>
 
-                        {{-- Decorative shapes --}}
+                        
                         <div class="absolute -bottom-12 -left-10 h-36 w-36 rotate-[28deg] bg-[#F06445]"></div>
 
                         <div class="absolute -bottom-16 -right-12 h-44 w-44 -rotate-[25deg] bg-[#FF815D]"></div>
 
-                        {{-- Background pattern --}}
+                        
                         <div class="absolute inset-0 opacity-[0.07]"
                             style="background-image: repeating-linear-gradient(130deg, transparent 0, transparent 24px, #ffffff 25px, transparent 39px);">
                         </div>
 
-                        {{-- Player photo or team-logo fallback --}}
-                        @if ($playerPhoto)
-                        <img src="{{ $playerPhoto }}" alt="{{ $playerName }}" loading="lazy"
+                        
+                        <?php if($playerPhoto): ?>
+                        <img src="<?php echo e($playerPhoto); ?>" alt="<?php echo e($playerName); ?>" loading="lazy"
                             class="absolute inset-0 z-[1] h-full w-full object-contain object-bottom transition duration-500 group-hover:scale-105">
-                        @else
+                        <?php else: ?>
                         <div
                             class="absolute inset-0 z-[1] flex flex-col items-center justify-center px-3 pb-10 text-center">
 
-                            @if ($teamLogo)
-                            <img src="{{ $teamLogo }}" alt="{{ $team->name }} logo" loading="lazy"
+                            <?php if($teamLogo): ?>
+                            <img src="<?php echo e($teamLogo); ?>" alt="<?php echo e($team->name); ?> logo" loading="lazy"
                                 class="mb-2 h-16 w-16 object-contain drop-shadow-lg">
-                            @else
+                            <?php else: ?>
                             <div
                                 class="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/10 text-2xl font-black text-white shadow-lg">
-                                {{ Str::upper(Str::substr($playerName, 0, 2)) }}
+                                <?php echo e(Str::upper(Str::substr($playerName, 0, 2))); ?>
+
                             </div>
-                            @endif
+                            <?php endif; ?>
 
                             <p class="mt-2 max-w-full text-[10px] font-bold uppercase tracking-wider text-white/90">
-                                {{ $team->name }}
+                                <?php echo e($team->name); ?>
+
                             </p>
 
                             <p class="mt-1 text-[9px] font-semibold uppercase tracking-wider text-white/75">
                                 Photo unavailable
                             </p>
                         </div>
-                        @endif
+                        <?php endif; ?>
 
-                        {{-- Team abbreviation --}}
+                        
                         <div
                             class="absolute left-3 top-3 z-[4] rounded-md border border-white/25 bg-black/25 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
-                            {{ $team->short_name ?: Str::upper(Str::substr($team->name, 0, 3)) }}
+                            <?php echo e($team->short_name ?: Str::upper(Str::substr($team->name, 0, 3))); ?>
+
                         </div>
 
-                        {{-- "View performance" hint on hover --}}
+                        
                         <div
                             class="absolute right-3 top-3 z-[4] flex items-center gap-1 rounded-md border border-white/25 bg-black/25 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
                             View stats →
                         </div>
 
-                        {{-- Full role badge: stays inside portrait --}}
+                        
                         <div class="absolute inset-x-2 bottom-2 z-[5] flex justify-center">
                             <span
-                                class="{{ $roleBadge }} max-w-full rounded-full border border-white/80 px-2.5 py-1.5 text-center text-[8px] font-extrabold uppercase leading-tight tracking-wide text-white shadow-lg sm:px-3 sm:text-[9px]">
-                                {{ $playerRole !== '' ? $playerRole : 'Player' }}
+                                class="<?php echo e($roleBadge); ?> max-w-full rounded-full border border-white/80 px-2.5 py-1.5 text-center text-[8px] font-extrabold uppercase leading-tight tracking-wide text-white shadow-lg sm:px-3 sm:text-[9px]">
+                                <?php echo e($playerRole !== '' ? $playerRole : 'Player'); ?>
+
                             </span>
                         </div>
 
                     </div>
 
-                    {{-- Player details --}}
+                    
                     <div class="relative px-2 pb-4 pt-4 text-center sm:px-3">
 
                         <h3 class="break-words text-sm font-black leading-5 text-[#172554] transition-colors group-hover:text-[#F06445] sm:text-base">
-                            {{ $playerName }}
+                            <?php echo e($playerName); ?>
+
                         </h3>
 
                         <div class="mt-2 flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
@@ -293,7 +301,8 @@ $teamLogo = !empty($team->logo)
                             </svg>
 
                             <span class="truncate">
-                                {{ $player->nationality ?: 'Nationality not listed' }}
+                                <?php echo e($player->nationality ?: 'Nationality not listed'); ?>
+
                             </span>
                         </div>
 
@@ -302,16 +311,17 @@ $teamLogo = !empty($team->logo)
                         </div>
 
                         <p class="mt-3 break-words text-[9px] font-bold uppercase tracking-[0.13em] text-slate-400">
-                            {{ $team->short_name ?: $team->name }}
+                            <?php echo e($team->short_name ?: $team->name); ?>
+
                         </p>
                     </div>
 
                 </a>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
             </div>
 
-            @else
+            <?php else: ?>
             <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
                 <div
                     class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -325,17 +335,17 @@ $teamLogo = !empty($team->logo)
                 <h3 class="mt-4 font-bold text-slate-900">No players listed yet</h3>
 
                 <p class="mt-2 text-sm text-slate-500">
-                    Players registered for {{ $team->name }} will appear here.
+                    Players registered for <?php echo e($team->name); ?> will appear here.
                 </p>
             </div>
-            @endif
+            <?php endif; ?>
 
         </section>
 
-        {{-- Match details and team performance --}}
+        
         <section id="team-match-details" class="mt-12">
 
-            {{-- Section heading --}}
+            
             <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <p class="text-xs font-extrabold uppercase tracking-[0.2em] text-[#F06445]">
@@ -348,19 +358,19 @@ $teamLogo = !empty($team->logo)
 
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                         Upcoming fixtures, recent results and the latest recorded performance of
-                        {{ $team->name }} in the Nepal Premier League.
+                        <?php echo e($team->name); ?> in the Nepal Premier League.
                     </p>
                 </div>
 
-                <a href="{{ route('fixtures.index') }}"
+                <a href="<?php echo e(route('fixtures.index')); ?>"
                     class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#202766] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#171D50]">
                     All fixtures
                     <span aria-hidden="true">→</span>
                 </a>
             </div>
 
-            {{-- Performance summary --}}
-            @php
+            
+            <?php
             $verifiedResults = $completedFixtures->filter(
             fn ($match) => (bool) ($match->is_result_verified ?? false)
             );
@@ -428,7 +438,7 @@ $teamLogo = !empty($team->logo)
                 $winRate = $teamResultCount > 0
                 ? round(($teamWins / $teamResultCount) * 100)
                 : 0;
-                @endphp
+                ?>
 
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 
@@ -443,7 +453,8 @@ $teamLogo = !empty($team->logo)
                             </span>
                         </div>
                         <p class="mt-4 text-3xl font-black text-[#202766]">
-                            {{ $upcomingFixtures->count() }}
+                            <?php echo e($upcomingFixtures->count()); ?>
+
                         </p>
                         <p class="mt-1 text-xs text-slate-500">Scheduled matches</p>
                     </div>
@@ -459,7 +470,8 @@ $teamLogo = !empty($team->logo)
                             </span>
                         </div>
                         <p class="mt-4 text-3xl font-black text-emerald-700">
-                            {{ $teamWins }}
+                            <?php echo e($teamWins); ?>
+
                         </p>
                         <p class="mt-1 text-xs text-slate-500">Based on recorded scores</p>
                     </div>
@@ -475,7 +487,8 @@ $teamLogo = !empty($team->logo)
                             </span>
                         </div>
                         <p class="mt-4 text-3xl font-black text-rose-700">
-                            {{ $teamLosses }}
+                            <?php echo e($teamLosses); ?>
+
                         </p>
                         <p class="mt-1 text-xs text-slate-500">Based on recorded scores</p>
                     </div>
@@ -491,16 +504,18 @@ $teamLogo = !empty($team->logo)
                             </span>
                         </div>
                         <p class="mt-4 text-3xl font-black text-[#202766]">
-                            {{ $teamResultCount > 0 ? $winRate . '%' : '—' }}
+                            <?php echo e($teamResultCount > 0 ? $winRate . '%' : '—'); ?>
+
                         </p>
                         <p class="mt-1 text-xs text-slate-500">
-                            {{ $teamResultCount }} verified result{{ $teamResultCount === 1 ? '' : 's' }}
+                            <?php echo e($teamResultCount); ?> verified result<?php echo e($teamResultCount === 1 ? '' : 's'); ?>
+
                         </p>
                     </div>
 
                 </div>
 
-                {{-- Upcoming fixtures --}}
+                
                 <div class="mt-10">
 
                     <div class="mb-5 flex items-center justify-between gap-3">
@@ -514,21 +529,21 @@ $teamLogo = !empty($team->logo)
                         </div>
 
                         <span class="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-extrabold text-blue-700">
-                            {{ $upcomingFixtures->count() }} scheduled
+                            <?php echo e($upcomingFixtures->count()); ?> scheduled
                         </span>
                     </div>
 
-                    @if ($upcomingFixtures->isNotEmpty())
+                    <?php if($upcomingFixtures->isNotEmpty()): ?>
 
                     <div class="grid gap-4 lg:grid-cols-2">
 
-                        @foreach ($upcomingFixtures as $match)
-                        @php
+                        <?php $__currentLoopData = $upcomingFixtures; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $match): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                         $homeTeam = $match->homeTeam;
                         $awayTeam = $match->awayTeam;
                         $isHomeTeam = (int) ($match->home_team_id ?? 0) === (int) $team->id;
                         $isAwayTeam = (int) ($match->away_team_id ?? 0) === (int) $team->id;
-                        @endphp
+                        ?>
 
                         <article
                             class="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#202766]/30 hover:shadow-lg">
@@ -537,10 +552,12 @@ $teamLogo = !empty($team->logo)
                                 class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
                                 <div>
                                     <p class="text-xs font-extrabold uppercase tracking-wide text-[#202766]">
-                                        {{ $match->season?->name ?? 'Nepal Premier League' }}
+                                        <?php echo e($match->season?->name ?? 'Nepal Premier League'); ?>
+
                                     </p>
                                     <p class="mt-1 text-xs text-slate-500">
-                                        Match {{ $match->match_number ?? '—' }}
+                                        Match <?php echo e($match->match_number ?? '—'); ?>
+
                                     </p>
                                 </div>
 
@@ -554,34 +571,37 @@ $teamLogo = !empty($team->logo)
 
                                 <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
 
-                                    {{-- Home team --}}
+                                    
                                     <div class="min-w-0 text-center">
                                         <div
                                             class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 p-2 sm:h-20 sm:w-20">
-                                            @if ($homeTeam?->logo)
-                                            <img src="{{ asset('storage/' . $homeTeam->logo) }}"
-                                                alt="{{ $homeTeam->name }}" loading="lazy"
+                                            <?php if($homeTeam?->logo): ?>
+                                            <img src="<?php echo e(asset('storage/' . $homeTeam->logo)); ?>"
+                                                alt="<?php echo e($homeTeam->name); ?>" loading="lazy"
                                                 class="h-full w-full object-contain">
-                                            @else
+                                            <?php else: ?>
                                             <span class="text-lg font-black text-[#202766]">
-                                                {{ Str::upper(Str::substr($homeTeam?->short_name ?: $homeTeam?->name ?: 'HT', 0, 3)) }}
+                                                <?php echo e(Str::upper(Str::substr($homeTeam?->short_name ?: $homeTeam?->name ?: 'HT', 0, 3))); ?>
+
                                             </span>
-                                            @endif
+                                            <?php endif; ?>
                                         </div>
 
                                         <p class="mt-3 break-words text-sm font-extrabold text-slate-900">
-                                            {{ $homeTeam?->name ?? 'Home team' }}
+                                            <?php echo e($homeTeam?->name ?? 'Home team'); ?>
+
                                         </p>
 
-                                        @if ($isHomeTeam)
+                                        <?php if($isHomeTeam): ?>
                                         <span
                                             class="mt-2 inline-block rounded-full bg-[#202766] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-white">
-                                            {{ $team->short_name ?: 'Your team' }}
+                                            <?php echo e($team->short_name ?: 'Your team'); ?>
+
                                         </span>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
 
-                                    {{-- VS --}}
+                                    
                                     <div class="text-center">
                                         <span
                                             class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-black tracking-wider text-slate-400">
@@ -589,31 +609,34 @@ $teamLogo = !empty($team->logo)
                                         </span>
                                     </div>
 
-                                    {{-- Away team --}}
+                                    
                                     <div class="min-w-0 text-center">
                                         <div
                                             class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 p-2 sm:h-20 sm:w-20">
-                                            @if ($awayTeam?->logo)
-                                            <img src="{{ asset('storage/' . $awayTeam->logo) }}"
-                                                alt="{{ $awayTeam->name }}" loading="lazy"
+                                            <?php if($awayTeam?->logo): ?>
+                                            <img src="<?php echo e(asset('storage/' . $awayTeam->logo)); ?>"
+                                                alt="<?php echo e($awayTeam->name); ?>" loading="lazy"
                                                 class="h-full w-full object-contain">
-                                            @else
+                                            <?php else: ?>
                                             <span class="text-lg font-black text-[#202766]">
-                                                {{ Str::upper(Str::substr($awayTeam?->short_name ?: $awayTeam?->name ?: 'AT', 0, 3)) }}
+                                                <?php echo e(Str::upper(Str::substr($awayTeam?->short_name ?: $awayTeam?->name ?: 'AT', 0, 3))); ?>
+
                                             </span>
-                                            @endif
+                                            <?php endif; ?>
                                         </div>
 
                                         <p class="mt-3 break-words text-sm font-extrabold text-slate-900">
-                                            {{ $awayTeam?->name ?? 'Away team' }}
+                                            <?php echo e($awayTeam?->name ?? 'Away team'); ?>
+
                                         </p>
 
-                                        @if ($isAwayTeam)
+                                        <?php if($isAwayTeam): ?>
                                         <span
                                             class="mt-2 inline-block rounded-full bg-[#202766] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-white">
-                                            {{ $team->short_name ?: 'Your team' }}
+                                            <?php echo e($team->short_name ?: 'Your team'); ?>
+
                                         </span>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
 
                                 </div>
@@ -625,10 +648,12 @@ $teamLogo = !empty($team->logo)
                                             Date & time
                                         </p>
                                         <p class="mt-1.5 text-sm font-bold text-slate-800">
-                                            {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('D, d M Y') ?? 'Date TBA' }}
+                                            <?php echo e($match->scheduled_at?->timezone(config('app.timezone'))->format('D, d M Y') ?? 'Date TBA'); ?>
+
                                         </p>
                                         <p class="mt-1 text-xs text-slate-500">
-                                            {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('h:i A') ?? 'Time TBA' }}
+                                            <?php echo e($match->scheduled_at?->timezone(config('app.timezone'))->format('h:i A') ?? 'Time TBA'); ?>
+
                                         </p>
                                     </div>
 
@@ -637,13 +662,14 @@ $teamLogo = !empty($team->logo)
                                             Venue
                                         </p>
                                         <p class="mt-1.5 text-sm font-bold text-slate-800">
-                                            {{ $match->venue ?: 'Venue to be announced' }}
+                                            <?php echo e($match->venue ?: 'Venue to be announced'); ?>
+
                                         </p>
                                     </div>
 
                                 </div>
 
-                                <a href="{{ route('fixtures.show', $match) }}"
+                                <a href="<?php echo e(route('fixtures.show', $match)); ?>"
                                     class="mt-4 flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-[#202766] transition hover:border-[#202766] hover:bg-[#202766] hover:text-white">
                                     View match details
                                     <span aria-hidden="true">→</span>
@@ -651,11 +677,11 @@ $teamLogo = !empty($team->logo)
 
                             </div>
                         </article>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                     </div>
 
-                    @else
+                    <?php else: ?>
                     <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
                         <div
                             class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-500">
@@ -667,16 +693,16 @@ $teamLogo = !empty($team->logo)
                         <p class="mt-2 text-sm text-slate-500">
                             No scheduled matches are currently available for this team.
                         </p>
-                        <a href="{{ route('fixtures.index') }}"
+                        <a href="<?php echo e(route('fixtures.index')); ?>"
                             class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#202766] hover:text-[#F06445]">
                             Browse all fixtures →
                         </a>
                     </div>
-                    @endif
+                    <?php endif; ?>
 
                 </div>
 
-                {{-- Recent results --}}
+                
                 <div class="mt-12">
 
                     <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -691,16 +717,16 @@ $teamLogo = !empty($team->logo)
 
                         <span
                             class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
-                            {{ $completedFixtures->count() }} completed
+                            <?php echo e($completedFixtures->count()); ?> completed
                         </span>
                     </div>
 
-                    @if ($completedFixtures->isNotEmpty())
+                    <?php if($completedFixtures->isNotEmpty()): ?>
 
                     <div class="space-y-4">
 
-                        @foreach ($completedFixtures as $match)
-                        @php
+                        <?php $__currentLoopData = $completedFixtures; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $match): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                         $resultIsVerified = (bool) ($match->is_result_verified ?? false);
 
                         $isHomeTeam = (int) ($match->home_team_id ?? 0) === (int) $team->id;
@@ -727,61 +753,68 @@ $teamLogo = !empty($team->logo)
                         } elseif ((int) $teamRuns < (int) $opponentRuns) { $resultLabel='Defeat' ;
                             $resultClass='border-rose-200 bg-rose-50 text-rose-800' ; } else {
                             $resultLabel='Scores level' ; $resultClass='border-slate-200 bg-slate-100 text-slate-700' ;
-                            } } @endphp <article
+                            } } ?> <article
                             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
 
                             <div
                                 class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
                                 <div>
                                     <p class="text-xs font-extrabold uppercase tracking-wide text-[#202766]">
-                                        {{ $match->season?->name ?? 'Nepal Premier League' }}
+                                        <?php echo e($match->season?->name ?? 'Nepal Premier League'); ?>
+
                                     </p>
                                     <p class="mt-1 text-xs text-slate-500">
-                                        Match {{ $match->match_number ?? '—' }}
+                                        Match <?php echo e($match->match_number ?? '—'); ?>
+
                                         ·
-                                        {{ $match->scheduled_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'Date not available' }}
+                                        <?php echo e($match->scheduled_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'Date not available'); ?>
+
                                     </p>
                                 </div>
 
                                 <span
-                                    class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide {{ $resultClass }}">
+                                    class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide <?php echo e($resultClass); ?>">
                                     <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-                                    {{ $resultLabel }}
+                                    <?php echo e($resultLabel); ?>
+
                                 </span>
                             </div>
 
                             <div class="grid gap-5 p-5 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
 
-                                {{-- Home score --}}
+                                
                                 <div
-                                    class="flex items-center gap-3 {{ $isHomeTeam ? 'rounded-xl bg-blue-50/70 p-3' : '' }}">
+                                    class="flex items-center gap-3 <?php echo e($isHomeTeam ? 'rounded-xl bg-blue-50/70 p-3' : ''); ?>">
                                     <div
                                         class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 p-1.5">
-                                        @if ($match->homeTeam?->logo)
-                                        <img src="{{ asset('storage/' . $match->homeTeam->logo) }}"
-                                            alt="{{ $match->homeTeam->name }}" loading="lazy"
+                                        <?php if($match->homeTeam?->logo): ?>
+                                        <img src="<?php echo e(asset('storage/' . $match->homeTeam->logo)); ?>"
+                                            alt="<?php echo e($match->homeTeam->name); ?>" loading="lazy"
                                             class="h-full w-full object-contain">
-                                        @else
+                                        <?php else: ?>
                                         <span class="text-xs font-black text-[#202766]">
-                                            {{ Str::upper(Str::substr($match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'HT', 0, 3)) }}
+                                            <?php echo e(Str::upper(Str::substr($match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'HT', 0, 3))); ?>
+
                                         </span>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
 
                                     <div class="min-w-0 flex-1">
                                         <p class="break-words text-sm font-extrabold text-slate-800">
-                                            {{ $match->homeTeam?->name ?? 'Home team' }}
+                                            <?php echo e($match->homeTeam?->name ?? 'Home team'); ?>
+
                                         </p>
 
-                                        @if ($resultIsVerified)
+                                        <?php if($resultIsVerified): ?>
                                         <p class="mt-1 text-xl font-black tabular-nums text-[#202766]">
-                                            {{ $match->home_runs ?? 0 }}/{{ $match->home_wickets ?? 0 }}
+                                            <?php echo e($match->home_runs ?? 0); ?>/<?php echo e($match->home_wickets ?? 0); ?>
+
                                         </p>
-                                        @else
+                                        <?php else: ?>
                                         <p class="mt-1 text-xs text-slate-400">
                                             Score not verified
                                         </p>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
@@ -791,60 +824,64 @@ $teamLogo = !empty($team->logo)
                                     </span>
                                 </div>
 
-                                {{-- Away score --}}
+                                
                                 <div
-                                    class="flex items-center gap-3 {{ $isAwayTeam ? 'rounded-xl bg-blue-50/70 p-3' : '' }}">
+                                    class="flex items-center gap-3 <?php echo e($isAwayTeam ? 'rounded-xl bg-blue-50/70 p-3' : ''); ?>">
                                     <div
                                         class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 p-1.5">
-                                        @if ($match->awayTeam?->logo)
-                                        <img src="{{ asset('storage/' . $match->awayTeam->logo) }}"
-                                            alt="{{ $match->awayTeam->name }}" loading="lazy"
+                                        <?php if($match->awayTeam?->logo): ?>
+                                        <img src="<?php echo e(asset('storage/' . $match->awayTeam->logo)); ?>"
+                                            alt="<?php echo e($match->awayTeam->name); ?>" loading="lazy"
                                             class="h-full w-full object-contain">
-                                        @else
+                                        <?php else: ?>
                                         <span class="text-xs font-black text-[#202766]">
-                                            {{ Str::upper(Str::substr($match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'AT', 0, 3)) }}
+                                            <?php echo e(Str::upper(Str::substr($match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'AT', 0, 3))); ?>
+
                                         </span>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
 
                                     <div class="min-w-0 flex-1">
                                         <p class="break-words text-sm font-extrabold text-slate-800">
-                                            {{ $match->awayTeam?->name ?? 'Away team' }}
+                                            <?php echo e($match->awayTeam?->name ?? 'Away team'); ?>
+
                                         </p>
 
-                                        @if ($resultIsVerified)
+                                        <?php if($resultIsVerified): ?>
                                         <p class="mt-1 text-xl font-black tabular-nums text-[#202766]">
-                                            {{ $match->away_runs ?? 0 }}/{{ $match->away_wickets ?? 0 }}
+                                            <?php echo e($match->away_runs ?? 0); ?>/<?php echo e($match->away_wickets ?? 0); ?>
+
                                         </p>
-                                        @else
+                                        <?php else: ?>
                                         <p class="mt-1 text-xs text-slate-400">
                                             Score not verified
                                         </p>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
                             </div>
 
-                            {{-- Match outcome summary --}}
+                            
                             <div class="border-t border-slate-100 bg-slate-50/70 px-5 py-4">
 
-                                @if ($resultIsVerified && $match->result_summary)
+                                <?php if($resultIsVerified && $match->result_summary): ?>
                                 <p class="text-sm font-bold leading-6 text-emerald-800">
-                                    {{ $match->result_summary }}
+                                    <?php echo e($match->result_summary); ?>
+
                                 </p>
-                                @elseif ($resultIsVerified)
+                                <?php elseif($resultIsVerified): ?>
                                 <p class="text-sm font-semibold text-slate-700">
                                     Official result has been confirmed.
                                 </p>
-                                @else
+                                <?php else: ?>
                                 <p class="text-sm leading-6 text-amber-800">
                                     The recorded result is awaiting verification. The scores above are not presented as
                                     an official result.
                                 </p>
-                                @endif
+                                <?php endif; ?>
 
-                                <a href="{{ route('fixtures.show', $match) }}"
+                                <a href="<?php echo e(route('fixtures.show', $match)); ?>"
                                     class="mt-3 inline-flex items-center gap-2 text-sm font-extrabold text-[#202766] hover:text-[#F06445]">
                                     View full match details
                                     <span aria-hidden="true">→</span>
@@ -853,11 +890,11 @@ $teamLogo = !empty($team->logo)
                             </div>
 
                             </article>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                     </div>
 
-                    @else
+                    <?php else: ?>
                     <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
                         <div
                             class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-500">
@@ -870,11 +907,11 @@ $teamLogo = !empty($team->logo)
                             Completed match results will appear here when available.
                         </p>
                     </div>
-                    @endif
+                    <?php endif; ?>
 
                 </div>
 
-                {{-- Performance information --}}
+                
                 <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
                     <div class="flex items-start gap-3">
                         <span
@@ -889,7 +926,7 @@ $teamLogo = !empty($team->logo)
 
                             <p class="mt-2 text-sm leading-6 text-slate-500">
                                 Win and loss figures are calculated from verified completed fixtures
-                                involving {{ $team->name }}. Unverified results are excluded.
+                                involving <?php echo e($team->name); ?>. Unverified results are excluded.
                                 A win rate is shown only when at least one verified result with
                                 a recorded score is available.
                             </p>
@@ -900,9 +937,9 @@ $teamLogo = !empty($team->logo)
         </section>
 
 
-        {{-- Back to teams --}}
+        
         <div class="mt-9 border-t border-slate-200 pt-6">
-            <a href="{{ route('teams.index') }}"
+            <a href="<?php echo e(route('teams.index')); ?>"
                 class="inline-flex items-center gap-2 rounded-lg bg-[#202766] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#171D50]">
                 ← All teams
             </a>
@@ -911,4 +948,5 @@ $teamLogo = !empty($team->logo)
     </div>
 </div>
 
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH /opt/lampp/htdocs/npl-season-hub/resources/views/teams/show.blade.php ENDPATH**/ ?>

@@ -1,0 +1,8 @@
+@php
+    $code = '403';
+    $label = 'Outside the boundary';
+    $title = "You can't enter this area.";
+    $message = "This part of the ground is restricted. You may not have permission to access this page. Head back to the homepage or explore the public matches.";
+    $emoji = '🛡️';
+@endphp
+@include('errors.cricket')

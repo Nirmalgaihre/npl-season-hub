@@ -70,7 +70,10 @@ class PointTableController extends Controller
                 'exists:seasons,id',
             ],
 
-            'adjustments' => ['nullable', 'array'],
+            'adjustments' => [
+                'nullable',
+                'array',
+            ],
 
             'adjustments.*.team_id' => [
                 'required',
@@ -82,6 +85,13 @@ class PointTableController extends Controller
                 'required',
                 'integer',
                 'min:0',
+                'max:100',
+            ],
+
+            'adjustments.*.manual_points' => [
+                'required',
+                'integer',
+                'min:-100',
                 'max:100',
             ],
 
@@ -118,9 +128,16 @@ class PointTableController extends Controller
         ));
 
         foreach ($adjustments as $adjustment) {
-            if (!in_array((int) $adjustment['team_id'], $validTeamIds, true)) {
+            if (
+                !in_array(
+                    (int) $adjustment['team_id'],
+                    $validTeamIds,
+                    true
+                )
+            ) {
                 throw ValidationException::withMessages([
-                    'adjustments' => 'A selected team does not belong to this season.',
+                    'adjustments' =>
+                        'A selected team does not belong to this season.',
                 ]);
             }
         }
@@ -134,15 +151,24 @@ class PointTableController extends Controller
                     ],
                     [
                         'penalty_points' => (int) $adjustment['penalty_points'],
-                        'notes' => trim((string) ($adjustment['notes'] ?? ''))
-                            ?: null,
+
+                        'manual_points' => (int) $adjustment['manual_points'],
+
+                        'notes' => trim(
+                            (string) ($adjustment['notes'] ?? '')
+                        ) ?: null,
                     ]
                 );
             }
         });
 
         return redirect()
-            ->route('admin.pointtable.index', ['season' => $seasonId])
-            ->with('success', 'Point-table penalty adjustments saved successfully.');
+            ->route('admin.pointtable.index', [
+                'season' => $seasonId,
+            ])
+            ->with(
+                'success',
+                'Point-table adjustments saved successfully.'
+            );
     }
 }

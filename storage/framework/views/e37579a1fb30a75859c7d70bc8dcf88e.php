@@ -76,8 +76,11 @@
 
                         <tr>
                             <td class="px-3 py-3 font-bold text-gray-900">
-                                <?php echo e($batterName); ?>
-
+                                <a
+                                    href="<?php echo e(route('players.performance', ['playerName' => $batterName])); ?>"
+                                    class="transition hover:text-rose-600 hover:underline underline-offset-4"
+                                    title="View <?php echo e($batterName); ?>'s player profile"
+                                ><?php echo e($batterName); ?></a>
                             </td>
                             <td class="px-3 py-3 text-xs text-gray-500">
                                 <?php echo e($dismissalText ?: 'not out'); ?>
@@ -186,8 +189,11 @@
 
                         <tr>
                             <td class="px-3 py-3 font-bold text-gray-900">
-                                <?php echo e($bowlerName); ?>
-
+                                <a
+                                    href="<?php echo e(route('players.performance', ['playerName' => $bowlerName])); ?>"
+                                    class="transition hover:text-rose-600 hover:underline underline-offset-4"
+                                    title="View <?php echo e($bowlerName); ?>'s player profile"
+                                ><?php echo e($bowlerName); ?></a>
                             </td>
                             <td class="px-3 py-3 text-right text-gray-600">
                                 <?php echo e($bowlerOvers); ?>

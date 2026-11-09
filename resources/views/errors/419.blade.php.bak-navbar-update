@@ -1,0 +1,8 @@
+@php
+    $code = '419';
+    $label = 'Timeout';
+    $title = 'That innings has timed out.';
+    $message = "Your session may have expired while you were away. Return to the homepage, refresh your session, and try your action again.";
+    $emoji = '⏱️';
+@endphp
+@include('errors.cricket')

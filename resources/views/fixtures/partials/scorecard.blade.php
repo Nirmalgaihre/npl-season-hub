@@ -76,7 +76,11 @@
 
                         <tr>
                             <td class="px-3 py-3 font-bold text-gray-900">
-                                {{ $batterName }}
+                                <a
+                                    href="{{ route('players.performance', ['playerName' => $batterName]) }}"
+                                    class="transition hover:text-rose-600 hover:underline underline-offset-4"
+                                    title="View {{ $batterName }}'s player profile"
+                                >{{ $batterName }}</a>
                             </td>
                             <td class="px-3 py-3 text-xs text-gray-500">
                                 {{ $dismissalText ?: 'not out' }}
@@ -177,7 +181,11 @@
 
                         <tr>
                             <td class="px-3 py-3 font-bold text-gray-900">
-                                {{ $bowlerName }}
+                                <a
+                                    href="{{ route('players.performance', ['playerName' => $bowlerName]) }}"
+                                    class="transition hover:text-rose-600 hover:underline underline-offset-4"
+                                    title="View {{ $bowlerName }}'s player profile"
+                                >{{ $bowlerName }}</a>
                             </td>
                             <td class="px-3 py-3 text-right text-gray-600">
                                 {{ $bowlerOvers }}

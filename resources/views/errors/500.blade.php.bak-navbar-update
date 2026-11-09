@@ -1,0 +1,8 @@
+@php
+    $code = '500';
+    $label = 'Technical timeout';
+    $title = 'A little trouble in the pavilion.';
+    $message = "Something unexpected happened on our side. Your request couldn't be completed right now. Please try again in a moment.";
+    $emoji = '🔧';
+@endphp
+@include('errors.cricket')

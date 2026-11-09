@@ -11,6 +11,7 @@ class PointTableAdjustment extends Model
         'season_id',
         'team_id',
         'penalty_points',
+        'manual_points',
         'notes',
     ];
 
@@ -20,6 +21,7 @@ class PointTableAdjustment extends Model
             'season_id' => 'integer',
             'team_id' => 'integer',
             'penalty_points' => 'integer',
+            'manual_points' => 'integer',
         ];
     }
 

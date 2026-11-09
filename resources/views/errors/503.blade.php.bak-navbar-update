@@ -1,0 +1,8 @@
+@php
+    $code = '503';
+    $label = 'Ground maintenance';
+    $title = 'We're preparing the pitch.';
+    $message = "NPL Season Hub is temporarily unavailable. Our digital ground crew is getting things ready. Please come back shortly.";
+    $emoji = '🚧';
+@endphp
+@include('errors.cricket')

@@ -1,0 +1,8 @@
+@php
+    $code = '404';
+    $label = 'Wrong delivery';
+    $title = 'Looks like that page is out!';
+    $message = "We couldn't find the page you were looking for. It may have moved, the link may be incorrect, or that delivery has gone past the boundary.";
+    $emoji = '🏟️';
+@endphp
+@include('errors.cricket')

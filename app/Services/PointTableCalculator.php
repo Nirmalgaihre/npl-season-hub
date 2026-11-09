@@ -55,9 +55,11 @@ class PointTableCalculator
         $noResultPoints = max(1, min(4, $noResultPoints));
 
         $standings = $teams->map(function (Team $team) use ($adjustments) {
-            $penalty = (int) (
-                $adjustments->get($team->id)?->penalty_points ?? 0
-            );
+            $adjustment = $adjustments->get($team->id);
+
+            $penalty = (int) ($adjustment?->penalty_points ?? 0);
+
+            $manualPoints = (int) ($adjustment?->manual_points ?? 0);
 
             return [
                 'team' => $team,
@@ -70,6 +72,7 @@ class PointTableCalculator
                 'nr' => 0,
                 'basePts' => 0,
                 'penalty' => $penalty,
+                'manual_points' => $manualPoints,
                 'pts' => 0,
 
                 // Public table keys
@@ -147,8 +150,8 @@ class PointTableCalculator
                 $home = $standings->get($homeId);
                 $away = $standings->get($awayId);
 
-                $this->recordTie($home, $noResultPoints);
-                $this->recordTie($away, $noResultPoints);
+                $this->recordNoResult($home, $noResultPoints);
+                $this->recordNoResult($away, $noResultPoints);
 
                 $standings->put($homeId, $home);
                 $standings->put($awayId, $away);
@@ -197,6 +200,7 @@ class PointTableCalculator
                  */
                 $standings->put($homeId, $home);
                 $standings->put($awayId, $away);
+
                 continue;
             }
 
@@ -227,8 +231,13 @@ class PointTableCalculator
         }
 
         $standings = $standings->map(function ($row) {
-            $row['pts'] = $row['basePts'] - $row['penalty'];
+            // Final points = match points + manual points - penalty.
+            $row['pts'] = $row['basePts']
+                + $row['manual_points']
+                - $row['penalty'];
+
             $row['points'] = $row['pts'];
+            $row['penalty_points'] = $row['penalty'];
 
             $row['nrr_available'] = $row['balls_faced'] > 0
                 && $row['balls_bowled'] > 0;
@@ -243,7 +252,7 @@ class PointTableCalculator
             return $row;
         })->sort(function ($a, $b) {
             return ($b['pts'] <=> $a['pts'])
-                ?: (($b['w'] <=> $a['w']))
+                ?: ($b['w'] <=> $a['w'])
                 ?: (($b['nrr'] ?? -INF) <=> ($a['nrr'] ?? -INF))
                 ?: strcasecmp($a['team']->name, $b['team']->name);
         })->values();
@@ -284,6 +293,15 @@ class PointTableCalculator
         $row['played']++;
         $row['t']++;
         $row['tied']++;
+        $row['basePts'] += $points;
+    }
+
+    private function recordNoResult(array &$row, int $points): void
+    {
+        $row['gp']++;
+        $row['played']++;
+        $row['nr']++;
+        $row['no_result']++;
         $row['basePts'] += $points;
     }
 
