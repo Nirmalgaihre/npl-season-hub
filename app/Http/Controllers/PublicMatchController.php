@@ -66,37 +66,41 @@ class PublicMatchController extends Controller
             404
         );
 
-        if (! $fixture->is_result_verified) {
-            $fixture->setAttribute('home_runs', null);
-            $fixture->setAttribute('home_wickets', null);
-            $fixture->setAttribute('home_overs', null);
-            $fixture->setAttribute('away_runs', null);
-            $fixture->setAttribute('away_wickets', null);
-            $fixture->setAttribute('away_overs', null);
-            $fixture->setAttribute('winner_team_id', null);
-            $fixture->setAttribute('result_summary', null);
-            $fixture->setRelation('winner', null);
+        $innings = collect();
+
+        // Always create innings from the fixture score columns when the match is completed
+        if ($fixture->status === 'completed' && $fixture->is_result_verified) {
+
+            if ($fixture->home_runs !== null) {
+                $home = new \stdClass();
+                $home->id              = 1;
+                $home->innings_number  = 1;
+                $home->batting_team_id = (int) $fixture->home_team_id;
+                $home->total_runs      = (int) $fixture->home_runs;
+                $home->wickets         = (int) ($fixture->home_wickets ?? 0);
+                $home->overs_display   = (string) ($fixture->home_overs ?? '0.0');
+                $home->legal_balls     = 0;
+                $home->batters         = [];
+                $home->bowlers         = [];
+                $home->extras          = 0;
+                $innings->push($home);
+            }
+
+            if ($fixture->away_runs !== null) {
+                $away = new \stdClass();
+                $away->id              = 2;
+                $away->innings_number  = 2;
+                $away->batting_team_id = (int) $fixture->away_team_id;
+                $away->total_runs      = (int) $fixture->away_runs;
+                $away->wickets         = (int) ($fixture->away_wickets ?? 0);
+                $away->overs_display   = (string) ($fixture->away_overs ?? '0.0');
+                $away->legal_balls     = 0;
+                $away->batters         = [];
+                $away->bowlers         = [];
+                $away->extras          = 0;
+                $innings->push($away);
+            }
         }
-
-        $rows = DB::table('manual_scorecards')
-            ->where('fixture_id', $fixture->id)
-            ->orderBy('innings_number')
-            ->get();
-
-        $innings = $rows->map(function ($row) {
-            $obj = new \stdClass();
-            $obj->id              = $row->id;
-            $obj->innings_number  = $row->innings_number ?? 1;
-            $obj->batting_team_id = $row->batting_team_id ?? null;
-            $obj->total_runs      = (int) ($row->total_runs ?? $row->runs ?? 0);
-            $obj->wickets         = (int) ($row->wickets ?? 0);
-            $obj->overs_display   = (string) ($row->overs ?? '0.0');
-            $obj->legal_balls     = 0;
-            $obj->batters         = [];
-            $obj->bowlers         = [];
-            $obj->extras          = $row->extras ?? 0;
-            return $obj;
-        });
 
         return view('fixtures.show', [
             'fixture'       => $fixture,
@@ -109,7 +113,6 @@ class PublicMatchController extends Controller
     public function playerPerformance(string $playerName): View
     {
         $playerName = trim(urldecode($playerName));
-
         abort_if($playerName === '', 404);
 
         $normaliseName = static function ($value): string {
@@ -161,9 +164,7 @@ class PublicMatchController extends Controller
             $bowlerRow = null;
 
             foreach ($batters as $batter) {
-                if (! is_array($batter)) {
-                    continue;
-                }
+                if (! is_array($batter)) continue;
                 if ($normaliseName($getPlayerName($batter)) === $targetName) {
                     $batterRow = $batter;
                     break;
@@ -171,23 +172,17 @@ class PublicMatchController extends Controller
             }
 
             foreach ($bowlers as $bowler) {
-                if (! is_array($bowler)) {
-                    continue;
-                }
+                if (! is_array($bowler)) continue;
                 if ($normaliseName($getPlayerName($bowler)) === $targetName) {
                     $bowlerRow = $bowler;
                     break;
                 }
             }
 
-            if (! $batterRow && ! $bowlerRow) {
-                continue;
-            }
+            if (! $batterRow && ! $bowlerRow) continue;
 
             $fixture = $scorecard->fixture;
-            if (! $fixture) {
-                continue;
-            }
+            if (! $fixture) continue;
 
             $battingTeam = $scorecard->battingTeam;
             $bowlingTeam = $scorecard->bowlingTeam;
@@ -206,36 +201,24 @@ class PublicMatchController extends Controller
             }
 
             $performances->push([
-                'scorecard'     => $scorecard,
-                'fixture'       => $fixture,
-                'batting_team'  => $battingTeam,
-                'bowling_team'  => $bowlingTeam,
-                'batter'        => $batterRow,
-                'bowler'        => $bowlerRow,
+                'scorecard'    => $scorecard,
+                'fixture'      => $fixture,
+                'batting_team' => $battingTeam,
+                'bowling_team' => $bowlingTeam,
+                'batter'       => $batterRow,
+                'bowler'       => $bowlerRow,
             ]);
         }
 
         $battingStats = [
-            'innings'       => 0,
-            'runs'          => 0,
-            'balls'         => 0,
-            'fours'         => 0,
-            'sixes'         => 0,
-            'not_outs'      => 0,
-            'dismissals'    => 0,
-            'highest_score' => 0,
-            'average'       => null,
-            'strike_rate'   => 0,
+            'innings' => 0, 'runs' => 0, 'balls' => 0, 'fours' => 0, 'sixes' => 0,
+            'not_outs' => 0, 'dismissals' => 0, 'highest_score' => 0,
+            'average' => null, 'strike_rate' => 0,
         ];
 
         $bowlingStats = [
-            'innings'     => 0,
-            'legal_balls' => 0,
-            'overs'       => '0.0',
-            'maidens'     => 0,
-            'runs'        => 0,
-            'wickets'     => 0,
-            'economy'     => 0,
+            'innings' => 0, 'legal_balls' => 0, 'overs' => '0.0',
+            'maidens' => 0, 'runs' => 0, 'wickets' => 0, 'economy' => 0,
         ];
 
         foreach ($performances as $performance) {
@@ -247,12 +230,8 @@ class PublicMatchController extends Controller
                 $balls = (int) ($batter['balls'] ?? 0);
                 $fours = (int) ($batter['fours'] ?? 0);
                 $sixes = (int) ($batter['sixes'] ?? 0);
-
                 $dismissal = (string) ($batter['dismissal'] ?? '');
-                $isNotOut = (bool) (
-                    $batter['is_not_out']
-                    ?? str_contains(mb_strtolower($dismissal), 'not out')
-                );
+                $isNotOut = (bool) ($batter['is_not_out'] ?? str_contains(mb_strtolower($dismissal), 'not out'));
 
                 $battingStats['innings']++;
                 $battingStats['runs'] += $runs;
@@ -298,10 +277,10 @@ class PublicMatchController extends Controller
             : 0;
 
         return view('fixtures.player-performance', [
-            'playerName'    => $playerName,
-            'performances'  => $performances,
-            'battingStats'  => $battingStats,
-            'bowlingStats'  => $bowlingStats,
+            'playerName'   => $playerName,
+            'performances' => $performances,
+            'battingStats' => $battingStats,
+            'bowlingStats' => $bowlingStats,
         ]);
     }
 }
