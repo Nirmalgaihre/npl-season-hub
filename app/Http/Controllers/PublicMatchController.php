@@ -59,57 +59,38 @@ class PublicMatchController extends Controller
 
     public function show(Fixture $fixture): View
     {
-        $fixture->load(['season', 'homeTeam', 'awayTeam', 'winner']);
+        $fixture->load([
+            'season',
+            'homeTeam',
+            'awayTeam',
+            'winner',
+        ]);
 
         abort_unless(
-            $fixture->season && in_array($fixture->season->status, ['upcoming', 'active', 'completed'], true),
+            $fixture->season
+                && in_array(
+                    $fixture->season->status,
+                    ['upcoming', 'active', 'completed'],
+                    true
+                ),
             404
         );
 
-        $innings = collect();
+        $innings = \App\Models\ManualScorecard::query()
+            ->with(['battingTeam', 'bowlingTeam'])
+            ->where('fixture_id', $fixture->id)
+            ->orderBy('innings_number')
+            ->get();
 
-        // Always create innings from the fixture score columns when the match is completed
-        if ($fixture->status === 'completed' && $fixture->is_result_verified) {
-
-            if ($fixture->home_runs !== null) {
-                $home = new \stdClass();
-                $home->id              = 1;
-                $home->innings_number  = 1;
-                $home->batting_team_id = (int) $fixture->home_team_id;
-                $home->total_runs      = (int) $fixture->home_runs;
-                $home->wickets         = (int) ($fixture->home_wickets ?? 0);
-                $home->overs_display   = (string) ($fixture->home_overs ?? '0.0');
-                $home->legal_balls     = 0;
-                $home->batters         = [];
-                $home->bowlers         = [];
-                $home->extras          = 0;
-                $innings->push($home);
-            }
-
-            if ($fixture->away_runs !== null) {
-                $away = new \stdClass();
-                $away->id              = 2;
-                $away->innings_number  = 2;
-                $away->batting_team_id = (int) $fixture->away_team_id;
-                $away->total_runs      = (int) $fixture->away_runs;
-                $away->wickets         = (int) ($fixture->away_wickets ?? 0);
-                $away->overs_display   = (string) ($fixture->away_overs ?? '0.0');
-                $away->legal_balls     = 0;
-                $away->batters         = [];
-                $away->bowlers         = [];
-                $away->extras          = 0;
-                $innings->push($away);
-            }
-        }
+        $scorecards = $innings->keyBy('id');
 
         return view('fixtures.show', [
             'fixture'       => $fixture,
             'innings'       => $innings,
             'currentInning' => null,
-            'scorecards'    => collect(),
+            'scorecards'    => $scorecards,
         ]);
     }
-
     public function playerPerformance(string $playerName): View
     {
         $playerName = trim(urldecode($playerName));
