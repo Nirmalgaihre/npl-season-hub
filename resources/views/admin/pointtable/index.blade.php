@@ -212,10 +212,10 @@
                                         type="number"
                                         min="-100"
                                         max="100"
-                                        step="1"
+                                        step="any"
                                         required
                                         name="adjustments[{{ $loop->index }}][manual_points]"
-                                        value="{{ old('adjustments.' . $loop->index . '.manual_points', $adj?->manual_points ?? 0) }}"
+                                        value="{{ number_format((float) old('adjustments.' . $loop->index . '.manual_points', $adj?->manual_points ?? 0), 3, '.', '') }}"
                                         class="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                                     >
                                 </div>
@@ -237,7 +237,7 @@
                                         step="1"
                                         required
                                         name="adjustments[{{ $loop->index }}][penalty_points]"
-                                        value="{{ old('adjustments.' . $loop->index . '.penalty_points', $adj?->penalty_points ?? 0) }}"
+                                        value="{{ (int) old('adjustments.' . $loop->index . '.penalty_points', $adj?->penalty_points ?? 0) }}"
                                         class="w-full rounded-lg border border-rose-200 bg-rose-50 px-2 py-2 text-sm font-bold tabular-nums focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-100"
                                     >
                                 </div>

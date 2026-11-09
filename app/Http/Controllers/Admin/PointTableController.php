@@ -90,7 +90,8 @@ class PointTableController extends Controller
 
             'adjustments.*.manual_points' => [
                 'required',
-                'integer',
+                'numeric',
+                'decimal:0,3',
                 'min:-100',
                 'max:100',
             ],
@@ -152,7 +153,7 @@ class PointTableController extends Controller
                     [
                         'penalty_points' => (int) $adjustment['penalty_points'],
 
-                        'manual_points' => (int) $adjustment['manual_points'],
+                        'manual_points' => $adjustment['manual_points'],
 
                         'notes' => trim(
                             (string) ($adjustment['notes'] ?? '')

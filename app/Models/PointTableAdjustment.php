@@ -21,7 +21,7 @@ class PointTableAdjustment extends Model
             'season_id' => 'integer',
             'team_id' => 'integer',
             'penalty_points' => 'integer',
-            'manual_points' => 'integer',
+            'manual_points' => 'decimal:3',
         ];
     }
 

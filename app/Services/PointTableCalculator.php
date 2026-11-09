@@ -59,7 +59,7 @@ class PointTableCalculator
 
             $penalty = (int) ($adjustment?->penalty_points ?? 0);
 
-            $manualPoints = (int) ($adjustment?->manual_points ?? 0);
+            $manualPoints = (float) ($adjustment?->manual_points ?? 0);
 
             return [
                 'team' => $team,
@@ -232,9 +232,12 @@ class PointTableCalculator
 
         $standings = $standings->map(function ($row) {
             // Final points = match points + manual points - penalty.
-            $row['pts'] = $row['basePts']
-                + $row['manual_points']
-                - $row['penalty'];
+            $row['pts'] = round(
+                (float) $row['basePts']
+                + (float) $row['manual_points']
+                - (float) $row['penalty'],
+                3
+            );
 
             $row['points'] = $row['pts'];
             $row['penalty_points'] = $row['penalty'];

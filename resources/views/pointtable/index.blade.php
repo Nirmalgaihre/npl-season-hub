@@ -835,7 +835,7 @@ $fixtureTotal = isset($fixtureCount)
                         ?? $row['pts']
                         ?? 0;
 
-                        $manualPoints = (int) (
+                        $manualPoints = (float) (
                         $row['manual_points'] ?? 0
                         );
 
@@ -904,17 +904,19 @@ $fixtureTotal = isset($fixtureCount)
 
                                 <td class="npl-points-column">
                                     <span class="npl-points-total">
-                                        {{ $points }}
+                                        {{ is_numeric($points) && abs((float) $points - round((float) $points)) > 0.0000001
+                                            ? number_format((float) $points, 3, '.', '')
+                                            : (int) $points }}
                                     </span>
 
-                                    @if ($manualPoints !== 0 || $penaltyPoints > 0)
+                                    @if (abs($manualPoints) > 0.0000001 || $penaltyPoints > 0)
                                     <div class="npl-adjustments">
                                         @if ($manualPoints > 0)
                                         <span class="npl-adjustment npl-manual-positive">
-                                            +{{ $manualPoints }} manual
+                                            +{{ number_format($manualPoints, 3, '.', '') }} manual
                                         </span>
                                         @elseif ($manualPoints < 0) <span class="npl-adjustment npl-manual-negative">
-                                            {{ $manualPoints }} manual
+                                            −{{ number_format(abs($manualPoints), 3, '.', '') }} manual
                                             </span>
                                             @endif
 
