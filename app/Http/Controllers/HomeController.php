@@ -6,6 +6,7 @@ use App\Models\Article;
 use App\Models\Fixture;
 use App\Models\ManualScorecard;
 use App\Models\Season;
+use App\Models\Sponsor;
 use App\Models\Team;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
@@ -193,6 +194,21 @@ class HomeController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Sponsors for the selected season
+        |--------------------------------------------------------------------------
+        */
+
+        $sponsors = $season
+            ? Sponsor::query()
+                ->where('season_id', $season->id)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        /*
+        |--------------------------------------------------------------------------
         | Homepage
         |--------------------------------------------------------------------------
         */
@@ -204,7 +220,8 @@ class HomeController extends Controller
             'nextMatch',
             'recentResults',
             'teams',
-            'latestNews'
+            'latestNews',
+            'sponsors'
         ));
     }
 }

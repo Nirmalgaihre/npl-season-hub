@@ -30,6 +30,11 @@ class Season extends Model
     {
         return $query->whereIn('status', ['active', 'completed']);
     }
+    public function sponsors(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Sponsor::class);
+    }
+
     public function teams(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
 {
     return $this->belongsToMany(\App\Models\Team::class)

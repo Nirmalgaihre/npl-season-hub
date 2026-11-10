@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\PlayerController;
 use App\Http\Controllers\Admin\PointTableController;
 use App\Http\Controllers\Admin\ScorecardController;
 use App\Http\Controllers\Admin\SeasonController;
+use App\Http\Controllers\Admin\SponsorController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Auth\LoginController;
@@ -201,6 +202,22 @@ Route::middleware(['auth', 'can:manage-seasons'])
         */
 
         Route::resource('seasons', SeasonController::class);
+
+        // Sponsors and Partners Management
+        Route::get('/sponsors', [SponsorController::class, 'index'])
+            ->name('sponsors.index');
+
+        Route::post('/sponsors', [SponsorController::class, 'store'])
+            ->name('sponsors.store');
+
+        Route::put('/sponsors/{sponsor}', [SponsorController::class, 'update'])
+            ->whereNumber('sponsor')
+            ->name('sponsors.update');
+
+        Route::delete('/sponsors/{sponsor}', [SponsorController::class, 'destroy'])
+            ->whereNumber('sponsor')
+            ->name('sponsors.destroy');
+
 
         /*
         |--------------------------------------------------------------------------

@@ -599,57 +599,682 @@ $newsUrl = fn ($a) => $a && Route::has('news.show') ? route('news.show', $a) : '
     font-family: 'Inter', sans-serif;
 }
 
-/* SPONSOR STRIP */
+
+/* PREMIUM SPONSORS AND OFFICIAL PARTNERS */
+
+/* =========================================================
+   NPL OFFICIAL SPONSORS — CLEAN, PROFESSIONAL DESIGN
+   ========================================================= */
+
 .npl-sponsor-strip {
-    background: #fff;
-    border-bottom: 1px solid var(--npl-border);
+    background: #101b2d;
+    color: #fff;
+    border-top: 3px solid #d51f35;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 18px 0;
 }
 
 .npl-sponsor-inner {
     display: flex;
     align-items: center;
-    gap: 30px;
-    padding: 18px 0;
+    justify-content: space-between;
+    gap: 28px;
+    flex-wrap: wrap;
 }
 
 .npl-sponsor-label {
-    flex-shrink: 0;
-    color: var(--npl-muted);
-    font-size: 10px;
+    flex: 0 0 auto;
+    min-width: 150px;
+    color: #fff;
+    font-size: 12px;
     font-weight: 800;
-    letter-spacing: 2px;
+    line-height: 1.6;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
 }
 
 .npl-sponsor-logos {
     display: flex;
-    flex-wrap: wrap;
+    flex: 1 1 420px;
     align-items: center;
-    gap: 18px 34px;
-    flex: 1;
+    justify-content: flex-end;
+    gap: 28px;
+    flex-wrap: wrap;
+}
+
+.npl-sponsor-logos > a,
+.npl-sponsor-logos > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 90px;
+    min-height: 44px;
+    padding: 5px 10px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    transition: border-color .2s ease;
+}
+
+.npl-sponsor-logos > a:hover {
+    border-color: #d51f35;
 }
 
 .npl-sponsor-logos img {
-    max-height: 30px;
+    display: block;
+    max-width: 135px;
+    max-height: 43px;
     width: auto;
-    opacity: .75;
-    filter: grayscale(1);
-    transition: all .2s ease;
+    height: auto;
+    object-fit: contain;
 }
 
-.npl-sponsor-logos img:hover {
-    opacity: 1;
-    filter: grayscale(0);
+/* Main official partners section */
+.npl-partners-section {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding: clamp(44px, 6vw, 76px) 0;
+    background: #f5f6f8;
+    color: #172033;
 }
 
-.npl-sponsor-logos span {
-    color: #b9c0ca;
-    font-size: 12px;
+.npl-partners-section::before {
+    content: none !important;
+}
+
+.npl-partners-section .npl-container {
+    position: relative;
+    z-index: 1;
+}
+
+.npl-partners-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 34px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #dce1e8;
+}
+
+.npl-partners-intro-main {
+    max-width: 720px;
+}
+
+.npl-partners-intro .npl-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 12px;
+    color: #c51d32;
+    font-size: 11px;
     font-weight: 800;
-    letter-spacing: 2px;
+    letter-spacing: 1.8px;
+    line-height: 1.5;
     text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
+}
+
+.npl-partners-intro .npl-eyebrow::before {
+    content: "";
+    display: inline-block;
+    width: 22px;
+    height: 2px;
+    background: #c51d32;
+}
+
+.npl-partners-intro h2 {
+    margin: 0;
+    color: #142035;
+    font-size: clamp(27px, 3.2vw, 42px);
+    font-weight: 800;
+    letter-spacing: -1.1px;
+    line-height: 1.15;
+}
+
+.npl-partners-intro h2 span {
+    color: #c51d32;
+}
+
+.npl-partners-intro p {
+    max-width: 570px;
+    margin: 13px 0 0;
+    color: #596579;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.npl-partners-season {
+    flex: 0 0 auto;
+    color: #354156;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+/* Consistent, restrained sponsor cards */
+.npl-partners-section [class*="sponsor"],
+.npl-partners-section [class*="partner"] {
+    box-shadow: none;
+}
+
+.npl-partners-section a {
+    text-decoration: none;
+}
+
+.npl-partners-section img {
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.npl-partners-section [class*="grid"] {
+    gap: 16px;
+}
+
+.npl-partners-section [class*="card"],
+.npl-partners-section [class*="logo"] {
+    transition: border-color .18s ease, background-color .18s ease;
+}
+
+.npl-partners-section [class*="card"] {
+    border-radius: 4px;
+}
+
+.npl-partners-section [class*="card"]:hover {
+    transform: none;
+}
+
+/* Tablet and mobile */
+@media (max-width: 768px) {
+    .npl-sponsor-strip {
+        padding: 15px 0;
+    }
+
+    .npl-sponsor-inner {
+        align-items: flex-start;
+        gap: 14px;
+    }
+
+    .npl-sponsor-label {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .npl-sponsor-logos {
+        justify-content: flex-start;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .npl-sponsor-logos > a,
+    .npl-sponsor-logos > span {
+        min-width: 78px;
+        min-height: 42px;
+        padding: 5px 8px;
+    }
+
+    .npl-sponsor-logos img {
+        max-width: 105px;
+        max-height: 36px;
+    }
+
+    .npl-partners-section {
+        padding: 42px 0;
+    }
+
+    .npl-partners-intro {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 14px;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+    }
+
+    .npl-partners-intro h2 {
+        font-size: clamp(26px, 7vw, 34px);
+        letter-spacing: -.6px;
+    }
+
+    .npl-partners-intro p {
+        font-size: 13px;
+        line-height: 1.75;
+    }
+
+    .npl-partners-season {
+        font-size: 10px;
+    }
+
+    .npl-partners-section [class*="grid"] {
+        gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .npl-sponsor-strip *,
+    .npl-partners-section * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+
+/* PROFESSIONAL SEASON PARTNERS */
+.npl-partner-strip {
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.npl-partner-strip-inner {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    min-height: 92px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.npl-partner-strip-label {
+    flex: 0 0 auto;
+    max-width: 145px;
+    color: #172b4d;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    line-height: 1.6;
+}
+
+.npl-partner-strip-logos {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 26px;
+    min-width: 0;
+}
+
+.npl-partner-strip-logos a,
+.npl-partner-strip-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.npl-partner-strip-logos img {
+    display: block;
+    width: auto;
+    max-width: 130px;
+    height: 48px;
+    object-fit: contain;
+    filter: grayscale(100%);
+    opacity: .78;
+    transition: opacity .18s ease, filter .18s ease;
+}
+
+.npl-partner-strip-logos a:hover img {
+    filter: none;
+    opacity: 1;
+}
+
+.npl-partner-strip-name {
+    color: #26354a;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.npl-partners-section {
+    padding: 62px 0 54px;
+    background: #f5f7fa;
+    color: #172b4d;
+}
+
+.npl-partners-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 34px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #dce2e9;
+}
+
+.npl-partners-eyebrow,
+.npl-partner-type {
+    display: inline-block;
+    color: #a51f35;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+.npl-partners-heading h2 {
+    margin: 8px 0 8px;
+    color: #142541;
+    font-size: clamp(26px, 3vw, 36px);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -.7px;
+}
+
+.npl-partners-heading p {
+    margin: 0;
+    color: #68758a;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.npl-partners-count {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    border: 1px solid #d8dfe8;
+    background: #fff;
+    color: #526177;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .8px;
+}
+
+.npl-partner-section-label {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin: 0 0 18px;
+}
+
+.npl-partner-section-label > span {
+    display: block;
+    width: 4px;
+    height: 22px;
+    background: #b3233b;
+}
+
+.npl-partner-section-label h3 {
+    margin: 0;
+    color: #172b4d;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -.2px;
+}
+
+.npl-title-partner-block {
+    margin-bottom: 38px;
+}
+
+.npl-title-partner-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+}
+
+.npl-title-partner-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 32%);
+    align-items: center;
+    gap: 30px;
+    min-height: 190px;
+    padding: 30px 34px;
+    border: 1px solid #dce2e9;
+    border-top: 3px solid #b3233b;
+    background: #fff;
+}
+
+.npl-title-partner-copy h4 {
+    margin: 10px 0;
+    color: #142541;
+    font-size: clamp(23px, 3vw, 32px);
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.npl-title-partner-copy h4 a,
+.npl-partner-card-details h4 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.npl-title-partner-copy h4 a:hover,
+.npl-partner-card-details h4 a:hover {
+    color: #a51f35;
+}
+
+.npl-title-partner-copy p {
+    max-width: 650px;
+    margin: 0;
+    color: #68758a;
+    font-size: 14px;
+    line-height: 1.75;
+}
+
+.npl-title-partner-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 115px;
+    padding: 16px;
+    border-left: 1px solid #e7ebf0;
+}
+
+.npl-title-partner-logo img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    max-height: 100px;
+    object-fit: contain;
+}
+
+.npl-partner-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    border: 1px solid #d9e0e9;
+    background: #f5f7fa;
+    color: #263a59;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.npl-partner-group {
+    margin-top: 34px;
+}
+
+.npl-partner-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.npl-partner-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 17px;
+    min-width: 0;
+    min-height: 145px;
+    padding: 22px;
+    border: 1px solid #dce2e9;
+    background: #fff;
+    transition: border-color .18s ease;
+}
+
+.npl-partner-card:hover {
+    border-color: #aab7c8;
+}
+
+.npl-partner-card-logo {
+    display: flex;
+    flex: 0 0 88px;
+    align-items: center;
+    justify-content: center;
+    width: 88px;
+    height: 78px;
+    padding: 8px;
+    border: 1px solid #edf0f4;
+    background: #fff;
+}
+
+.npl-partner-card-logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.npl-partner-card-logo .npl-partner-initials {
+    width: 44px;
+    height: 44px;
+}
+
+.npl-partner-card-details {
+    min-width: 0;
+}
+
+.npl-partner-card-details h4 {
+    margin: 1px 0 8px;
+    color: #172b4d;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.npl-partner-card-details p {
+    margin: 0 0 10px;
+    color: #68758a;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.npl-partner-visit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #a51f35;
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.npl-partner-visit:hover {
+    color: #172b4d;
+}
+
+.npl-partner-empty {
+    padding: 34px 24px;
+    border: 1px solid #dce2e9;
+    background: #fff;
+    text-align: center;
+}
+
+.npl-partner-empty strong {
+    color: #172b4d;
+    font-size: 15px;
+}
+
+.npl-partner-empty p {
+    margin: 8px 0 0;
+    color: #68758a;
+    font-size: 13px;
+}
+
+.npl-partner-note {
+    margin: 30px 0 0;
+    padding-top: 17px;
+    border-top: 1px solid #dce2e9;
+    color: #7b8798;
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+@media (max-width: 1000px) {
+    .npl-partner-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .npl-partner-strip-inner {
+        gap: 20px;
+    }
+
+    .npl-partner-strip-logos {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 640px) {
+    .npl-partner-strip-inner {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 14px;
+        padding-top: 17px;
+        padding-bottom: 17px;
+    }
+
+    .npl-partner-strip-logos {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+        gap: 18px 12px;
+    }
+
+    .npl-partner-strip-logos img {
+        max-width: 100%;
+        height: 38px;
+    }
+
+    .npl-partners-section {
+        padding: 38px 0;
+    }
+
+    .npl-partners-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 26px;
+        padding-bottom: 20px;
+    }
+
+    .npl-partners-heading h2 {
+        font-size: 27px;
+    }
+
+    .npl-title-partner-card {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding: 22px;
+    }
+
+    .npl-title-partner-logo {
+        justify-content: flex-start;
+        min-height: 75px;
+        padding: 15px 0 0;
+        border-top: 1px solid #e7ebf0;
+        border-left: 0;
+    }
+
+    .npl-title-partner-logo img {
+        max-height: 75px;
+    }
+
+    .npl-partner-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .npl-partner-card {
+        min-height: 0;
+        padding: 16px;
+        gap: 14px;
+    }
+
+    .npl-partner-card-logo {
+        flex-basis: 74px;
+        width: 74px;
+        height: 68px;
+    }
 }
 
 /* TICKER */
@@ -1595,26 +2220,200 @@ $newsUrl = fn ($a) => $a && Route::has('news.show') ? route('news.show', $a) : '
         </div>
     </section>
 
-    {{-- SPONSOR STRIP --}}
-    <div class="npl-sponsor-strip">
-        <div class="npl-container npl-sponsor-inner">
-            <div class="npl-sponsor-label">Official Partners</div>
-            <div class="npl-sponsor-logos">
-                @forelse($sponsors as $sponsor)
-                <img src="{{ $imageUrl(data_get($sponsor, 'logo'), 'sponsors') }}"
-                    alt="{{ data_get($sponsor, 'name', 'Sponsor') }}" loading="lazy">
-                @empty
-                <span>Title Sponsor</span>
-                <span>Broadcast Partner</span>
-                <span>Official Kit</span>
-                <span>Hydration Partner</span>
-                <span>Travel Partner</span>
-                @endforelse
-            </div>
-        </div>
-    </div>
+    {{-- SEASON-WISE SPONSOR STRIP --}}
+    @if($sponsors->isNotEmpty())
+        <section class="npl-partner-strip" aria-label="Season partners">
+            <div class="npl-container npl-partner-strip-inner">
+                <span class="npl-partner-strip-label">SEASON PARTNERS</span>
 
-    {{-- TICKER --}}
+                <div class="npl-partner-strip-logos">
+                    @foreach($sponsors->take(8) as $sponsor)
+                        @if($sponsor->logo_path)
+                            @if($sponsor->website_url)
+                                <a href="{{ $sponsor->website_url }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   aria-label="{{ $sponsor->name }}">
+                                    <img src="{{ $imageUrl($sponsor->logo_path, 'sponsors') }}"
+                                         alt="{{ $sponsor->name }}"
+                                         loading="lazy">
+                                </a>
+                            @else
+                                <span class="npl-partner-strip-logo">
+                                    <img src="{{ $imageUrl($sponsor->logo_path, 'sponsors') }}"
+                                         alt="{{ $sponsor->name }}"
+                                         loading="lazy">
+                                </span>
+                            @endif
+                        @else
+                            <span class="npl-partner-strip-name">
+                                {{ $sponsor->name }}
+                            </span>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif
+
+    {{-- SEASON PARTNERS --}}
+    <section class="npl-partners-section" id="official-partners">
+        <div class="npl-container">
+
+            <div class="npl-partners-heading">
+                <div>
+                    <span class="npl-partners-eyebrow">OUR COMMERCIAL PARTNERS</span>
+                    <h2>Partners &amp; Sponsors</h2>
+                    <p>Organisations supporting this season, as configured in the season records.</p>
+                </div>
+                <span class="npl-partners-count">
+                    {{ $sponsors->count() }} {{ $sponsors->count() === 1 ? 'PARTNER' : 'PARTNERS' }}
+                </span>
+            </div>
+
+            @php
+                $titleSponsors = $sponsors->filter(function ($sponsor) {
+                    return strtolower(trim((string) $sponsor->category)) === 'title sponsor';
+                });
+
+                $partnerGroups = $sponsors
+                    ->reject(function ($sponsor) {
+                        return strtolower(trim((string) $sponsor->category)) === 'title sponsor';
+                    })
+                    ->groupBy(function ($sponsor) {
+                        return trim((string) ($sponsor->category ?: 'Official Partner')) ?: 'Official Partner';
+                    });
+            @endphp
+
+            @if($titleSponsors->isNotEmpty())
+                <div class="npl-title-partner-block">
+                    <div class="npl-partner-section-label">
+                        <span></span>
+                        <h3>Title Partner</h3>
+                    </div>
+
+                    <div class="npl-title-partner-grid">
+                        @foreach($titleSponsors as $titleSponsor)
+                            <article class="npl-title-partner-card">
+                                <div class="npl-title-partner-copy">
+                                    <span class="npl-partner-type">TITLE SPONSOR</span>
+
+                                    <h4>
+                                        @if($titleSponsor->website_url)
+                                            <a href="{{ $titleSponsor->website_url }}"
+                                               target="_blank"
+                                               rel="noopener noreferrer">
+                                                {{ $titleSponsor->name }}
+                                            </a>
+                                        @else
+                                            {{ $titleSponsor->name }}
+                                        @endif
+                                    </h4>
+
+                                    @if($titleSponsor->description)
+                                        <p>{{ $titleSponsor->description }}</p>
+                                    @endif
+                                </div>
+
+                                <div class="npl-title-partner-logo">
+                                    @if($titleSponsor->logo_path)
+                                        @if($titleSponsor->website_url)
+                                            <a href="{{ $titleSponsor->website_url }}"
+                                               target="_blank"
+                                               rel="noopener noreferrer"
+                                               aria-label="Visit {{ $titleSponsor->name }}">
+                                                <img src="{{ $imageUrl($titleSponsor->logo_path, 'sponsors') }}"
+                                                     alt="{{ $titleSponsor->name }}"
+                                                     loading="lazy">
+                                            </a>
+                                        @else
+                                            <img src="{{ $imageUrl($titleSponsor->logo_path, 'sponsors') }}"
+                                                 alt="{{ $titleSponsor->name }}"
+                                                 loading="lazy">
+                                        @endif
+                                    @else
+                                        <span class="npl-partner-initials">
+                                            {{ strtoupper(substr($titleSponsor->name, 0, 2)) }}
+                                        </span>
+                                    @endif
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @foreach($partnerGroups as $category => $partners)
+                <div class="npl-partner-group">
+                    <div class="npl-partner-section-label">
+                        <span></span>
+                        <h3>{{ $category }}</h3>
+                    </div>
+
+                    <div class="npl-partner-grid">
+                        @foreach($partners as $partner)
+                            <article class="npl-partner-card">
+                                <div class="npl-partner-card-logo">
+                                    @if($partner->logo_path)
+                                        <img src="{{ $imageUrl($partner->logo_path, 'sponsors') }}"
+                                             alt="{{ $partner->name }}"
+                                             loading="lazy">
+                                    @else
+                                        <span class="npl-partner-initials">
+                                            {{ strtoupper(substr($partner->name, 0, 2)) }}
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="npl-partner-card-details">
+                                    <h4>
+                                        @if($partner->website_url)
+                                            <a href="{{ $partner->website_url }}"
+                                               target="_blank"
+                                               rel="noopener noreferrer">
+                                                {{ $partner->name }}
+                                            </a>
+                                        @else
+                                            {{ $partner->name }}
+                                        @endif
+                                    </h4>
+
+                                    @if($partner->description)
+                                        <p>{{ $partner->description }}</p>
+                                    @endif
+
+                                    @if($partner->website_url)
+                                        <a class="npl-partner-visit"
+                                           href="{{ $partner->website_url }}"
+                                           target="_blank"
+                                           rel="noopener noreferrer">
+                                            Visit website <span aria-hidden="true">↗</span>
+                                        </a>
+                                    @endif
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+
+            @if($sponsors->isEmpty())
+                <div class="npl-partner-empty">
+                    <strong>No partners have been configured for this season.</strong>
+                    <p>Season partner listings will appear here when records are added through the admin panel.</p>
+                </div>
+            @endif
+
+            <p class="npl-partner-note">
+                Partner listings reflect the information configured for this season.
+                This independently operated fan website does not imply official
+                affiliation with any listed organisation.
+            </p>
+
+        </div>
+    </section>
+
+{{-- TICKER --}}
     @if($liveMatches->isNotEmpty() || $upcomingMatches->isNotEmpty())
     <section class="npl-ticker">
         <div class="npl-container npl-ticker-inner">
