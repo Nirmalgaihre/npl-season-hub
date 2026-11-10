@@ -2657,12 +2657,14 @@ $newsUrl = fn ($a) => $a && Route::has('news.show') ? route('news.show', $a) : '
                 <?php $__empty_1 = true; $__currentLoopData = $latestNews->take(3); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $article): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                 <?php
                 $articleImage = $imageUrl(
-                data_get($article, 'featured_image')
-                ?? data_get($article, 'thumbnail')
-                ?? data_get($article, 'image')
-                ?? data_get($article, 'image_path')
-                );
-                $articleTitle = data_get($article, 'title') ?? 'NPL News';
+    data_get($article, 'featured_image')
+    ?? data_get($article, 'thumbnail')
+    ?? data_get($article, 'image')
+    ?? data_get($article, 'image_path')
+);
+
+$articleImage = $articleImage
+    ?: 'https://blog.nirmalgaihre.com.np/images/npl.png';$articleTitle = data_get($article, 'title') ?? 'NPL News';
                 $articleExcerpt = data_get($article, 'excerpt')
                 ?? data_get($article, 'description')
                 ?? data_get($article, 'meta_description');
@@ -2671,12 +2673,13 @@ $newsUrl = fn ($a) => $a && Route::has('news.show') ? route('news.show', $a) : '
 
                 <article class="npl-news-card">
                     <a href="<?php echo e($newsUrl($article)); ?>" class="npl-news-image">
-                        <?php if($articleImage): ?>
-                        <img src="<?php echo e($articleImage); ?>" alt="<?php echo e($articleTitle); ?>" loading="lazy">
-                        <?php else: ?>
-                        <div class="npl-news-placeholder">NPL NEWS</div>
-                        <?php endif; ?>
-                    </a>
+    <img
+        src="<?php echo e($articleImage); ?>"
+        alt="<?php echo e($articleTitle); ?>"
+        loading="lazy"
+        onerror="this.onerror=null;this.src='https://blog.nirmalgaihre.com.np/images/npl.png';"
+    >
+</a>
                     <div class="npl-news-content">
                         <div class="npl-news-date">
                             <?php if($articleDate): ?>

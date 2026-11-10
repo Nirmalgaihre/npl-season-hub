@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-
     <title>@yield('title', 'Nepal Premier League') | Fan Site</title>
 
     <meta name="description"
@@ -18,14 +17,14 @@
     <meta property="og:title" content="@yield('title', 'Nepal Premier League')">
     <meta property="og:description" content="@yield('meta_description', 'The fan home of the Nepal Premier League.')">
     <meta property="og:url" content="@yield('canonical_url', url()->current())">
-    <meta property="og:image" content="@yield('og_image', asset('images/npl-og.jpg'))">
+    <meta property="og:image" content="@yield('og_image', asset('images/npl.png'))">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="@yield('title', 'Nepal Premier League')">
     <meta name="twitter:description" content="@yield('meta_description', 'The fan home of the Nepal Premier League.')">
 
     <link rel="canonical" href="@yield('canonical_url', url()->current())">
-    <link rel="icon" type="image/png" href="{{ asset('images/npl.png') }}">
+    <link rel="icon" type="image/png" href="https://blog.nirmalgaihre.com.np/images/logo.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
